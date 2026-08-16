@@ -335,6 +335,80 @@ export class AuthService {
     });
   }
 
+  /**
+   * Change the password of a signed-in user.
+   *
+   * Requires the current password even though the caller already holds a valid
+   * session: it is the only thing that distinguishes the account owner from
+   * somebody sitting at their unlocked laptop, and a stolen session must not be
+   * upgradeable into permanent account takeover.
+   */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    meta: RequestMeta & { keepSessionId?: string } = {},
+  ): Promise<void> {
+    const { rows } = await this.db.query<{ password_hash: string | null }>(
+      `SELECT password_hash FROM app_user WHERE id=$1 AND deleted_at IS NULL`,
+      [userId],
+    );
+    const current = rows[0];
+    if (!current?.password_hash || !(await verifyPassword(current.password_hash, currentPassword))) {
+      throw new DomainError('UNAUTHENTICATED', 'Текущий пароль указан неверно');
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+
+    await this.db.transaction(async (tx) => {
+      await tx.query(`UPDATE app_user SET password_hash=$2 WHERE id=$1`, [userId, passwordHash]);
+      // Every other session dies. If the password was changed because of a
+      // compromise, leaving the attacker signed in would defeat the point.
+      await tx.query(
+        `UPDATE user_session SET revoked_at=now(), revoked_reason='PASSWORD_CHANGED'
+          WHERE user_id=$1 AND revoked_at IS NULL
+            AND ($2::uuid IS NULL OR id <> $2::uuid)`,
+        [userId, meta.keepSessionId ?? null],
+      );
+      await writeAudit(tx, {
+        actorUserId: userId,
+        action: 'auth.password_changed',
+        targetType: 'user',
+        targetId: userId,
+        correlationId: meta.correlationId ?? null,
+        ipHash: hashIp(meta.ip),
+      });
+    });
+  }
+
+  /** Sessions the user can see and revoke. Tokens are never included. */
+  async listSessions(userId: string): Promise<Record<string, unknown>[]> {
+    const { rows } = await this.db.query<Record<string, any>>(
+      `SELECT id, user_agent, created_at, last_seen_at, expires_at
+         FROM user_session
+        WHERE user_id=$1 AND revoked_at IS NULL AND expires_at > now()
+        ORDER BY last_seen_at DESC`,
+      [userId],
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      userAgent: r.user_agent,
+      createdAt: r.created_at,
+      lastSeenAt: r.last_seen_at,
+      expiresAt: r.expires_at,
+    }));
+  }
+
+  /** "Sign out everywhere else" — keeps the caller's own session alive. */
+  async revokeOtherSessions(userId: string, keepSessionId: string): Promise<number> {
+    const { rowCount } = await this.db.query(
+      `UPDATE user_session SET revoked_at=now(), revoked_reason='USER_REVOKED_OTHERS'
+        WHERE user_id=$1 AND id <> $2 AND revoked_at IS NULL`,
+      [userId, keepSessionId],
+    );
+    return rowCount;
+  }
+
   async grantRole(userId: string, role: Role, grantedBy: string, reason: string): Promise<void> {
     if (!reason?.trim()) throw invalid('Укажите причину предоставления роли');
     await this.db.transaction(async (tx) => {
