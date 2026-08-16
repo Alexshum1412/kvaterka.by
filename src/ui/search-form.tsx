@@ -157,12 +157,18 @@ export function SearchForm({ compact = false }: { compact?: boolean }) {
       <style>{`
         .search-form {
           display: grid;
-          gap: 0.75rem;
-          padding: 1rem;
+          gap: var(--space-3);
+          padding: var(--space-4);
           background: var(--surface-raised);
-          border: 1px solid var(--border);
-          border-radius: var(--radius-lg);
-          box-shadow: var(--shadow-card);
+          border-radius: var(--radius-md);
+          /* Elevation, not a border. On the results page this is chrome and
+             must not compete with the listings below it. */
+          box-shadow: var(--shadow-subtle);
+        }
+        .search-form--compact {
+          box-shadow: none;
+          background: transparent;
+          padding: 0;
         }
         .search-form__actions { display: grid; gap: 0.375rem; }
         /* Mobile first: one column stack, full-width primary action. */
@@ -176,7 +182,7 @@ export function SearchForm({ compact = false }: { compact?: boolean }) {
             grid-auto-flow: column;
             align-items: end;
           }
-          .search-form--compact { padding: 0.75rem; }
+
         }
       `}</style>
     </form>

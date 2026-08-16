@@ -44,7 +44,7 @@ export default async function DashboardPage() {
   return (
     <div className="container" style={{ paddingBlock: '1.5rem' }}>
       <header className="stack" style={{ gap: '0.35rem', marginBottom: '1.5rem' }}>
-        <h1 style={{ fontSize: 'var(--text-2xl)' }}>{greeting(summary.displayName || user.displayName)}</h1>
+        <h1 className="title-lg">{greeting(summary.displayName || user.displayName)}</h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
           {stats.publishedListings === 0
             ? 'Разместите первое объявление — это бесплатно.'
@@ -156,11 +156,15 @@ export default async function DashboardPage() {
 
       <style>{`
         .section-heading { font-size: var(--text-lg); margin-bottom: 0.75rem; }
+        /* Plain figures on the page ground, not four bordered tiles. A
+           landlord workspace is not an analytics dashboard. */
         .stat-grid {
           display: grid;
-          gap: 0.75rem;
+          gap: var(--space-4) var(--space-5);
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
+        .dash-stat { padding-block: var(--space-2); }
+        .dash-stat:hover strong { color: var(--primary); }
         @media (min-width: 720px) { .stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
         .attention-list { gap: 0.5rem; list-style: none; padding: 0; margin: 0; }
         .listing-grid {
@@ -192,17 +196,19 @@ function Stat({
   return (
     <Link
       href={href}
-      className="card stack"
-      style={{
-        gap: '0.15rem',
-        padding: '0.875rem',
-        borderColor: emphasis ? 'var(--primary)' : undefined,
-      }}
+      className="dash-stat stack"
+      style={{ gap: '0.1rem' }}
     >
       <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>{label}</span>
       <strong
         className="numeric"
-        style={{ fontSize: 'var(--text-2xl)', color: emphasis ? 'var(--primary)' : undefined }}
+        style={{
+          fontSize: 'var(--text-3xl)',
+          fontWeight: 650,
+          letterSpacing: '-0.03em',
+          lineHeight: 1.1,
+          color: emphasis ? 'var(--primary)' : undefined,
+        }}
       >
         {value}
       </strong>

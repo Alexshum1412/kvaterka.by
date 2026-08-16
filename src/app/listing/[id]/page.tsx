@@ -93,7 +93,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       </nav>
 
       <header className="stack" style={{ gap: '0.5rem', marginBottom: '1rem' }}>
-        <h1 style={{ fontSize: 'var(--text-3xl)' }}>{listing.title}</h1>
+        <h1 className="title-lg" style={{ fontSize: 'var(--text-3xl)' }}>{listing.title}</h1>
         <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
           <Badge tone="neutral">{PROPERTY_TYPE_LABEL[listing.propertyType] ?? listing.propertyType}</Badge>
           <VerificationBadges
@@ -117,7 +117,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       <div className="listing-layout">
         <div className="stack" style={{ gap: '1.5rem' }}>
           {/* --- facts ------------------------------------------------ */}
-          <section className="panel">
+          <section className="section">
             <h2 className="section-title">Об объекте</h2>
             <dl className="facts">
               {[
@@ -152,7 +152,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             </dl>
 
             {listing.description && (
-              <p style={{ marginTop: '1rem', color: 'var(--text-secondary)', whiteSpace: 'pre-line' }}>
+              <p className="prose" style={{ marginTop: 'var(--space-4)', color: 'var(--text-secondary)', whiteSpace: 'pre-line' }}>
                 {listing.description}
               </p>
             )}
@@ -160,7 +160,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
 
           {/* --- amenities, with guest-confirmed evidence -------------- */}
           {amenityRows.rows.length > 0 && (
-            <section className="panel">
+            <section className="section">
               <h2 className="section-title">Удобства</h2>
               <ul className="amenities">
                 {amenityRows.rows.map((a) => {
@@ -182,7 +182,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           )}
 
           {/* --- house rules ------------------------------------------ */}
-          <section className="panel">
+          <section className="section">
             <h2 className="section-title">Правила</h2>
             <ul className="rules">
               <li>{POLICY_LABEL.smoking![String(rules.smoking)] ?? String(rules.smoking)}</li>
@@ -199,7 +199,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </section>
 
           {/* --- location --------------------------------------------- */}
-          <section className="panel">
+          <section className="section">
             <h2 className="section-title">Расположение</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', marginBottom: '0.75rem' }}>
               {listing.district ? `${listing.city}, ${listing.district}` : listing.city}. Показано примерное
@@ -223,7 +223,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </section>
 
           {/* --- landlord --------------------------------------------- */}
-          <section className="panel">
+          <section className="section">
             <h2 className="section-title">Хозяин</h2>
             <div className="row" style={{ gap: '1rem', flexWrap: 'wrap' }}>
               <div className="stack grow" style={{ gap: '0.35rem' }}>
@@ -244,7 +244,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           </section>
 
           {/* --- reviews ---------------------------------------------- */}
-          <section className="panel">
+          <section className="section">
             <h2 className="section-title">
               Отзывы {listing.reviewCount ? `(${listing.reviewCount})` : ''}
             </h2>
@@ -302,9 +302,18 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
       </div>
 
       <style>{`
-        .section-title { font-size: var(--text-lg); margin-bottom: 0.75rem; }
+                .section-title {
+          font-size: var(--text-xl);
+          font-weight: 650;
+          letter-spacing: -0.02em;
+          margin-bottom: var(--space-3);
+        }
+        /* Sections are separated by a hairline and space, not by four walls. */
+        .listing-layout .section { margin: 0; padding-block: var(--space-5); }
+        .listing-layout .section + .section { border-top: 1px solid var(--border); }
         .listing-layout { display: grid; gap: 1.5rem; margin-top: 1.5rem; }
         .listing-aside { min-width: 0; }
+        .listing-aside .panel { box-shadow: var(--shadow-raised); }
         @media (min-width: 960px) {
           .listing-layout { grid-template-columns: minmax(0, 1fr) 22rem; align-items: start; }
           .listing-aside { position: sticky; top: 4.75rem; }
@@ -354,11 +363,19 @@ function Gallery({ photos }: { photos: { id: string; storageKey: string }[] }) {
           border-radius: var(--radius-lg);
           overflow: hidden;
         }
+        /* Full-bleed out of the container on a phone: a photograph of a home
+           should not sit in a 16px gutter. */
+        @media (max-width: 640px) {
+          .gallery {
+            margin-inline: calc(var(--space-4) * -1);
+            border-radius: 0;
+          }
+        }
         .gallery img { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--surface-sunken); }
-        .gallery__main { aspect-ratio: 16 / 10; }
+        .gallery__main { aspect-ratio: 3 / 2; }
         .gallery__thumb { display: none; }
         @media (min-width: 760px) {
-          .gallery { grid-template-columns: 2fr 1fr 1fr; grid-template-rows: 1fr 1fr; height: 24rem; }
+          .gallery { grid-template-columns: 2fr 1fr 1fr; grid-template-rows: 1fr 1fr; height: 27rem; }
           .gallery__main { grid-row: span 2; height: 100%; aspect-ratio: auto; }
           .gallery__thumb { display: block; }
         }

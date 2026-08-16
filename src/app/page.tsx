@@ -1,91 +1,135 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { SearchForm } from '@/ui/search-form.tsx';
+import { ListingCard, type ListingCardData } from '@/ui/listing-card.tsx';
+import { CardSkeleton } from '@/ui/primitives.tsx';
+import { ready } from '@/server/runtime.ts';
+import { SearchService } from '@/server/services/search-service.ts';
 
 export const dynamic = 'force-dynamic';
+
+const CITIES = ['Минск', 'Гродно', 'Брест', 'Витебск', 'Гомель', 'Могилёв'];
 
 /**
  * Home.
  *
- * The job is to let someone start searching in the first screenful, and to
- * state the one promise the product is built on. No hero carousel, no
- * animated statistics — a person looking for a flat wants the search box.
+ * Redesign rationale (UI_UX_AUDIT §4): the previous homepage was a marketing
+ * landing page — a promise block, then a second promise block, then a landlord
+ * CTA, and no actual inventory anywhere. A marketplace has to show what it has.
+ * Search is dominant, real listings follow immediately, and the reasons to
+ * trust us sit *below* the evidence rather than in place of it.
  */
-export default function HomePage() {
+export default async function HomePage() {
+  let featured: ListingCardData[] = [];
+  try {
+    const service = new SearchService(await ready());
+    const result = await service.search({ sort: 'RELEVANCE', limit: 6 });
+    featured = result.items as unknown as ListingCardData[];
+  } catch {
+    // The homepage still works without inventory; the search box is the point.
+    featured = [];
+  }
+
   return (
     <>
       <section className="hero">
-        <div className="container stack" style={{ gap: '1.5rem', maxWidth: '900px' }}>
-          <div className="stack" style={{ gap: '0.75rem' }}>
-            <h1 style={{ fontSize: 'var(--text-4xl)' }}>Аренда без сюрпризов</h1>
-            <p style={{ fontSize: 'var(--text-lg)', color: 'var(--text-secondary)', maxWidth: '52ch' }}>
-              Квартиры на сутки, на месяц и на год. Честная итоговая цена, проверенные хозяева и
-              отзывы только от тех, кто действительно снимал.
+        <div className="container stack" style={{ gap: 'var(--space-5)' }}>
+          <div className="stack" style={{ gap: 'var(--space-3)', maxWidth: '46rem' }}>
+            <h1 className="display">Квартира на нужный вам срок</h1>
+            <p className="hero__sub prose">
+              На сутки, на месяц или на год. Итоговая цена видна до бронирования, а отзывы оставляют
+              только те, кто действительно снимал.
             </p>
           </div>
 
-          <Suspense fallback={<div className="skeleton" style={{ height: '9rem' }} />}>
+          <Suspense fallback={<div className="skeleton" style={{ height: '7rem' }} />}>
             <SearchForm />
           </Suspense>
 
-          <div className="scroll-x" style={{ paddingTop: '0.25rem' }}>
-            {['Минск', 'Гродно', 'Брест', 'Витебск', 'Гомель', 'Могилёв'].map((city) => (
+          <nav className="scroll-x" aria-label="Популярные города">
+            {CITIES.map((city) => (
               <Link key={city} href={`/search?city=${encodeURIComponent(city)}`} className="chip">
                 {city}
               </Link>
             ))}
-          </div>
+          </nav>
         </div>
       </section>
 
-      <section className="container" style={{ paddingBlock: '3rem' }}>
-        <div className="promise-grid">
+      <section className="container section" aria-labelledby="featured-heading">
+        <div className="row" style={{ justifyContent: 'space-between', gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
+          <h2 id="featured-heading" className="title-lg">
+            Недавно опубликованные
+          </h2>
+          <Link href="/search" className="btn btn-ghost btn-sm">
+            Все объявления →
+          </Link>
+        </div>
+
+        {featured.length > 0 ? (
+          <div className="home-grid">
+            {featured.map((listing) => (
+              <ListingCard key={listing.id} listing={listing} />
+            ))}
+          </div>
+        ) : (
+          <div className="home-grid" aria-hidden="true">
+            {Array.from({ length: 3 }, (_, i) => (
+              <CardSkeleton key={i} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="container section" aria-labelledby="trust-heading">
+        <h2 id="trust-heading" className="title-lg" style={{ marginBottom: 'var(--space-4)' }}>
+          Почему Кватэрка
+        </h2>
+        <div className="trust-grid">
           {[
             {
               title: 'Итоговая цена сразу',
               body:
-                'Аренда, уборка и обязательные платежи показаны одной суммой до бронирования. ' +
-                'То, что нельзя посчитать заранее — например, коммуналку по счётчику — помечено отдельно, ' +
-                'а не спрятано в мелком шрифте.',
+                'Аренда, уборка и обязательные платежи показаны одной суммой. То, что нельзя ' +
+                'посчитать заранее — коммуналку по счётчику — помечаем отдельно, а не прячем.',
             },
             {
               title: 'Понятно, с кем имеете дело',
               body:
-                'Подтверждение личности и проверка права сдавать объект — это две разные отметки, ' +
+                'Подтверждение личности и проверка права сдавать объект — разные отметки, ' +
                 'и мы их не смешиваем. Компании обозначены как компании.',
             },
             {
               title: 'Отзывы после реальных сделок',
               body:
-                'Отзыв можно оставить только по завершённой аренде, по одному с каждой стороны. ' +
-                'Оба отзыва открываются одновременно — чтобы никто не подстраивал оценку под чужую.',
+                'Отзыв можно оставить только по завершённой аренде. Оба отзыва открываются ' +
+                'одновременно, чтобы никто не подстраивал оценку под чужую.',
             },
             {
-              title: 'История остаётся на платформе',
+              title: 'История остаётся у вас',
               body:
-                'Переписка, даты, условия и подтверждения сохраняются. Если возникнет спор, ' +
-                'у обеих сторон есть на что сослаться.',
+                'Переписка, даты и условия сохраняются. Если возникнет спор, обеим сторонам ' +
+                'есть на что сослаться.',
             },
           ].map((item) => (
-            <div key={item.title} className="panel stack" style={{ gap: '0.5rem' }}>
-              <h2 style={{ fontSize: 'var(--text-lg)' }}>{item.title}</h2>
-              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{item.body}</p>
-            </div>
+            <article key={item.title} className="trust-item">
+              <h3 className="trust-item__title">{item.title}</h3>
+              <p className="trust-item__body">{item.body}</p>
+            </article>
           ))}
         </div>
       </section>
 
-      <section className="container" style={{ paddingBottom: '3rem' }}>
-        <div className="panel host-cta">
-          <div className="stack grow" style={{ gap: '0.5rem' }}>
+      <section className="container" style={{ paddingBottom: 'var(--space-7)' }}>
+        <div className="host-cta">
+          <div className="stack grow" style={{ gap: 'var(--space-2)' }}>
             <h2 style={{ fontSize: 'var(--text-xl)' }}>Сдаёте квартиру?</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', maxWidth: '58ch' }}>
-              Разместите объявление бесплатно. Сервисный сбор 5% платится только после того, как
-              аренда состоялась и это подтвердили обе стороны. Деньги за аренду вы получаете
-              напрямую от арендатора.
+            <p className="prose" style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
+              Разместить объявление бесплатно. Сервисный сбор 5% — только после того, как аренда
+              состоялась и это подтвердили обе стороны. Деньги за аренду вы получаете напрямую.
             </p>
           </div>
-          <Link href="/host" className="btn btn-primary btn-lg">
+          <Link href="/dashboard/listings/new" className="btn btn-primary btn-lg">
             Разместить объявление
           </Link>
         </div>
@@ -93,21 +137,37 @@ export default function HomePage() {
 
       <style>{`
         .hero {
-          padding-block: clamp(2rem, 5vw, 4rem);
+          padding-block: var(--space-6) var(--space-7);
           background:
-            linear-gradient(180deg, var(--primary-soft) 0%, transparent 70%),
+            linear-gradient(180deg, var(--primary-soft) 0%, transparent 60%),
             var(--background);
-          border-bottom: 1px solid var(--border);
         }
-        .promise-grid {
-          display: grid;
-          gap: 1rem;
-          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        .hero__sub { font-size: var(--text-lg); color: var(--text-secondary); }
+
+        .home-grid, .trust-grid { display: grid; gap: var(--space-4); }
+        .home-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+        @media (max-width: 560px) { .home-grid { grid-template-columns: 1fr; } }
+
+        /* Plain columns, not four bordered cards. The rule is one column of
+           text per idea; a box adds nothing here. */
+        .trust-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-5); }
+        .trust-item__title {
+          font-size: var(--text-base); font-weight: 650;
+          margin-bottom: var(--space-2);
+          padding-top: var(--space-2);
+          border-top: 2px solid var(--primary);
+          display: inline-block;
         }
-        .host-cta { display: flex; flex-direction: column; gap: 1rem; align-items: flex-start; }
-        @media (min-width: 720px) {
-          .host-cta { flex-direction: row; align-items: center; }
+        .trust-item__body { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; }
+
+        .host-cta {
+          display: flex; flex-direction: column; gap: var(--space-4);
+          align-items: flex-start;
+          padding: var(--space-5);
+          border-radius: var(--radius-md);
+          background: var(--surface-sunken);
         }
+        @media (min-width: 720px) { .host-cta { flex-direction: row; align-items: center; } }
       `}</style>
     </>
   );

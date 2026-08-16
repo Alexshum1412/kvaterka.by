@@ -89,8 +89,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         <SearchForm compact />
       </Suspense>
 
-      <div className="row" style={{ gap: '0.75rem', flexWrap: 'wrap', paddingBlock: '1rem' }}>
-        <h1 style={{ fontSize: 'var(--text-xl)' }}>
+      <div className="row" style={{ gap: '0.625rem', flexWrap: 'wrap', paddingBlock: 'var(--space-4)' }}>
+        <h1 className="title-lg">
           {failure ? 'Поиск' : `${result.total} ${plural(result.total, 'объект', 'объекта', 'объектов')}`}
           {str(params.city) && !failure && ` в городе ${str(params.city)}`}
         </h1>
@@ -143,15 +143,24 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       )}
 
       <style>{`
-        .search-layout { display: grid; gap: 1.25rem; }
+        .search-layout { display: grid; gap: var(--space-5); }
+        /* Minimum 300px, so photos stay large and titles stop wrapping to
+           three lines. Two columns is the right density for browsing housing;
+           three only once there is genuinely room. */
         .search-results {
           display: grid;
-          gap: 1rem;
-          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+          gap: var(--space-4);
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
         }
-        /* The map is a secondary view on a phone — it appears below the list
-           rather than competing with it for the first screenful. */
-        .search-map { min-height: 20rem; order: -1; }
+        @media (max-width: 560px) {
+          /* On a phone this becomes a photo feed, which is what browsing
+             housing actually is. */
+          .search-results { grid-template-columns: 1fr; gap: var(--space-5); }
+        }
+        /* On a phone the listings come FIRST. The map was previously ordered
+           above them, which pushed inventory 320px down the page — exactly the
+           mistake the audit flagged on the homepage. */
+        .search-map { min-height: 18rem; order: 1; margin-top: var(--space-2); }
         @media (min-width: 1024px) {
           .search-layout { grid-template-columns: minmax(0, 1fr) 22rem; align-items: start; }
           .search-map {

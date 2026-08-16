@@ -133,13 +133,13 @@ export function MapPanel({ markers }: { markers: MapMarker[] }) {
         .map-pin {
           position: absolute;
           transform: translate(-50%, -50%);
-          min-height: 2.25rem;
-          padding: 0.4rem 0.7rem;
+          min-height: 2.5rem;
+          padding: 0.45rem 0.75rem;
           background: var(--surface-raised);
           color: var(--text-primary);
           border: 1px solid var(--border-strong);
           border-radius: var(--radius-full);
-          box-shadow: var(--shadow-card);
+          box-shadow: var(--shadow-subtle);
           font-size: var(--text-xs);
           font-weight: 600;
           cursor: pointer;
