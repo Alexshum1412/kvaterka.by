@@ -289,3 +289,97 @@ What is rejected: scroll-jacking, pinned/stacked sections and decorative motion 
 **Trade-offs.** Hourly landlords are unserved at launch.
 
 **Revisit when.** There is demand plus a legal assessment of short-hourly accommodation.
+
+---
+
+## DEC-018 — The API is a route table, not framework callbacks
+
+**Question.** How should HTTP endpoints be declared?
+
+**Options.** (a) Next.js route handlers, one file per endpoint. (b) A separate HTTP framework (Fastify/Hono) inside Next. (c) Routes declared as data, dispatched by a small router, with a thin Next adapter.
+
+**Chosen.** (c).
+
+**Why.** The same declaration then drives dispatch, authentication, authorization, validation, rate limiting, idempotency **and** the generated OpenAPI document. Those six concerns cannot drift apart, because there is only one place to change. With (a) each concern is re-implemented per file and the OpenAPI document becomes a hand-maintained lie within a month; a missing `requireAuth()` in one file is invisible until someone exploits it.
+
+It also makes the entire API testable without starting a server: `tests/api.integration.test.ts` drives the real dispatcher in-process. And it made the authorization matrix test possible — it *enumerates* `allRoutes.filter(r => r.permission)` and asserts each one refuses an ordinary user, so a newly added privileged endpoint cannot ship unguarded.
+
+(b) was rejected as a second framework inside a framework for no capability gain.
+
+**Trade-offs.** A small amount of routing machinery is ours to maintain (~200 lines). Next's per-route conventions (segment config, caching hints) are not used; the API is uniformly dynamic and `no-store`, which is correct for an API where almost every response is scoped to one user.
+
+**Revisit when.** The API needs per-route caching or streaming that the adapter cannot express.
+
+---
+
+## DEC-019 — Rate limiting in PostgreSQL, not in process memory
+
+**Question.** Where does the rate-limit counter live?
+
+**Options.** (a) In-process map. (b) Redis. (c) PostgreSQL fixed-window counters.
+
+**Chosen.** (c).
+
+**Why.** (a) is wrong the moment there is more than one instance — and the limit that matters most is on login, where being wrong means an attacker simply spreads attempts across instances. (b) is the textbook answer and would be faster, but it adds infrastructure, another failure mode, and a decision about what happens when it is unavailable (fail open, and the limit is theatre; fail closed, and Redis becomes a hard dependency for logging in). (c) costs one upsert per limited request, is correct across instances, and shares the availability of the database the request needs anyway.
+
+**Trade-offs.** A write per limited request, and a fixed window permits a burst at a boundary — acceptable for login attempts and message sending, where the goal is bounding sustained abuse rather than perfectly smoothing traffic. `pruneRateLimitCounters()` handles housekeeping.
+
+**Revisit when.** Request volume makes the write measurable, or a sliding window is genuinely needed.
+
+---
+
+## DEC-020 — The blurred map pin is deterministic
+
+**Question.** How is a property's public location computed?
+
+**Options.** (a) Round the coordinates. (b) Random offset per request. (c) Deterministic offset derived from the property id, stored on the row.
+
+**Chosen.** (c).
+
+**Why.** (b) is the intuitive choice and is actively dangerous: an observer who reloads the page a few hundred times can average the samples and recover the true coordinates to within a few metres. Blurring is only privacy-preserving if it is *stable*. (a) leaks a grid that reveals which properties share a cell and snaps pins to visibly artificial positions.
+
+(c) derives a bearing and a 120–350 m radius from a hash of the property id, so the pin is identical on every request forever, sits somewhere plausible on a nearby street, and cannot be averaged away. The displaced point is stored (`public_latitude`/`public_longitude`) and is what search, the map endpoint and the public listing page read — the exact coordinate has a single accessor, `revealExactLocation`, which checks entitlement first.
+
+**Trade-offs.** A pin can land across a street from the real building. That is the intended cost. Changing the offset algorithm moves every existing pin, so it is effectively permanent once listings exist.
+
+**Revisit when.** Never, without a migration plan.
+
+---
+
+## DEC-021 — Idempotency at two layers
+
+**Question.** How are retried POSTs made safe?
+
+**Options.** (a) Database constraints only. (b) An `Idempotency-Key` record only. (c) Both.
+
+**Chosen.** (c).
+
+**Why.** They fail differently. (a) alone is correct but rude: a client that retries after a timeout gets a 409 where it expected its booking, and cannot tell "already created by me" from "someone took the dates". (b) alone is defeated by any client that forgets the header — including our own future code.
+
+Together: `idempotency_record` replays the original response for a repeated key, and underneath it `service_fee.booking_id UNIQUE`, the booking idempotency index and the state machine make duplicates unreachable even with no key at all.
+
+The stored `request_hash` matters: reusing a key with a different payload is refused rather than replayed, since silently returning the wrong response would be worse than an error. A failed request releases its key so an honest retry can proceed.
+
+**Trade-offs.** One extra table and an insert per idempotent request. `pruneIdempotencyRecords()` expires them after 24 hours.
+
+**Revisit when.** Never expected to; if anything, more endpoints should opt in.
+
+---
+
+## DEC-022 — Debt restricts new commercial activity only
+
+**Question.** What should an unpaid service fee prevent?
+
+**Options.** (a) Suspend the account. (b) Block everything commercial immediately. (c) Graduated: promotion first, then new listings and new bookings once overdue, never touching active rentals.
+
+**Chosen.** (c), above a 50.00 BYN threshold.
+
+**Why.** A landlord mid-stay has a tenant living in their property. Suspending them punishes the tenant — who did nothing wrong — and turns a billing dispute into a housing emergency, which is precisely the "rental with surprises" the product exists to prevent. It is also commercially self-defeating: the fee is likelier to be paid by someone still earning through the platform.
+
+Inside the grace period only discretionary extras (promotion) stop. Once a fee is genuinely overdue, new listings, new bookings and instant booking stop. Existing conversations, active bookings and completion flows are never touched.
+
+The threshold means a single small fee does not disable an account over an amount not worth chasing.
+
+**Trade-offs.** A landlord can complete an in-flight booking while owing money. Intended.
+
+**Revisit when.** Collection data shows the graduated model is ineffective; the response should be better reminders before harsher restrictions.
