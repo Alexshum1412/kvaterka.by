@@ -20,9 +20,19 @@
  */
 
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { DEV_MEDIA_ROOT } from '../../api/uploads/route.ts';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+const CONTENT_TYPE: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+};
 
 /** Muted, desaturated tints. These read as "no photo yet", not as decoration. */
 const TINTS: readonly [string, string][] = [
@@ -51,6 +61,30 @@ export async function GET(
     // Real storage configured: redirect to it. A signed-URL implementation
     // replaces this line when the provider is chosen.
     return Response.redirect(`${mediaBucket.replace(/\/$/, '')}/${storageKey}`, 302);
+  }
+
+  // A real uploaded file, if there is one. The traversal guard above has
+  // already run, and resolve() is checked against the root again here so
+  // that a key can never escape the media directory.
+  const extension = path.extname(storageKey).toLowerCase();
+  if (CONTENT_TYPE[extension]) {
+    const absolute = path.resolve(DEV_MEDIA_ROOT, storageKey);
+    if (absolute.startsWith(path.resolve(DEV_MEDIA_ROOT) + path.sep)) {
+      try {
+        const bytes = await readFile(absolute);
+        return new Response(new Uint8Array(bytes), {
+          status: 200,
+          headers: {
+            'content-type': CONTENT_TYPE[extension]!,
+            'cache-control': 'public, max-age=3600',
+            'x-content-type-options': 'nosniff',
+          },
+        });
+      } catch {
+        // Falls through to the placeholder: a listing whose file is missing
+        // still renders rather than showing a broken image.
+      }
+    }
   }
 
   const digest = createHash('sha256').update(storageKey).digest();

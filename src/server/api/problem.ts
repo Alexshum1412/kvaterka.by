@@ -9,7 +9,7 @@
 
 import { ZodError } from 'zod';
 import { DomainError, type ErrorCode } from '../services/errors.ts';
-import { isPgError } from '../db/sql.ts';
+import { hasErrorCode, isPgError, PG_ERROR } from '../db/sql.ts';
 import { WeakPasswordError } from '../auth/credentials.ts';
 import { IllegalTransitionError } from '../domain/booking/states.ts';
 import { PricingError } from '../domain/pricing.ts';
@@ -89,6 +89,13 @@ export function toProblem(
   }
   if (error instanceof MoneyError) {
     return problem('VALIDATION_FAILED', 422, 'Некорректная сумма', correlationId);
+  }
+
+  // A malformed path parameter — `/listings/abc` — reaches the database as an
+  // unparseable uuid. That is the caller's mistake, not ours, and answering
+  // 500 both misreports it and fills the error log with other people's typos.
+  if (hasErrorCode(error, PG_ERROR.INVALID_TEXT_REPRESENTATION)) {
+    return problem('NOT_FOUND', 404, 'Не найдено', correlationId);
   }
 
   // A database error that no service translated is a bug on our side. It must

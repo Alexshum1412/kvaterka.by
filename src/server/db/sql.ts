@@ -38,6 +38,8 @@ export const PG_ERROR = {
   RESTRICT_VIOLATION: '23001',
   SERIALIZATION_FAILURE: '40001',
   DEADLOCK_DETECTED: '40P01',
+  /** A value the client sent is not even parseable as its column type. */
+  INVALID_TEXT_REPRESENTATION: '22P02',
 } as const;
 
 export interface PgError extends Error {

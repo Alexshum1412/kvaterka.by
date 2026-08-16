@@ -434,18 +434,31 @@ function PropertyCard({ listing }: { listing: DashboardListing }) {
         </div>
 
         <h3 className="dash-pc__title">
-          <Link href={`/listing/${listing.id}`} className="clamp-2">
-            {listing.title}
+          {/* An unfinished listing has no public page yet, so its title
+              leads back into the wizard rather than to a 404. */}
+          <Link
+            href={listing.status === 'PUBLISHED' ? `/listing/${listing.id}` : `/dashboard/listings/${listing.id}/edit`}
+            className="clamp-2"
+          >
+            {listing.title || 'Черновик без названия'}
           </Link>
         </h3>
 
-        <p className="dash-pc__place">{place}</p>
+        <p className="dash-pc__place">{place || 'Город не указан'}</p>
 
         <p className="dash-pc__price">
-          <strong>
-            <Money minor={listing.basePriceMinor} showCurrency={false} />
-          </strong>{' '}
-          <span className="dash-pc__unit">{listing.priceUnit === 'MONTH' ? 'BYN в месяц' : 'BYN за ночь'}</span>
+          {listing.basePriceMinor ? (
+            <>
+              <strong>
+                <Money minor={listing.basePriceMinor} showCurrency={false} />
+              </strong>{' '}
+              <span className="dash-pc__unit">
+                {listing.priceUnit === 'MONTH' ? 'BYN в месяц' : 'BYN за ночь'}
+              </span>
+            </>
+          ) : (
+            <span className="dash-pc__unit">Цена не указана</span>
+          )}
         </p>
 
         {(listing.pendingRequests > 0 ||

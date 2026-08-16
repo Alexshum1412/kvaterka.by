@@ -47,19 +47,25 @@ const MODERATOR_TRANSITIONS: Partial<Record<ListingStatus, readonly ListingStatu
 /** Fields a landlord may not change while people can book the listing. */
 const LOCKED_WHILE_LIVE: readonly string[] = [];
 
+/**
+ * Everything except the property type is optional, because the wizard
+ * asks for the type on its first screen and the price on its ninth, and
+ * a draft has to be saveable in between (migration 0008). The database
+ * enforces completeness on the way OUT of DRAFT, not on the way in.
+ */
 export interface ListingDraftInput {
-  readonly title: string;
+  readonly title?: string;
   readonly description?: string;
   readonly propertyType: 'APARTMENT' | 'ROOM' | 'HOUSE' | 'COTTAGE' | 'STUDIO' | 'TOWNHOUSE';
-  readonly city: string;
+  readonly city?: string;
   readonly region?: string;
   readonly district?: string;
   readonly street?: string;
   readonly houseNumber?: string;
   readonly apartmentNumber?: string;
   readonly postalCode?: string;
-  readonly latitude: number;
-  readonly longitude: number;
+  readonly latitude?: number;
+  readonly longitude?: number;
   readonly locationPrecision?: 'EXACT' | 'APPROXIMATE';
   readonly rooms?: number;
   readonly areaSqm?: number;
@@ -78,7 +84,7 @@ export interface ListingDraftInput {
   readonly checkOutUntil?: string;
   readonly minNights?: number;
   readonly maxNights?: number;
-  readonly basePriceMinor: string;
+  readonly basePriceMinor?: string;
   readonly priceUnit?: 'NIGHT' | 'MONTH';
   readonly cleaningFeeMinor?: string;
   readonly utilitiesMode?: 'INCLUDED' | 'FIXED_EXTRA' | 'VARIABLE_METERED';
@@ -150,11 +156,19 @@ export class ListingService {
   /* ---------------------------------------------------------------- */
 
   async createDraft(ownerId: string, input: ListingDraftInput): Promise<{ id: string }> {
-    assertLocation(input.latitude, input.longitude);
+    // A location is optional at creation but never half-specified: one
+    // coordinate without the other cannot be blurred, mapped or searched.
+    const hasLocation = input.latitude !== undefined && input.longitude !== undefined;
+    if (input.latitude !== undefined || input.longitude !== undefined) {
+      if (!hasLocation) throw invalid('Укажите широту и долготу вместе');
+      assertLocation(input.latitude!, input.longitude!);
+    }
     assertDurations(input.minNights, input.maxNights);
 
     const id = uuidv7();
-    const publicPoint = publicLocationFor(id, { latitude: input.latitude, longitude: input.longitude });
+    const publicPoint = hasLocation
+      ? publicLocationFor(id, { latitude: input.latitude!, longitude: input.longitude! })
+      : null;
 
     return this.db.transaction(async (tx) => {
       await tx.query(
@@ -182,21 +196,21 @@ export class ListingService {
         [
           id,
           ownerId,
-          input.title,
+          input.title ?? null,
           input.description ?? '',
           input.propertyType,
           input.region ?? null,
-          input.city,
+          input.city ?? null,
           input.district ?? null,
           input.street ?? null,
           input.houseNumber ?? null,
           input.apartmentNumber ?? null,
           input.postalCode ?? null,
-          input.latitude,
-          input.longitude,
+          input.latitude ?? null,
+          input.longitude ?? null,
           input.locationPrecision ?? 'APPROXIMATE',
-          publicPoint.latitude,
-          publicPoint.longitude,
+          publicPoint?.latitude ?? null,
+          publicPoint?.longitude ?? null,
           input.rooms ?? null,
           input.areaSqm ?? null,
           input.floor ?? null,
@@ -249,6 +263,95 @@ export class ListingService {
   }
 
   /* ---------------------------------------------------------------- */
+
+  /**
+   * The owner's own view, including a draft that is nowhere near
+   * publishable. Deliberately separate from `getPublicListing`, which
+   * only ever returns PUBLISHED rows and strips the exact address — this
+   * one returns the street and house number, because the person asking
+   * is the person who typed them.
+   */
+  async getForOwner(propertyId: string, ownerId: string): Promise<Record<string, unknown>> {
+    const { rows } = await this.db.query<Record<string, any>>(
+      `SELECT p.*, p.base_price_minor::text AS base_price_minor,
+              p.cleaning_fee_minor::text     AS cleaning_fee_minor,
+              p.utilities_fixed_minor::text  AS utilities_fixed_minor,
+              p.deposit_minor::text          AS deposit_minor,
+              p.area_sqm::text               AS area_sqm
+         FROM property p
+        WHERE p.id = $1 AND p.deleted_at IS NULL`,
+      [propertyId],
+    );
+    const row = rows[0];
+    if (!row) throw notFound('Объявление');
+    // Same answer for "not yours" as for "does not exist": otherwise the
+    // endpoint reports whether a stranger's draft exists.
+    if (row.owner_id !== ownerId) throw notFound('Объявление');
+
+    const [photos, amenities] = await Promise.all([
+      this.db.query<Record<string, any>>(
+        `SELECT id, storage_key, is_cover, sort_order, caption
+           FROM property_photo WHERE property_id = $1 ORDER BY sort_order, created_at`,
+        [propertyId],
+      ),
+      this.db.query<{ amenity_code: string }>(
+        `SELECT amenity_code FROM property_amenity WHERE property_id = $1`,
+        [propertyId],
+      ),
+    ]);
+
+    return {
+      id: row.id,
+      status: row.status,
+      rejectionReason: row.rejection_reason,
+      title: row.title,
+      description: row.description,
+      propertyType: row.property_type,
+      city: row.city,
+      region: row.region,
+      district: row.district,
+      street: row.street,
+      houseNumber: row.house_number,
+      apartmentNumber: row.apartment_number,
+      postalCode: row.postal_code,
+      latitude: row.latitude,
+      longitude: row.longitude,
+      rooms: row.rooms,
+      areaSqm: row.area_sqm === null ? null : Number(row.area_sqm),
+      floor: row.floor,
+      totalFloors: row.total_floors,
+      beds: row.beds,
+      bathrooms: row.bathrooms,
+      maxGuests: row.max_guests,
+      smokingPolicy: row.smoking_policy,
+      petsPolicy: row.pets_policy,
+      childrenAllowed: row.children_allowed,
+      partiesAllowed: row.parties_allowed,
+      quietHoursFrom: row.quiet_hours_from,
+      quietHoursTo: row.quiet_hours_to,
+      checkInFrom: row.check_in_from,
+      checkOutUntil: row.check_out_until,
+      minNights: row.min_nights,
+      maxNights: row.max_nights,
+      basePriceMinor: row.base_price_minor,
+      priceUnit: row.price_unit,
+      cleaningFeeMinor: row.cleaning_fee_minor,
+      utilitiesMode: row.utilities_mode,
+      utilitiesFixedMinor: row.utilities_fixed_minor,
+      utilitiesNote: row.utilities_note,
+      depositMinor: row.deposit_minor,
+      bookingMode: row.booking_mode,
+      negotiationEnabled: row.negotiation_enabled,
+      amenities: amenities.rows.map((a) => a.amenity_code),
+      photos: photos.rows.map((p) => ({
+        id: p.id,
+        storageKey: p.storage_key,
+        isCover: p.is_cover,
+        sortOrder: p.sort_order,
+        caption: p.caption,
+      })),
+    };
+  }
 
   async update(propertyId: string, ownerId: string, input: ListingUpdateInput): Promise<void> {
     if (input.latitude !== undefined || input.longitude !== undefined) {
@@ -336,10 +439,18 @@ export class ListingService {
         throw invalid('Добавьте хотя бы одну фотографию перед публикацией', { field: 'photos' });
       }
       if (!current.title || String(current.title).trim().length < 8) {
-        throw invalid('Заголовок слишком короткий', { field: 'title' });
+        throw invalid('Добавьте название объявления — не короче 8 символов', { field: 'title' });
       }
-      if (BigInt(current.base_price_minor) <= 0n) {
-        throw invalid('Укажите цену', { field: 'basePriceMinor' });
+      if (!current.city || String(current.city).trim() === '') {
+        throw invalid('Укажите город', { field: 'city' });
+      }
+      // Nullable since migration 0008, so this is a presence check before it
+      // is a value check — BigInt(null) throws.
+      if (current.latitude === null || current.longitude === null) {
+        throw invalid('Отметьте расположение на карте', { field: 'location' });
+      }
+      if (current.base_price_minor === null || BigInt(current.base_price_minor) <= 0n) {
+        throw invalid('Укажите цену или выберите «Цена договорная»', { field: 'basePriceMinor' });
       }
 
       await tx.query(

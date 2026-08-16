@@ -52,6 +52,19 @@ const listingCore = z.object({
   amenities: z.array(z.string().regex(/^[A-Z_]{2,40}$/)).max(60).optional(),
 });
 
+/**
+ * Creating a draft asks for the property type and nothing else.
+ *
+ * The wizard's first screen is "что вы сдаёте?" and its price screen is
+ * ninth; requiring a title, a location and a price up front would mean
+ * there was nowhere to autosave the eight screens in between. Migration
+ * 0008 moved the completeness requirement to the exit from DRAFT, and
+ * this schema follows it.
+ */
+const listingDraft = listingCore.partial().extend({
+  propertyType: listingCore.shape.propertyType,
+});
+
 export const listingRoutes: AnyRoute[] = [
   defineRoute({
     method: 'GET',
@@ -81,7 +94,7 @@ export const listingRoutes: AnyRoute[] = [
     auth: 'required',
     idempotent: true,
     rateLimit: { limit: 20, windowSeconds: 3600, by: 'user', bucket: 'listing:create' },
-    body: listingCore,
+    body: listingDraft,
     successStatus: 201,
     async handler({ body, ctx, caller }) {
       // A landlord in arrears may keep managing what exists but may not add
@@ -112,6 +125,17 @@ export const listingRoutes: AnyRoute[] = [
         [caller.userId],
       );
       return rows;
+    },
+  }),
+
+  defineRoute({
+    method: 'GET',
+    path: '/listings/:id/edit',
+    summary: 'The owner’s own view of a listing, including an unfinished draft',
+    tags: ['listings'],
+    auth: 'required',
+    async handler({ params, ctx, caller }) {
+      return ctx.services.listings.getForOwner(params.id!, caller.userId);
     },
   }),
 

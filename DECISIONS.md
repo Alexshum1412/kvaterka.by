@@ -481,3 +481,47 @@ Automatic switching is normally the courteous default. It stops being courteous 
 **Trade-offs.** A user who prefers dark now gets light until a theme switch exists. That is the intended trade while light is the only designed surface, and re-attaching the media query is a one-line change once dark has had its own pass.
 
 **Revisit when.** Dark mode gets a real design pass; then restore the media query and ship a preference control at the same time.
+
+---
+
+## DEC-028 — A draft is allowed to be incomplete, and the database says when it stops being one
+
+**Question.** The wizard asks for a property type on screen one and a price on screen eight. `title`, `city`, `latitude`, `longitude` and `base_price_minor` were all `NOT NULL`, so no row could exist until the end and there was nowhere to autosave to. Where does wizard state live?
+
+**Options.** (a) Hold the first screens in the browser and create the row at the end. (b) A `listing_draft` table holding wizard state as JSON, materialised into a `property` when complete. (c) Make those columns nullable and require completeness only when leaving `DRAFT`.
+
+**Chosen.** (c), as migration 0008.
+
+**Why.** (a) fails the actual requirement: work that only exists in a tab is lost when the tab closes, which is precisely what "draft persistence is mandatory" rules out.
+
+(b) was the obvious engineering answer and is worse than it looks. It means two representations of one listing, a dual write on every keystroke, an inevitable divergence between them, and — the detail that decided it — a draft that cannot appear in the landlord's dashboard until it is finished, because the dashboard reads `property`.
+
+(c) has one source of truth throughout. The columns become nullable and a `CHECK` asserts that anything whose status is not `DRAFT` has a title, a city, a coordinate pair and a price. The guarantee a tenant depends on is unchanged: nothing reachable from search or a listing page can be missing those. What changed is that the schema stopped pretending a half-filled form is a listing.
+
+`property_type` stays `NOT NULL` — it is the first question, so a row never exists without it.
+
+**Trade-offs.** The constraint is now a status-conditional expression rather than a column property, which is less obvious to someone reading the table definition; the migration comment carries the reasoning. `submitForModeration` re-checks the same conditions first so the landlord gets a sentence rather than a constraint violation, and a test asserts the raw `UPDATE` is refused when the service is bypassed.
+
+**Revisit when.** Another status needs its own completeness rules — then this becomes a table of requirements per status rather than one expression.
+
+---
+
+## DEC-029 — Uploads are sniffed, server-named, and never optimistic
+
+**Question.** `addPhoto` took a storage key that nothing in the system produced. How do bytes actually get in?
+
+**Options.** (a) Accept a client-supplied key and trust it. (b) Presigned URLs straight to object storage. (c) A server endpoint that receives the file, identifies it, names it, stores it, then records it.
+
+**Chosen.** (c), at `/api/uploads`, outside the JSON route table because that dispatcher validates JSON bodies and this receives multipart.
+
+**Why.** (a) hands an attacker both path traversal and the ability to overwrite another listing's photo; the key is generated server-side as `listings/<propertyId>/<uuid>.<ext>` and the client never influences it.
+
+(b) is where this ends up in production, but no provider is chosen yet, and building the presigning half against a bucket that does not exist would be scaffolding around a hole.
+
+The content type is decided by the first bytes, not the declared header — `image/png` on a shell script costs an attacker nothing, and the same sniff yields the real dimensions for free from the PNG and JPEG headers.
+
+The rule that matters most: success is reported only after the bytes are on disk *and* the row is written, and `addPhoto` checks ownership, so a landlord cannot attach a file to somebody else's listing even though it is already written. When `MEDIA_BUCKET_URL` is set the endpoint returns 501 rather than a cheerful lie — a landlord must never be told a photo uploaded when it did not.
+
+**Trade-offs.** Development bytes live in `.media/`, which is gitignored and is not production storage. The media route serves them with `X-Content-Type-Options: nosniff` and re-checks the resolved path against the root, so a key still cannot escape.
+
+**Revisit when.** An object-storage provider is chosen — then this endpoint issues presigned URLs and keeps the ownership check.
