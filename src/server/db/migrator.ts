@@ -11,7 +11,6 @@
 import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { Sql } from './sql.ts';
 
 export interface Migration {
@@ -20,7 +19,16 @@ export interface Migration {
   readonly checksum: string;
 }
 
-export const MIGRATIONS_DIR = fileURLToPath(new URL('../../../db/migrations', import.meta.url));
+/**
+ * Resolved from the working directory rather than from `import.meta.url`.
+ *
+ * A relative `new URL(..., import.meta.url)` looks like a module specifier to a
+ * bundler, and webpack fails the build trying to resolve `db/migrations` as a
+ * package — a failure that appears only at runtime, never in typecheck.
+ * `MIGRATIONS_DIR` overrides it for deployments that relocate the folder.
+ */
+export const MIGRATIONS_DIR =
+  process.env.MIGRATIONS_DIR ?? path.join(process.cwd(), 'db', 'migrations');
 
 const FILENAME_PATTERN = /^(\d{4})_[a-z0-9_]+\.sql$/;
 

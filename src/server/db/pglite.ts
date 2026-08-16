@@ -21,8 +21,15 @@ import { earthdistance } from '@electric-sql/pglite/contrib/earthdistance';
 import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 import type { Db, QueryResult, Sql } from './sql.ts';
 
-export async function createPgliteDb(): Promise<Db> {
+/**
+ * @param dataDir Persist to disk instead of memory. Tests want a fresh
+ * in-memory database every time; the zero-setup development mode wants data to
+ * survive a hot reload, otherwise every code change silently invalidates every
+ * id on screen.
+ */
+export async function createPgliteDb(dataDir?: string): Promise<Db> {
   const pg = new PGlite({
+    ...(dataDir ? { dataDir } : {}),
     extensions: { btree_gist, pg_trgm, citext, cube, earthdistance },
   });
   await pg.waitReady;

@@ -24,3 +24,5 @@ Thumbs.db
 
 # Uploaded media in local dev
 /storage/
+.pgdata/
+*.tmp.html
