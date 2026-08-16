@@ -383,3 +383,101 @@ The threshold means a single small fee does not disable an account over an amoun
 **Trade-offs.** A landlord can complete an in-flight booking while owing money. Intended.
 
 **Revisit when.** Collection data shows the graduated model is ineffective; the response should be better reminders before harsher restrictions.
+
+---
+
+## DEC-023 — Light is the product; dark is kept, not designed
+
+**Question.** After the owner rejected the rendered interface as dark, heavy and dated, is the fix a palette swap or a system change — and what happens to dark mode?
+
+**Options.** (a) Lighten the existing tokens and keep both themes as first-class. (b) Rebuild the system light-first and delete dark mode. (c) Rebuild light-first, keep dark tokens working but stop designing for them.
+
+**Chosen.** (c).
+
+**Why.** The owner was explicit that the problem was not the palette, and they were right: the previous system's defaults produced a bordered, shadowed, tinted box around every group, and that recipe looks equally dated in any hue. So the rules changed, not just the values — a surface now gets space *or* a border *or* elevation, never two; borders are reserved for controls, where a visible edge is a usability requirement; and cards carry no resting shadow at all, because white on the #f7f9fc ground is already a boundary.
+
+Deleting dark mode (b) was tempting and wrong. The tokens already existed, they cost nothing to keep, and a user on a dark OS would otherwise get an unreadable page. But maintaining two designed themes doubles every judgement call, and the light one is not finished. So dark remains *functional and unpolished*, and that is stated rather than implied.
+
+**Trade-offs.** Dark mode will look competent, not considered, until light is approved. Anyone tuning it before then is working on the wrong thing.
+
+**Revisit when.** The light system is signed off and dark-mode usage justifies the second pass.
+
+---
+
+## DEC-024 — The brand blue that carries text is not the brand blue
+
+**Question.** The supplied palette names `#4da3ff` as primary. Buttons drawn in it fail contrast. What gives?
+
+**Options.** (a) Use `#4da3ff` for buttons and accept 2.6:1. (b) Use it with dark text instead of white. (c) Keep it as a decorative accent and derive a deeper sibling for anything that carries text.
+
+**Chosen.** (c). `--accent` is `#4da3ff`; `--primary` is `#216aca`.
+
+**Why.** White on `#4da3ff` measures 2.63:1 — below even the 3:1 floor for large text — so (a) fails the brief's own accessibility requirement. (b) works numerically (navy on `#4da3ff` is 5.86:1) but makes the primary call to action read as a soft chip rather than the strongest thing on the page.
+
+(c) keeps the sky-cornflower visible where it is doing colour work and no contrast work — the mark, focus accents, selected grounds under navy text, active map pins — while buttons and links use the same hue pushed down until it is legible.
+
+The values were *solved*, not guessed. `scripts/contrast.mjs` encodes every pair as an assertion and exits non-zero on failure; three first-choice colours were rejected by it, and the binding constraint turned out not to be white at all but `--primary` reading as text on `--primary-soft` inside a selected chip.
+
+**Trade-offs.** The button blue is not literally the brand blue. Both appear together constantly, so the family reads as one; and the palette cannot drift, because CI-able arithmetic now guards it.
+
+**Revisit when.** A brand refresh changes the hue — in which case rerun the script before shipping, not after.
+
+---
+
+## DEC-025 — Favourites are a table, and PUT/DELETE rather than POST
+
+**Question.** The heart on a listing card has to persist something. Where, and over what verbs?
+
+**Options.** (a) localStorage. (b) A table, saved with `POST /favorites` and removed with `POST /favorites/:id/remove`. (c) The existing table, with `PUT`/`DELETE`.
+
+**Chosen.** (c).
+
+**Why.** (a) was rejected on product grounds: people search on a phone at lunch and decide on a laptop at night, and a shortlist that does not survive that is not a shortlist. It also cannot be honest — a heart that fills in without saving anywhere is exactly the fake state this project refuses.
+
+The `favorite` table has existed since `0005_trust_and_money.sql` and had never been wired to anything; a second one was written by mistake during this pass and deleted once that was noticed. Between (b) and (c): saving a listing is a statement about desired state, not an event, and `PUT`/`DELETE` are idempotent by definition. That removes the need for an idempotency key, a replay record, and any possibility that a double tap on a bad connection produces the wrong result. The composite primary key `(user_id, property_id)` performs the deduplication in the database, so `ON CONFLICT DO NOTHING` is the whole write path.
+
+One rule is load-bearing and lives in the service, not the router: only a `PUBLISHED` listing may be saved, and an unpublished one answers exactly as a non-existent one does. Without that, the endpoint is an existence oracle for private drafts. There is a test asserting the two responses are byte-identical.
+
+**Trade-offs.** A saved listing that is later unpublished silently drops out of the shortlist; the favourites page counts the gap and says so rather than leaving the user to wonder.
+
+**Revisit when.** Landlords want "N people saved this" — which needs an index on `property_id`, deliberately not added until something reads it.
+
+---
+
+## DEC-026 — The query string is a prop, not a hook
+
+**Question.** Three client components read the URL with `useSearchParams()`. Next.js requires each to sit inside a `<Suspense>` boundary. Is that boundary acceptable?
+
+**Options.** (a) Keep `useSearchParams()` and the boundaries. (b) Keep the hook but hand-tune the fallbacks so they resemble the real control. (c) Pass the query down from the server as props and delete the boundaries.
+
+**Chosen.** (c).
+
+**Why.** Not for elegance — because (a) was actively broken. In the running app the boundary around the search module resolved to its grey skeleton and never resumed: the DOM carried React's postponed marker `<!--$~-->`, the real `<form>` sat in a sibling `<div hidden>`, and the visitor saw an empty rectangle where the product's single most important control should be. The same defect applied to the filter bar and, worse, to the sign-in form — the login screen could never have been used.
+
+Nothing about that is visible in a typecheck, a unit test or an HTTP status code. All five routes returned 200 the entire time. It was found by measuring the rendered DOM, which is the argument for doing that at all.
+
+The fix is also the better design independently of the bug. The server already parsed `searchParams` in order to run the query; handing the same values to the component removes a client-side round trip, puts the real search markup in the server-rendered HTML instead of a skeleton, and deletes the loading flash. `useRouter()` stays — navigation does not suspend.
+
+**Trade-offs.** Each page must now pass the parameters it cares about, so adding a filter means touching the page as well as the control. That is a small, visible cost in exchange for a whole class of invisible failure.
+
+**Revisit when.** A component genuinely needs the query string somewhere no server component can reach it.
+
+---
+
+## DEC-027 — The colour scheme no longer follows the operating system
+
+**Question.** `@media (prefers-color-scheme: dark)` switched the whole product to the navy palette automatically. Keep it?
+
+**Options.** (a) Keep automatic switching. (b) Delete dark mode. (c) Keep the tokens, make dark strictly opt-in via `data-theme`.
+
+**Chosen.** (c).
+
+**Why.** The reviewer reported the site as "dark navy" and asked for a light product. The light design already existed — they had simply never been shown it, because their OS is in dark mode and the media query overrode everything. A design nobody can see is not a design, and the first measurement of the running page confirmed it: `background-color: rgb(12, 20, 36)`.
+
+Automatic switching is normally the courteous default. It stops being courteous when only one of the two themes has been designed: it hands half the audience the unfinished one, silently, with no way to ask for the other. Making dark explicit means every visitor sees the theme that has actually had the work.
+
+`themeColor` in the viewport metadata moved to a single light value for the same reason — advertising a navy browser chrome above a white page is worse than not advertising one.
+
+**Trade-offs.** A user who prefers dark now gets light until a theme switch exists. That is the intended trade while light is the only designed surface, and re-attaching the media query is a one-line change once dark has had its own pass.
+
+**Revisit when.** Dark mode gets a real design pass; then restore the media query and ship a preference control at the same time.

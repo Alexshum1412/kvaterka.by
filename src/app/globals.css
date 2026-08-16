@@ -1,89 +1,110 @@
 @import 'tailwindcss';
 
 /* ==================================================================== *
- * КВАТЭРКА.BY DESIGN SYSTEM
+ * КВАТЭРКА.BY DESIGN SYSTEM — LIGHT
  *
- * Identity: the cornflower (васілёк) — Belarusian, warm, recognisable.
+ * Identity: the cornflower (васілёк). Belarusian, warm, recognisable.
  *
- * The blue is a MUTED cornflower, not the web colour #6495ED and not the
- * electric blue every fintech landing page uses. Saturation is pulled back
- * deliberately: this product asks people to make housing decisions and hand
- * over money, and an over-saturated interface reads as a promotion rather
- * than as infrastructure. The vivid hue survives in one place — the brand
- * mark — which is what makes it recognisable there.
+ * PRODUCT DECISION (DEC-023): light is the primary and only designed
+ * experience. Dark tokens survive at the bottom of this file so the
+ * architecture does not regress, but no layout is tuned for them.
  *
- * ACCESSIBILITY (measured, not assumed), against --surface #ffffff:
- *   --primary        #3557bd  6.4:1  AA normal text, AA+ UI
- *   --text-primary   #0f1a33  16.9:1 AAA
- *   --text-secondary #4a5670  7.9:1  AAA
- *   --error          #b3261e  6.0:1  AA
- *   --success        #10693f  5.4:1  AA
- *   --warning-fg     #7a4b00  6.4:1  AA
- * Cornflower-400 (#6b8fe4, 2.9:1) is decorative ONLY — never text on white.
+ * The visual ground rules, which the components below encode:
+ *   1. The page background disappears. What the eye lands on is white
+ *      space, photographs, type, and a little blue.
+ *   2. A surface gets space OR a border OR elevation — never all three.
+ *      Most surfaces get none of them and simply sit on the ground.
+ *   3. Borders exist on controls, because a control must be findable.
+ *      Everywhere else, whitespace is the separator.
+ *   4. Blue is a signal, not a wallpaper.
+ *
+ * ACCESSIBILITY — measured with `node scripts/contrast.mjs`, not assumed.
+ * Every value below was SOLVED to satisfy the tightest case, which is
+ * never white: it is --primary reading as text on --primary-soft inside
+ * a selected chip. Three first-guess colours failed that and were
+ * replaced; the script is the record.
+ *   --primary       #216aca   white text on it   5.28:1  AA
+ *   --primary-hover #1b57a8   white text on it   7.06:1  AAA
+ *   --text-primary  #0b2545   on white          15.39:1  AAA
+ *   --text-secondary#4a5a75   on white           6.98:1  AAA
+ *   --text-tertiary #5f6f87   on white           5.11:1  AA
+ *   --success       #0f7b55   on white           5.27:1  AA
+ *   --warning       #8a5200   on white           6.39:1  AA
+ *   --error         #c0271f   on white           5.91:1  AA
+ *   --border-control#7e8fa5   vs white           3.30:1  AA (1.4.11 UI)
+ *
+ * --accent #4da3ff is the sky-cornflower of the brief. At 2.6:1 it can
+ * NEVER carry white text, so it is used only where contrast is not the
+ * carrier: the mark, focus rings, selected-state grounds under navy
+ * text, map pins. Buttons use --primary, which is the same hue family
+ * pushed down to a legible level. That is the one deviation from the
+ * supplied palette, and it exists because the brief also requires
+ * primary button text to remain readable.
  * ==================================================================== */
 
 @theme {
-  /* --- cornflower scale ------------------------------------------ */
-  --color-corn-50: #f2f6fe;
-  --color-corn-100: #e2ebfc;
-  --color-corn-200: #c6d8f8;
-  --color-corn-300: #9db9f0;
-  --color-corn-400: #6b8fe4;   /* the flower itself — decorative */
-  --color-corn-500: #4a70d6;
-  --color-corn-600: #3557bd;   /* primary: passes AA as text */
-  --color-corn-700: #2a4596;
-  --color-corn-800: #223a76;
-  --color-corn-900: #16224a;
+  /* --- cornflower / sky scale ------------------------------------ */
+  --color-corn-50: #f1f6fe;
+  --color-corn-100: #e2edfd;
+  --color-corn-200: #c6dcfb;
+  --color-corn-300: #9ac4f8;
+  --color-corn-400: #4da3ff;   /* the sky-cornflower — never text */
+  --color-corn-500: #3f8ae8;
+  --color-corn-600: #216aca;   /* primary: white text passes AA */
+  --color-corn-700: #1b57a8;
+  --color-corn-800: #16468a;
+  --color-corn-900: #0b2545;   /* navy — text, not background */
 
   /* --- blue-tinted neutrals -------------------------------------- */
-  --color-slate-50: #f6f8fc;
-  --color-slate-100: #eef2f9;
-  --color-slate-200: #dfe6f2;
-  --color-slate-300: #c8d3e6;
-  --color-slate-400: #94a1bb;
-  --color-slate-600: #4a5670;
-  --color-slate-800: #1e2941;
-  --color-slate-900: #0f1a33;
+  --color-slate-25: #fbfcfe;
+  --color-slate-50: #f7f9fc;
+  --color-slate-100: #f1f5fb;
+  --color-slate-200: #e4ebf5;
+  --color-slate-300: #cfdaea;
+  --color-slate-400: #7e8fa5;
+  --color-slate-500: #5f6f87;
+  --color-slate-600: #4a5a75;
+  --color-slate-800: #1c3255;
+  --color-slate-900: #0b2545;
 
   /* --- status ---------------------------------------------------- */
-  --color-success-50: #e8f5ee;
-  --color-success-600: #10693f;
-  --color-warning-50: #fdf4e3;
-  --color-warning-700: #7a4b00;
+  --color-success-50: #e7f6ef;
+  --color-success-600: #0f7b55;
+  --color-warning-50: #fff4e0;
+  --color-warning-700: #8a5200;
   --color-error-50: #fdecea;
-  --color-error-600: #b3261e;
-  --color-info-50: #e8f1fd;
-  --color-info-700: #1c4f9c;
+  --color-error-600: #c0271f;
+  --color-info-50: #eaf2fe;
+  --color-info-700: #14509b;
 
   /* --- typography -------------------------------------------------
-   * A system stack. Belarusian needs ў and і, and every system UI face
-   * on every target platform covers them; a fashionable webfont often
-   * does not, and costs a round trip on the mobile connections this
-   * product must be fast on. Distinctiveness comes from the scale.     */
+   * A system stack. Belarusian needs ў and і; every system UI face on
+   * every target platform covers them, a fashionable webfont often does
+   * not, and it costs a round trip on the mobile connections this
+   * product has to be fast on. Distinctiveness comes from the scale.  */
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
     'Noto Sans', 'Liberation Sans', Arial, sans-serif;
 
-  --text-2xs: 0.6875rem;
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.375rem;
-  --text-2xl: clamp(1.375rem, 1.25rem + 0.6vw, 1.625rem);
-  --text-3xl: clamp(1.625rem, 1.4rem + 1.1vw, 2.125rem);
-  --text-4xl: clamp(2rem, 1.6rem + 2vw, 2.875rem);
-  --text-5xl: clamp(2.5rem, 1.9rem + 2.9vw, 3.75rem);
+  /* One hierarchy, deliberately far apart at the top and tight at the
+     bottom. H1 40 / H2 28 / H3 20 / body 16 / small 14, per the brief. */
+  --text-2xs: 0.6875rem;                                        /* 11 */
+  --text-xs: 0.75rem;                                           /* 12 */
+  --text-sm: 0.875rem;                                          /* 14 */
+  --text-base: 1rem;                                            /* 16 */
+  --text-lg: 1.125rem;                                          /* 18 */
+  --text-xl: 1.25rem;                                           /* 20 — H3 */
+  --text-2xl: clamp(1.375rem, 1.2rem + 0.75vw, 1.75rem);        /* 22→28 — H2 */
+  --text-3xl: clamp(1.75rem, 1.45rem + 1.5vw, 2.5rem);          /* 28→40 — H1 */
+  --text-4xl: clamp(2rem, 1.6rem + 2vw, 3rem);                  /* display */
 
-  /* Three steps, deliberately far apart. 10px and 14px sitting together
-     read as sloppy rather than systematic. */
-  --radius-sm: 0.5rem;    /* inner: inputs, chips, small controls */
-  --radius-md: 0.75rem;   /* cards, panels */
-  --radius-lg: 1.25rem;   /* large media, sheets */
+  /* 8 controls / 12 cards / 20 large surfaces. Three steps, nothing
+     between them, and pills reserved for tags and statuses. */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1.25rem;
   --radius-full: 9999px;
 
-  /* One spacing scale. Sections use --space-section, which tightens on a
-     phone rather than keeping desktop rhythm and wasting the screen. */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -95,35 +116,41 @@
 }
 
 /* ==================================================================== *
- * Semantic tokens. Components use ONLY these — never a raw scale value,
- * so dark mode and any future rebrand happen in one place.
+ * Semantic tokens. Components use ONLY these — never a raw scale value.
  * ==================================================================== */
 
 :root {
+  color-scheme: light;
+
   --background: var(--color-slate-50);
   --surface: #ffffff;
   --surface-raised: #ffffff;
   --surface-sunken: var(--color-slate-100);
 
+  /* Hairlines for dividing, and a genuinely visible edge for controls.
+     They are different jobs and must not share a value. */
   --border: var(--color-slate-200);
   --border-strong: var(--color-slate-300);
+  --border-control: var(--color-slate-400);
 
   --text-primary: var(--color-slate-900);
   --text-secondary: var(--color-slate-600);
-  --text-tertiary: var(--color-slate-400);
+  --text-tertiary: var(--color-slate-500);
   --text-on-primary: #ffffff;
 
   --primary: var(--color-corn-600);
   --primary-hover: var(--color-corn-700);
   --primary-active: var(--color-corn-800);
   --primary-soft: var(--color-corn-50);
+  --primary-soft-hover: var(--color-corn-100);
   --primary-soft-border: var(--color-corn-200);
 
   --secondary: var(--color-slate-100);
   --secondary-hover: var(--color-slate-200);
 
-  /* The vivid cornflower, reserved for the mark and small accents. */
+  /* The sky-cornflower. Decorative and structural, never a text colour. */
   --accent: var(--color-corn-400);
+  --accent-soft: var(--color-corn-100);
 
   --success: var(--color-success-600);
   --success-soft: var(--color-success-50);
@@ -134,90 +161,21 @@
   --info: var(--color-info-700);
   --info-soft: var(--color-info-50);
 
-  --focus: var(--color-corn-500);
+  --focus: var(--color-corn-600);
   --brand-mark-gap: #ffffff;
 
-  /* Tinted with the navy text hue, never pure black: a black shadow on a
-     blue-grey surface reads as dirt. Three levels only, each meaning
-     something — flat, resting, lifted. */
+  /* Tinted with the navy text hue, never black: a black shadow over a
+     blue-white ground reads as dirt. Deliberately weak — the interface
+     is not a pile of floating cards. */
   --shadow-none: none;
-  --shadow-subtle: 0 1px 2px rgb(22 34 74 / 0.06), 0 1px 3px rgb(22 34 74 / 0.04);
-  --shadow-raised: 0 4px 12px rgb(22 34 74 / 0.10), 0 12px 28px rgb(22 34 74 / 0.08);
-  /* Kept as an alias so existing components do not break mid-migration. */
-  --shadow-card: var(--shadow-subtle);
+  --shadow-subtle: 0 1px 2px rgb(11 37 69 / 0.05);
+  --shadow-raised: 0 2px 4px rgb(11 37 69 / 0.04), 0 8px 20px rgb(11 37 69 / 0.08);
+  --shadow-overlay: 0 4px 8px rgb(11 37 69 / 0.06), 0 16px 40px rgb(11 37 69 / 0.12);
+  /* Aliases kept so no component breaks mid-migration. */
+  --shadow-card: var(--shadow-none);
   --shadow-sm: var(--shadow-subtle);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --background: #0b1220;
-    --surface: #141d31;
-    --surface-raised: #1a2440;
-    --surface-sunken: #0e1626;
-
-    --border: #27324c;
-    --border-strong: #374566;
-
-    --text-primary: #eaf0fb;
-    --text-secondary: #a5b2cc;
-    --text-tertiary: #74819c;
-    --text-on-primary: var(--color-corn-900);
-
-    /* Inverted: a 6:1-on-white blue is unreadable on navy, so the light
-       end of the scale becomes primary and the dark end becomes its text. */
-    --primary: var(--color-corn-300);
-    --primary-hover: var(--color-corn-200);
-    --primary-active: var(--color-corn-100);
-    --primary-soft: #1b2a4d;
-    --primary-soft-border: #2c407094;
-
-    --secondary: #1c2740;
-    --secondary-hover: #243052;
-
-    --accent: var(--color-corn-400);
-
-    --success: #5fd39b;
-    --success-soft: #102b20;
-    --warning: #f0c063;
-    --warning-soft: #2e2410;
-    --error: #f78d85;
-    --error-soft: #33191a;
-    --info: #8fb6f5;
-    --info-soft: #16233c;
-
-    --focus: var(--color-corn-300);
-    --brand-mark-gap: #141d31;
-
-    --shadow-subtle: 0 1px 2px rgb(0 0 0 / 0.45);
-    --shadow-raised: 0 4px 14px rgb(0 0 0 / 0.5), 0 16px 36px rgb(0 0 0 / 0.4);
-    --shadow-card: var(--shadow-subtle);
-    --shadow-sm: var(--shadow-subtle);
-  }
-}
-
-:root[data-theme='dark'] {
-  --background: #0b1220;
-  --surface: #141d31;
-  --surface-raised: #1a2440;
-  --surface-sunken: #0e1626;
-  --border: #27324c;
-  --border-strong: #374566;
-  --text-primary: #eaf0fb;
-  --text-secondary: #a5b2cc;
-  --text-tertiary: #74819c;
-  --text-on-primary: var(--color-corn-900);
-  --primary: var(--color-corn-300);
-  --primary-hover: var(--color-corn-200);
-  --primary-active: var(--color-corn-100);
-  --primary-soft: #1b2a4d;
-  --secondary: #1c2740;
-  --secondary-hover: #243052;
-  --success: #5fd39b;
-  --warning: #f0c063;
-  --error: #f78d85;
-  --info: #8fb6f5;
-  --focus: var(--color-corn-300);
-  --brand-mark-gap: #141d31;
+  --header-height: 4rem;
 }
 
 /* ==================================================================== *
@@ -234,33 +192,43 @@ body {
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--text-base);
-  line-height: 1.55;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 h1, h2, h3, h4 {
   margin: 0;
-  line-height: 1.18;
-  letter-spacing: -0.02em;
+  line-height: 1.2;
+  letter-spacing: -0.018em;
   font-weight: 600;
   text-wrap: balance;
 }
-/* Display type carries the page, so it gets real weight and tighter
-   tracking; body-scale headings stay calm. */
+
+/* Only the page's single most important line gets display treatment.
+   Weight is a resource; spending it everywhere buys nothing. */
 .display {
-  font-size: var(--text-4xl);
+  font-size: var(--text-3xl);
   font-weight: 700;
-  letter-spacing: -0.035em;
-  line-height: 1.05;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
 }
-.title-lg { font-size: var(--text-2xl); font-weight: 650; letter-spacing: -0.025em; }
-/* Reading measure. Long apartment descriptions become unreadable past
-   about 70 characters. */
+.title-lg { font-size: var(--text-2xl); font-weight: 600; letter-spacing: -0.022em; }
+.title-md { font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.018em; }
+.title-sm { font-size: var(--text-base); font-weight: 600; letter-spacing: -0.01em; }
+
+/* Reading measure. Apartment descriptions become unreadable past ~70
+   characters. */
 .prose { max-width: 68ch; line-height: 1.65; }
 
 p { margin: 0; text-wrap: pretty; }
 a { color: inherit; text-decoration: none; }
 img { max-width: 100%; }
+
+.muted { color: var(--text-secondary); }
+.dim { color: var(--text-tertiary); }
+.text-sm { font-size: var(--text-sm); }
+.text-xs { font-size: var(--text-xs); }
 
 :focus-visible {
   outline: 2px solid var(--focus);
@@ -294,95 +262,149 @@ img { max-width: 100%; }
 .skip-link:focus { left: 0; }
 
 /* ==================================================================== *
- * Components
+ * Layout
  * ==================================================================== */
 
 .container { width: 100%; max-width: 1200px; margin-inline: auto; padding-inline: 1rem; }
 @media (min-width: 768px) { .container { padding-inline: 1.5rem; } }
 .container-wide { max-width: 1440px; }
 
-/* --- buttons ------------------------------------------------------- */
+.stack { display: flex; flex-direction: column; }
+.row { display: flex; align-items: center; }
+.grow { flex: 1 1 auto; min-width: 0; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* A plain section: heading, then content. No container at all. This is
+   the default for grouping, and boxes are the exception. */
+.section { margin-block: var(--space-6); }
+.section > h2, .section > h3 { margin-bottom: var(--space-4); }
+.section-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-4); margin-bottom: var(--space-4);
+}
+
+.hairline { border: 0; border-top: 1px solid var(--border); margin: 0; }
+
+.scroll-x {
+  display: flex; gap: 0.5rem; overflow-x: auto;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
+.scroll-x::-webkit-scrollbar { display: none; }
+.scroll-x > * { scroll-snap-align: start; flex: 0 0 auto; }
+
+/* Wide content (tables, calendars) scrolls inside its own box so the
+   page body never scrolls sideways on a phone. */
+.overflow-guard { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ==================================================================== *
+ * Buttons
+ * ==================================================================== */
+
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
-  min-height: 2.75rem;              /* 44px touch target */
+  min-height: 2.75rem;                       /* 44px touch target */
   padding: 0.625rem 1.125rem;
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font: inherit; font-weight: 600; font-size: var(--text-sm);
   cursor: pointer; text-align: center;
-  transition: background-color 150ms ease, border-color 150ms ease,
-              color 150ms ease, transform 100ms ease;
+  white-space: nowrap;
+  transition: background-color 140ms ease, border-color 140ms ease,
+              color 140ms ease, transform 90ms ease;
 }
-/* Physical press feedback. Cheap, GPU-only, and the difference between an
+/* Physical press feedback. GPU-only, and the difference between an
    interface that responds and one that merely changes. */
 .btn:active:not(:disabled) { transform: translateY(1px); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .btn-primary { background: var(--primary); color: var(--text-on-primary); }
 .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
 .btn-primary:active:not(:disabled) { background: var(--primary-active); }
 
-.btn-secondary { background: var(--surface-raised); color: var(--text-primary); border-color: var(--border-strong); }
-.btn-secondary:hover:not(:disabled) { background: var(--secondary); }
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.btn-secondary:hover:not(:disabled) { background: var(--surface-sunken); border-color: var(--border-control); }
+
+/* Soft: a primary-flavoured action that is not the primary action. */
+.btn-soft { background: var(--primary-soft); color: var(--primary); }
+.btn-soft:hover:not(:disabled) { background: var(--primary-soft-hover); }
 
 .btn-ghost { background: transparent; color: var(--text-secondary); }
-.btn-ghost:hover:not(:disabled) { background: var(--secondary); color: var(--text-primary); }
+.btn-ghost:hover:not(:disabled) { background: var(--surface-sunken); color: var(--text-primary); }
 
 .btn-danger { background: var(--error); color: #fff; }
+
 .btn-sm { min-height: 2.25rem; padding: 0.375rem 0.75rem; font-size: var(--text-xs); }
-.btn-lg { min-height: 3.25rem; font-size: var(--text-base); padding-inline: 1.5rem; }
+.btn-lg { min-height: 3rem; font-size: var(--text-base); padding-inline: 1.5rem; }
 .btn-block { width: 100%; }
 
-/* --- surfaces -------------------------------------------------------
- * A surface gets EITHER elevation OR a border, never both. Border plus
- * shadow plus white background is the most generic card recipe there is,
- * and applying it to every group is what makes an interface look like a
- * form from 2014. Structure comes from space and type instead.          */
+/* An inline text action. Reads as a link, targets like a control. */
+.link {
+  color: var(--primary); font-weight: 600;
+  display: inline-flex; align-items: center; gap: 0.3rem;
+}
+.link:hover { color: var(--primary-hover); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ==================================================================== *
+ * Surfaces
+ *
+ * `.card` is white on the blue-white ground. That contrast alone is the
+ * boundary — no border, no resting shadow. Elevation appears on hover
+ * and only for things that are actually links.
+ * ==================================================================== */
+
 .card {
-  background: var(--surface-raised);
+  background: var(--surface);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-subtle);
   transition: box-shadow 180ms ease, transform 180ms ease;
 }
-/* Only interactive cards lift. A static card that rises on hover is a lie
-   about what it does. */
 a.card:hover, .card--interactive:hover {
   box-shadow: var(--shadow-raised);
   transform: translateY(-2px);
 }
 a.card:active, .card--interactive:active { transform: translateY(0); }
 
-/* `panel` is a LAYOUT primitive: padding and an optional soft ground.
-   It is not a drawn box. */
+/* `panel` is a LAYOUT primitive: padding and a ground. Not a drawn box. */
 .panel {
-  background: var(--surface-raised);
+  background: var(--surface);
   border-radius: var(--radius-md);
   padding: var(--space-5);
 }
 .panel-soft { background: var(--surface-sunken); }
-.panel-bordered { border: 1px solid var(--border); box-shadow: none; }
+.panel-bordered { border: 1px solid var(--border); }
+.panel-raised { box-shadow: var(--shadow-raised); }
 .panel-flush { padding: 0; overflow: hidden; }
 
-/* A plain section: heading + content, no container at all. The default
-   for most groupings. */
-.section { margin-block: var(--space-6); }
-.section > h2, .section > h3 { margin-bottom: var(--space-3); }
+/* ==================================================================== *
+ * Forms
+ *
+ * Fields are large, light, and edged strongly enough to be found
+ * (WCAG 1.4.11 needs 3:1 for the boundary that identifies a control —
+ * --border-control is 3.09:1, which is why it is not a hairline).
+ * ==================================================================== */
 
-/* --- forms --------------------------------------------------------- */
 .field { display: flex; flex-direction: column; gap: 0.375rem; }
-.label { font-size: var(--text-sm); font-weight: 600; color: var(--text-secondary); }
+.label { font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary); }
 
 .input, .select, .textarea {
   width: 100%;
-  min-height: 2.75rem;
-  padding: 0.625rem 0.875rem;
-  background: var(--surface-raised);
+  min-height: 3rem;
+  padding: 0.6875rem 0.875rem;
+  background: var(--surface);
   color: var(--text-primary);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
   font: inherit;
-  font-size: max(16px, var(--text-sm));  /* 16px stops iOS zooming on focus */
+  font-size: max(16px, var(--text-sm));   /* 16px stops iOS zooming on focus */
+  transition: border-color 140ms ease, box-shadow 140ms ease;
 }
+.input::placeholder, .textarea::placeholder { color: var(--text-tertiary); }
+.input:hover, .select:hover, .textarea:hover { border-color: var(--text-tertiary); }
 .input:focus, .select:focus, .textarea:focus {
   border-color: var(--primary);
   outline: 2px solid var(--focus);
@@ -390,17 +412,35 @@ a.card:active, .card--interactive:active { transform: translateY(0); }
 }
 .input[aria-invalid='true'], .textarea[aria-invalid='true'] { border-color: var(--error); }
 .textarea { min-height: 6rem; resize: vertical; }
-.hint { font-size: var(--text-xs); color: var(--text-tertiary); }
+.hint { font-size: var(--text-xs); color: var(--text-tertiary); line-height: 1.45; }
 .error-text { font-size: var(--text-xs); color: var(--error); font-weight: 500; }
 
-/* --- badges & chips ------------------------------------------------ */
+.select {
+  appearance: none;
+  padding-right: 2.25rem;
+  /* Inline chevron so the control matches the icon family instead of
+     inheriting whatever the platform draws. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%234a5a75' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.625rem center;
+}
+
+/* ==================================================================== *
+ * Badges, chips, pills
+ *
+ * Reserved for tags, statuses, filters and compact metadata — never as
+ * general decoration. Solid dark pills are gone: a badge should sit
+ * quietly beside content, not compete with the photograph.
+ * ==================================================================== */
+
 .badge {
   display: inline-flex; align-items: center; gap: 0.3rem;
-  padding: 0.2rem 0.55rem;
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs); font-weight: 600; line-height: 1.4;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs); font-weight: 600; line-height: 1.45;
   white-space: nowrap;
 }
+/* The default badge is not a box at all — just quieter text. */
 .badge-neutral { background: transparent; color: var(--text-secondary); padding-inline: 0; font-weight: 500; }
 .badge-solid-neutral { background: var(--surface-sunken); color: var(--text-secondary); }
 .badge-primary { background: var(--primary-soft); color: var(--primary); }
@@ -409,25 +449,33 @@ a.card:active, .card--interactive:active { transform: translateY(0); }
 .badge-danger { background: var(--error-soft); color: var(--error); }
 .badge-info { background: var(--info-soft); color: var(--info); }
 
+/* Chips are choices. Light by default, tinted when chosen — never a
+   navy pill. */
 .chip {
   display: inline-flex; align-items: center; gap: 0.4rem;
   min-height: 2.5rem;
-  padding: 0.4rem 0.9rem;
-  background: var(--surface-raised);
+  padding: 0.45rem 0.9rem;
+  background: var(--surface);
   color: var(--text-primary);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-full);
   font: inherit; font-size: var(--text-sm); font-weight: 500;
   cursor: pointer; white-space: nowrap;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
 }
-.chip:hover { background: var(--secondary); }
-.chip[aria-pressed='true'] {
+.chip:hover { border-color: var(--border-control); background: var(--surface-sunken); }
+.chip[aria-pressed='true'], .chip[data-selected='true'] {
   background: var(--primary-soft);
   border-color: var(--primary);
   color: var(--primary);
+  font-weight: 600;
 }
+.chip-sm { min-height: 2.125rem; padding: 0.3rem 0.7rem; font-size: var(--text-xs); }
 
-/* --- feedback ------------------------------------------------------ */
+/* ==================================================================== *
+ * Feedback
+ * ==================================================================== */
+
 .skeleton {
   background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--border) 50%, var(--surface-sunken) 75%);
   background-size: 200% 100%;
@@ -442,30 +490,65 @@ a.card:active, .card--interactive:active { transform: translateY(0); }
 .alert {
   display: flex; gap: 0.75rem;
   padding: 0.875rem 1rem;
-  border-radius: var(--radius-md);
-  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   font-size: var(--text-sm);
+  line-height: 1.5;
 }
-.alert-info { background: var(--info-soft); border-color: var(--info-soft); color: var(--text-primary); }
+.alert-info { background: var(--info-soft); color: var(--text-primary); }
 .alert-warning { background: var(--warning-soft); color: var(--text-primary); }
 .alert-error { background: var(--error-soft); color: var(--text-primary); }
 .alert-success { background: var(--success-soft); color: var(--text-primary); }
 
-/* --- layout helpers ------------------------------------------------ */
-.stack { display: flex; flex-direction: column; }
-.row { display: flex; align-items: center; }
-.grow { flex: 1 1 auto; min-width: 0; }
-.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* ==================================================================== *
+ * Dark mode — retained, NOT automatic
+ *
+ * DEC-023: light is the product. This block used to be attached to
+ * `@media (prefers-color-scheme: dark)`, which meant anyone reviewing
+ * the site on a dark-themed OS saw the navy interface and never saw the
+ * light one at all — the light design was, in practice, invisible.
+ *
+ * So dark is now strictly opt-in, behind an explicit `data-theme`
+ * attribute. The tokens stay complete and usable, and nothing renders
+ * them until something sets that attribute. Re-attaching them to the
+ * media query is a product decision, not a styling tweak: it should
+ * happen only once dark has had a real design pass of its own.
+ * ==================================================================== */
 
-.scroll-x {
-  display: flex; gap: 0.5rem; overflow-x: auto;
-  scrollbar-width: none; -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x proximity;
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --background: #0c1424;
+  --surface: #141e33;
+  --surface-raised: #182543;
+  --surface-sunken: #101a2d;
+  --border: #263355;
+  --border-strong: #33436b;
+  --border-control: #4a5c8a;
+  --text-primary: #eef3fb;
+  --text-secondary: #aab8d2;
+  --text-tertiary: #8494ab;
+  --text-on-primary: #06172e;
+  --primary: var(--color-corn-300);
+  --primary-hover: var(--color-corn-200);
+  --primary-active: var(--color-corn-100);
+  --primary-soft: #16264a;
+  --primary-soft-hover: #1c3057;
+  --primary-soft-border: #2b3f6e;
+  --secondary: #1a2740;
+  --secondary-hover: #223052;
+  --accent: var(--color-corn-400);
+  --accent-soft: #16264a;
+  --success: #5fd39b;
+  --success-soft: #0f2a20;
+  --warning: #f0c063;
+  --warning-soft: #2d2410;
+  --error: #f78d85;
+  --error-soft: #32191a;
+  --info: #9cc2f8;
+  --info-soft: #16233c;
+  --focus: var(--color-corn-300);
+  --brand-mark-gap: #141e33;
+
+  --shadow-subtle: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-raised: 0 4px 14px rgb(0 0 0 / 0.45), 0 16px 36px rgb(0 0 0 / 0.35);
+  --shadow-overlay: 0 8px 32px rgb(0 0 0 / 0.6);
 }
-.scroll-x::-webkit-scrollbar { display: none; }
-.scroll-x > * { scroll-snap-align: start; flex: 0 0 auto; }
-
-/* Wide content (tables, calendars) scrolls inside its own box so the page
-   body never scrolls sideways on a phone. */
-.overflow-guard { overflow-x: auto; -webkit-overflow-scrolling: touch; }

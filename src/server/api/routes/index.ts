@@ -3,6 +3,7 @@ import { authRoutes } from './auth.ts';
 import { listingRoutes } from './listings.ts';
 import { searchRoutes } from './search.ts';
 import { bookingRoutes } from './bookings.ts';
+import { favoriteRoutes } from './favorites.ts';
 import { chatRoutes, dashboardRoutes, notificationRoutes, profileRoutes, reviewRoutes } from './social.ts';
 import { adminRoutes, financeRoutes } from './admin.ts';
 import { defineRoute } from '../http.ts';
@@ -30,6 +31,7 @@ export const allRoutes: AnyRoute[] = [
   ...dashboardRoutes,
   ...listingRoutes,
   ...searchRoutes,
+  ...favoriteRoutes,
   ...bookingRoutes,
   ...reviewRoutes,
   ...chatRoutes,

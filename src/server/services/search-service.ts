@@ -20,6 +20,13 @@ import type { Db, Sql } from '../db/sql.ts';
 import { forbidden, invalid, notFound } from './errors.ts';
 
 export interface SearchFilters {
+  /**
+   * Restrict to an explicit set of listings. Used by the favourites page,
+   * which knows the ids but still needs the same public projection — the
+   * one that omits the exact address — rather than a second hand-written
+   * query that could forget to.
+   */
+  readonly ids?: readonly string[];
   readonly city?: string;
   readonly district?: string;
   readonly bounds?: Bounds;
@@ -120,6 +127,9 @@ export class SearchService {
       return `$${params.length}`;
     };
 
+    // An empty id set means "nothing", not "everything" — a favourites page
+    // with no saved listings must not fall through to the whole catalogue.
+    if (filters.ids) where.push(`p.id = ANY(${push([...filters.ids])}::uuid[])`);
     if (filters.city) where.push(`lower(p.city) = lower(${push(filters.city)})`);
     if (filters.district) where.push(`lower(p.district) = lower(${push(filters.district)})`);
 

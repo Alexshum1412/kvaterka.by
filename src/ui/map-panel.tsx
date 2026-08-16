@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { Icon } from '@/ui/icons.tsx';
 import { formatMoney, fromStorage } from '@/server/domain/money.ts';
 
 export interface MapMarker {
@@ -56,106 +57,156 @@ export function MapPanel({ markers }: { markers: MapMarker[] }) {
   if (markers.length === 0) {
     return (
       <div className="map-panel map-panel--empty">
-        <p style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' }}>Нет объектов в этой области</p>
+        <div className="map-panel__empty">
+          <span className="map-panel__emptyMark">
+            <Icon name="map" size={28} />
+          </span>
+          <p>Нет объектов в этой области</p>
+        </div>
+        <style>{MAP_CSS}</style>
       </div>
     );
   }
 
+  const activeMarker = active === null ? undefined : markers.find((m) => m.id === active);
+
   return (
     <div className="map-panel">
+      <div className="map-panel__viewport">
+        <div className="map-panel__canvas" role="group" aria-label="Карта объектов">
+          {projected.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              className="map-pin"
+              style={{ left: `${m.x}%`, top: `${m.y}%` }}
+              aria-label={`${m.title}, ${formatMoney(fromStorage(m.priceMinor))}`}
+              aria-pressed={active === m.id}
+              onClick={() => setActive(active === m.id ? null : m.id)}
+            >
+              <span className="numeric">{formatMoney(fromStorage(m.priceMinor), { showCurrency: false })}</span>
+            </button>
+          ))}
+        </div>
+
+        {activeMarker && (
+          <div className="map-panel__card card">
+            <Link href={`/listing/${activeMarker.id}`} className="map-card">
+              <span className="map-card__title clamp-2">{activeMarker.title}</span>
+              <span className="map-card__foot">
+                <span className="numeric map-card__price">
+                  {formatMoney(fromStorage(activeMarker.priceMinor))}
+                </span>
+                <Icon name="chevronRight" size={16} />
+              </span>
+              <span className="map-card__note">Показано примерное расположение</span>
+            </Link>
+          </div>
+        )}
+      </div>
+
       {!styleUrl && (
         <p className="map-panel__notice">
+          <Icon name="info" size={14} />
           Картографический слой ещё не подключён. Точки показаны в реальном взаимном расположении.
         </p>
       )}
 
-      <div className="map-panel__canvas" role="group" aria-label="Карта объектов">
-        {projected.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            className="map-pin"
-            style={{ left: `${m.x}%`, top: `${m.y}%` }}
-            aria-label={`${m.title}, ${formatMoney(fromStorage(m.priceMinor))}`}
-            aria-pressed={active === m.id}
-            onClick={() => setActive(active === m.id ? null : m.id)}
-          >
-            <span className="numeric">{formatMoney(fromStorage(m.priceMinor), { showCurrency: false })}</span>
-          </button>
-        ))}
-      </div>
-
-      {active && (
-        <div className="map-panel__card card">
-          {(() => {
-            const marker = markers.find((m) => m.id === active)!;
-            return (
-              <Link href={`/listing/${marker.id}`} className="stack" style={{ gap: '0.25rem', padding: '0.75rem' }}>
-                <strong className="clamp-2" style={{ fontSize: 'var(--text-sm)' }}>
-                  {marker.title}
-                </strong>
-                <span className="numeric" style={{ fontSize: 'var(--text-sm)' }}>
-                  {formatMoney(fromStorage(marker.priceMinor))}
-                </span>
-                <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-tertiary)' }}>
-                  Показано примерное расположение
-                </span>
-              </Link>
-            );
-          })()}
-        </div>
-      )}
-
-      <style>{`
-        .map-panel {
-          position: relative;
-          border: 1px solid var(--border);
-          border-radius: var(--radius-lg);
-          background:
-            linear-gradient(var(--surface-sunken), var(--surface-sunken)),
-            repeating-linear-gradient(0deg, transparent 0 39px, var(--border) 39px 40px),
-            repeating-linear-gradient(90deg, transparent 0 39px, var(--border) 39px 40px);
-          background-blend-mode: normal;
-          overflow: hidden;
-          min-height: 18rem;
-          height: 100%;
-        }
-        .map-panel--empty { display: grid; place-items: center; }
-        .map-panel__canvas { position: absolute; inset: 0; }
-        .map-panel__notice {
-          position: absolute; inset-inline: 0; top: 0; z-index: 2;
-          margin: 0; padding: 0.4rem 0.75rem;
-          font-size: var(--text-2xs);
-          color: var(--text-secondary);
-          background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
-          border-bottom: 1px solid var(--border);
-        }
-        .map-pin {
-          position: absolute;
-          transform: translate(-50%, -50%);
-          min-height: 2.5rem;
-          padding: 0.45rem 0.75rem;
-          background: var(--surface-raised);
-          color: var(--text-primary);
-          border: 1px solid var(--border-strong);
-          border-radius: var(--radius-full);
-          box-shadow: var(--shadow-subtle);
-          font-size: var(--text-xs);
-          font-weight: 600;
-          cursor: pointer;
-          white-space: nowrap;
-        }
-        .map-pin:hover, .map-pin[aria-pressed='true'] {
-          background: var(--primary);
-          color: var(--text-on-primary);
-          border-color: var(--primary);
-          z-index: 3;
-        }
-        .map-panel__card {
-          position: absolute; left: 0.75rem; right: 0.75rem; bottom: 0.75rem;
-          z-index: 4;
-        }
-      `}</style>
+      <style>{MAP_CSS}</style>
     </div>
   );
 }
+
+/*
+ * The notice sits in the flex column rather than over the viewport, so a long
+ * line can wrap on a 375px phone without ever covering a pin.
+ */
+const MAP_CSS = `
+  .map-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    min-height: 18rem;
+    height: 100%;
+  }
+  .map-panel--empty { align-items: center; justify-content: center; }
+  .map-panel__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: var(--space-5);
+    text-align: center;
+    font-size: var(--text-sm);
+    color: var(--text-tertiary);
+  }
+  .map-panel__emptyMark { color: var(--border-control); }
+
+  .map-panel__viewport {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 12rem;
+    /* A graticule, not a texture: barely there, only enough to read as a
+       plan view rather than an empty grey rectangle. */
+    background-image:
+      repeating-linear-gradient(0deg, transparent 0 47px, color-mix(in srgb, var(--border) 60%, transparent) 47px 48px),
+      repeating-linear-gradient(90deg, transparent 0 47px, color-mix(in srgb, var(--border) 60%, transparent) 47px 48px);
+  }
+  .map-panel__canvas { position: absolute; inset: 0; }
+
+  .map-pin {
+    position: absolute;
+    z-index: 1;
+    transform: translate(-50%, -50%);
+    min-height: 2.5rem;
+    padding: 0.4rem 0.7rem;
+    background: var(--surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-full);
+    box-shadow: var(--shadow-subtle);
+    font: inherit;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+  }
+  /* --primary carries white text at 5.28:1; --accent would fail here. */
+  .map-pin:hover, .map-pin[aria-pressed='true'] {
+    z-index: 3;
+    background: var(--primary);
+    color: var(--text-on-primary);
+    border-color: var(--primary);
+  }
+
+  .map-panel__card {
+    position: absolute;
+    left: 0.75rem; right: 0.75rem; bottom: 0.75rem;
+    z-index: 4;
+    box-shadow: var(--shadow-overlay);
+    overflow: hidden;
+  }
+  .map-card { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.75rem; }
+  .map-card__title { font-size: var(--text-sm); font-weight: 600; line-height: 1.35; }
+  .map-card__foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+    color: var(--text-tertiary);
+  }
+  .map-card__price { font-size: var(--text-base); font-weight: 600; color: var(--text-primary); }
+  .map-card__note { font-size: var(--text-2xs); color: var(--text-tertiary); }
+
+  .map-panel__notice {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.75rem 0.625rem;
+    font-size: var(--text-2xs);
+    line-height: 1.4;
+    color: var(--text-tertiary);
+  }
+`;

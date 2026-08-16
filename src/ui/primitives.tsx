@@ -7,6 +7,8 @@
  */
 
 import type { ReactNode } from 'react';
+import { Icon, type IconName } from '@/ui/icons.tsx';
+import { CornflowerMark } from '@/ui/brand.tsx';
 import { formatMoney, fromStorage } from '@/server/domain/money.ts';
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
@@ -31,17 +33,37 @@ export function Money({
   );
 }
 
+type BadgeTone = 'neutral' | 'verified' | 'warning' | 'danger' | 'primary';
+
+/**
+ * A tone already carries a meaning, so it also carries a glyph: the badge
+ * reads at a glance instead of asking the eye to decode a colour. `neutral`
+ * and `primary` stay wordless — they label rather than assert.
+ */
+const TONE_ICON: Record<BadgeTone, IconName | null> = {
+  neutral: null,
+  primary: null,
+  verified: 'checkCircle',
+  warning: 'alert',
+  danger: 'alert',
+};
+
 export function Badge({
   children,
   tone = 'neutral',
   title,
+  icon,
 }: {
   children: ReactNode;
-  tone?: 'neutral' | 'verified' | 'warning' | 'danger' | 'primary';
+  tone?: BadgeTone;
   title?: string;
+  /** Overrides the tone's glyph; `null` removes it. */
+  icon?: IconName | null;
 }) {
+  const glyph = icon === undefined ? TONE_ICON[tone] : icon;
   return (
     <span className={`badge badge-${tone}`} title={title}>
+      {glyph && <Icon name={glyph} size={14} />}
       {children}
     </span>
   );
@@ -51,6 +73,7 @@ export function Badge({
  * Verification badges. Wording is deliberately literal: "Личность
  * подтверждена" and "Объект проверен" are different claims and must never be
  * merged into a vague "Verified" that overstates what was checked (spec §16).
+ * They carry different glyphs for the same reason.
  */
 export function VerificationBadges({
   identityLevel,
@@ -62,7 +85,7 @@ export function VerificationBadges({
   return (
     <span className="row" style={{ gap: '0.375rem', flexWrap: 'wrap' }}>
       {identityLevel >= 1 ? (
-        <Badge tone="verified" title="Платформа проверила документы, удостоверяющие личность">
+        <Badge tone="verified" icon="checkCircle" title="Платформа проверила документы, удостоверяющие личность">
           Личность подтверждена
         </Badge>
       ) : (
@@ -71,7 +94,7 @@ export function VerificationBadges({
         </Badge>
       )}
       {propertyVerified && (
-        <Badge tone="verified" title="Платформа проверила право сдавать этот объект">
+        <Badge tone="verified" icon="shieldCheck" title="Платформа проверила право сдавать этот объект">
           Объект проверен
         </Badge>
       )}
@@ -91,37 +114,53 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
+    // No ground and no box: an empty result is already an absence, and
+    // drawing a container around it only makes the absence louder.
     <div
-      className="panel stack"
-      style={{ alignItems: 'center', textAlign: 'center', gap: '0.75rem', padding: '3rem 1.5rem' }}
+      className="stack"
+      style={{ alignItems: 'center', textAlign: 'center', gap: '0.625rem', padding: '3.5rem 1rem' }}
     >
+      <span style={{ color: 'var(--accent)', opacity: 0.55, marginBottom: '0.25rem' }}>
+        <CornflowerMark size={44} />
+      </span>
       <h3 style={{ fontSize: 'var(--text-lg)' }}>{title}</h3>
       {description && (
-        <p style={{ color: 'var(--text-secondary)', maxWidth: '38ch', fontSize: 'var(--text-sm)' }}>{description}</p>
+        <p style={{ color: 'var(--text-secondary)', maxWidth: '42ch', fontSize: 'var(--text-sm)' }}>{description}</p>
       )}
-      {action}
+      {action && <div style={{ marginTop: '0.5rem' }}>{action}</div>}
     </div>
   );
 }
 
 export function ErrorState({ title, detail }: { title: string; detail?: string }) {
   return (
-    <div className="panel stack" role="alert" style={{ gap: '0.5rem', borderColor: 'var(--error)' }}>
-      <strong>{title}</strong>
-      {/* Users get a plain explanation and a next step, never a stack trace. */}
-      {detail && <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>{detail}</p>}
+    <div className="alert alert-error" role="alert">
+      <span style={{ color: 'var(--error)', marginTop: '0.1rem' }}>
+        <Icon name="alert" size={18} />
+      </span>
+      <div className="stack" style={{ gap: '0.25rem' }}>
+        <strong style={{ fontSize: 'var(--text-base)', fontWeight: 600 }}>{title}</strong>
+        {/* Users get a plain explanation and a next step, never a stack trace. */}
+        {detail && <p>{detail}</p>}
+      </div>
     </div>
   );
 }
 
 export function CardSkeleton() {
   return (
+    // Proportioned to the real card: photograph first and dominant, then a
+    // title, a place and a price. A skeleton that reflows on load is worse
+    // than no skeleton.
     <div className="card stack" aria-hidden="true" style={{ overflow: 'hidden' }}>
-      <div className="skeleton" style={{ aspectRatio: '4 / 3', borderRadius: 0 }} />
-      <div className="stack" style={{ gap: '0.5rem', padding: '0.875rem' }}>
-        <div className="skeleton" style={{ height: '0.9rem', width: '70%' }} />
-        <div className="skeleton" style={{ height: '0.75rem', width: '45%' }} />
-        <div className="skeleton" style={{ height: '1.1rem', width: '35%' }} />
+      <div className="skeleton" style={{ aspectRatio: '3 / 2', borderRadius: 0 }} />
+      <div className="stack" style={{ gap: '0.625rem', padding: '0.75rem 0.75rem 1rem' }}>
+        <div className="skeleton" style={{ height: '1.05rem', width: '68%', borderRadius: 'var(--radius-full)' }} />
+        <div className="skeleton" style={{ height: '0.8rem', width: '42%', borderRadius: 'var(--radius-full)' }} />
+        <div
+          className="skeleton"
+          style={{ height: '1.25rem', width: '34%', marginTop: '0.75rem', borderRadius: 'var(--radius-full)' }}
+        />
       </div>
     </div>
   );
@@ -132,11 +171,15 @@ export function CardSkeleton() {
 /** Calendar freshness, shown to tenants as a trust signal (spec §24). */
 export function FreshnessIndicator({ freshness }: { freshness: 'FRESH' | 'AGEING' | 'STALE' }) {
   const config = {
-    FRESH: { tone: 'verified' as const, label: 'Календарь обновлён недавно' },
-    AGEING: { tone: 'neutral' as const, label: 'Календарь обновлялся давно' },
-    STALE: { tone: 'warning' as const, label: 'Календарь может быть неактуален' },
+    FRESH: { tone: 'verified' as const, icon: 'checkCircle' as const, label: 'Календарь обновлён недавно' },
+    AGEING: { tone: 'neutral' as const, icon: 'clock' as const, label: 'Календарь обновлялся давно' },
+    STALE: { tone: 'warning' as const, icon: 'alert' as const, label: 'Календарь может быть неактуален' },
   }[freshness];
-  return <Badge tone={config.tone}>{config.label}</Badge>;
+  return (
+    <Badge tone={config.tone} icon={config.icon}>
+      {config.label}
+    </Badge>
+  );
 }
 
 /** Human-readable rental duration, in Russian, with correct plural forms. */

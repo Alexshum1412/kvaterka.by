@@ -93,7 +93,7 @@ Supporting tables: `booking_offer` (immutable negotiation chain, unique partial 
 
 **Verification** — `verification_request`, `verification_document` (private bucket keys only; `purge_after` makes the retention policy a stored, auditable value rather than an implicit convention), and `document_access_log`, which is append-only and records every single read.
 
-**Also here:** `dispute_case` + `case_event`, `fraud_signal` (signals with severity, never one opaque verdict), `notification` (+ `notification_preference`, `telegram_connection`) with a unique dedupe key per user × channel, `favorite`, `saved_search`, `report`, and `feature_flag` with `requires_legal_approval` for the rewards gate (DEC-015).
+**Also here:** `dispute_case` + `case_event`, `fraud_signal` (signals with severity, never one opaque verdict), `notification` (+ `notification_preference`, `telegram_connection`) with a unique dedupe key per user × channel, `favorite` (composite PK `(user_id, property_id)` — the dedupe, which is what lets the API expose an idempotent PUT/DELETE pair with no idempotency record; DEC-025), `saved_search`, `report`, and `feature_flag` with `requires_legal_approval` for the rewards gate (DEC-015).
 
 ## Append-only tables
 

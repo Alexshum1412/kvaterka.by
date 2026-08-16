@@ -4,8 +4,15 @@ import Link from 'next/link';
 import { currentUser, signInUrl } from '@/server/session.ts';
 import { readyServices } from '@/server/runtime.ts';
 import { CornflowerMark } from '@/ui/brand.tsx';
-import { Money, plural, PROPERTY_TYPE_LABEL } from '@/ui/primitives.tsx';
-import type { AttentionItem, DashboardListing, UpcomingStay } from '@/server/services/dashboard-service.ts';
+import { Icon } from '@/ui/icons.tsx';
+import type { IconName } from '@/ui/icons.tsx';
+import { Money, cx, formatNights, plural } from '@/ui/primitives.tsx';
+import type {
+  AttentionItem,
+  AttentionKind,
+  DashboardListing,
+  UpcomingStay,
+} from '@/server/services/dashboard-service.ts';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,13 +23,27 @@ export const metadata: Metadata = {
 };
 
 const LISTING_STATUS: Record<string, { label: string; tone: string }> = {
-  DRAFT: { label: 'Черновик', tone: 'neutral' },
+  DRAFT: { label: 'Черновик', tone: 'solid-neutral' },
   PENDING_MODERATION: { label: 'На проверке', tone: 'warning' },
   PUBLISHED: { label: 'Опубликовано', tone: 'verified' },
-  PAUSED: { label: 'Скрыто', tone: 'neutral' },
+  PAUSED: { label: 'Скрыто', tone: 'solid-neutral' },
   REJECTED: { label: 'Отклонено', tone: 'danger' },
-  ARCHIVED: { label: 'В архиве', tone: 'neutral' },
+  ARCHIVED: { label: 'В архиве', tone: 'solid-neutral' },
 };
+
+const ATTENTION_ICON: Record<AttentionKind, IconName> = {
+  BOOKING_REQUEST: 'calendar',
+  AWAITING_CHECK_IN: 'key',
+  CONFIRM_COMPLETION: 'checkCircle',
+  LISTING_REJECTED: 'alert',
+  LISTING_DRAFT: 'edit',
+  UNREAD_MESSAGES: 'message',
+  OUTSTANDING_DEBT: 'alert',
+  STALE_CALENDAR: 'clock',
+  REVIEW_PENDING: 'star',
+};
+
+const MONTH_SHORT = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'] as const;
 
 function greeting(name: string): string {
   const hour = new Date().getUTCHours() + 3; // Belarus is UTC+3, no DST
@@ -33,6 +54,37 @@ function greeting(name: string): string {
   return `${part}, ${firstName}`;
 }
 
+/**
+ * The verb has to agree with the count, and «заявок ждёт» is wrong in a way a
+ * landlord notices immediately.
+ */
+function requestsPhrase(n: number): string {
+  const singular = n % 10 === 1 && n % 100 !== 11;
+  return `${n} ${plural(n, 'заявка', 'заявки', 'заявок')} ${singular ? 'ждёт' : 'ждут'} ответа`;
+}
+
+function accountSentence(listingCount: number, published: number, pending: number): string {
+  if (listingCount === 0) return 'Разместите первую квартиру — размещение бесплатное.';
+  const head =
+    published === 0
+      ? 'Пока ни одно объявление не опубликовано'
+      : `Опубликовано ${published} ${plural(published, 'объявление', 'объявления', 'объявлений')}`;
+  return pending > 0 ? `${head}, ${requestsPhrase(pending)}.` : `${head}.`;
+}
+
+/** Russian writes 4,8 — not 4.8. */
+function decimal(value: number): string {
+  return value.toFixed(1).replace('.', ',');
+}
+
+function dayOf(iso: string): string {
+  return String(Number(iso.split('-')[2] ?? '1'));
+}
+
+function monthOf(iso: string): string {
+  return MONTH_SHORT[Number(iso.split('-')[1] ?? '1') - 1] ?? '';
+}
+
 export default async function DashboardPage() {
   const user = await currentUser();
   if (!user) redirect(signInUrl('/dashboard'));
@@ -41,81 +93,65 @@ export default async function DashboardPage() {
   const summary = await services.dashboard.landlordSummary(user.userId);
   const { stats } = summary;
 
+  const hasListings = summary.listings.length > 0;
+  const inDebt = BigInt(stats.balanceMinor) < 0n;
+
   return (
-    <div className="container" style={{ paddingBlock: '1.5rem' }}>
-      <header className="stack" style={{ gap: '0.35rem', marginBottom: '1.5rem' }}>
-        <h1 className="title-lg">{greeting(summary.displayName || user.displayName)}</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
-          {stats.publishedListings === 0
-            ? 'Разместите первое объявление — это бесплатно.'
-            : `Опубликовано ${stats.publishedListings} ${plural(stats.publishedListings, 'объявление', 'объявления', 'объявлений')}.`}
+    <div className="container dash">
+      <header className="dash-head">
+        <p className="dash-head__eyebrow">Кабинет владельца</p>
+        <h1 className="display">{greeting(summary.displayName || user.displayName)}</h1>
+        <p className="dash-head__line">
+          {accountSentence(summary.listings.length, stats.publishedListings, stats.pendingRequests)}
         </p>
       </header>
 
-      {/* --- stats ---------------------------------------------------- */}
-      <section aria-label="Показатели" className="stat-grid">
-        <Stat label="Активные объявления" value={String(stats.publishedListings)} href="/dashboard/listings" />
-        <Stat
-          label="Новые заявки"
-          value={String(stats.pendingRequests)}
-          href="/dashboard/bookings?status=REQUESTED"
-          emphasis={stats.pendingRequests > 0}
-        />
-        <Stat label="Ближайшие заезды" value={String(stats.upcomingCheckIns)} href="/dashboard/bookings" />
-        <Stat
-          label="Рейтинг"
-          value={stats.rating === null ? '—' : stats.rating.toFixed(1)}
-          sub={stats.reviewCount > 0 ? `${stats.reviewCount} ${plural(stats.reviewCount, 'отзыв', 'отзыва', 'отзывов')}` : 'пока нет отзывов'}
-          href="/dashboard/reviews"
-        />
-      </section>
-
-      {/* --- attention ------------------------------------------------ */}
-      {summary.attention.length > 0 && (
-        <section aria-labelledby="attention-heading" style={{ marginTop: '2rem' }}>
-          <h2 id="attention-heading" className="section-heading">
-            Требует внимания
-          </h2>
-          <ul className="stack attention-list">
+      {summary.attention.length > 0 ? (
+        <section className="dash-section" aria-labelledby="attention-heading">
+          <div className="dash-section__head">
+            <h2 id="attention-heading" className="title-md">
+              Требует внимания
+            </h2>
+          </div>
+          <ul className="card dash-att">
             {summary.attention.map((item) => (
               <AttentionRow key={`${item.kind}-${item.href}`} item={item} />
             ))}
           </ul>
         </section>
-      )}
+      ) : hasListings ? (
+        <p className="dash-section dash-calm">
+          <Icon name="checkCircle" size={18} style={{ color: 'var(--success)' }} />
+          Сейчас ничего не требует внимания.
+        </p>
+      ) : null}
 
-      {/* --- upcoming ------------------------------------------------- */}
-      {summary.upcoming.length > 0 && (
-        <section aria-labelledby="upcoming-heading" style={{ marginTop: '2rem' }}>
-          <h2 id="upcoming-heading" className="section-heading">
-            Ближайшие заезды
-          </h2>
-          <ul className="stack" style={{ gap: '0.5rem', listStyle: 'none', padding: 0, margin: 0 }}>
-            {summary.upcoming.map((stay) => (
-              <UpcomingRow key={stay.bookingId} stay={stay} />
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {/* --- listings ------------------------------------------------- */}
-      <section aria-labelledby="listings-heading" style={{ marginTop: '2rem' }}>
-        <div className="row" style={{ justifyContent: 'space-between', gap: '1rem', marginBottom: '0.75rem' }}>
-          <h2 id="listings-heading" className="section-heading" style={{ margin: 0 }}>
+      <section className="dash-section" aria-labelledby="listings-heading">
+        <div className="dash-section__head">
+          <h2 id="listings-heading" className="title-md">
             Ваши квартиры
           </h2>
-          <Link href="/dashboard/listings/new" className="btn btn-primary btn-sm">
-            Добавить объявление
-          </Link>
+          {hasListings && (
+            <Link href="/dashboard/listings/new" className="btn btn-primary">
+              <Icon name="plus" size={18} />
+              Добавить<span className="dash-add__tail"> объявление</span>
+            </Link>
+          )}
         </div>
 
-        {summary.listings.length === 0 ? (
-          <div className="panel stack empty-state">
-            <span style={{ color: 'var(--primary)', opacity: 0.5 }}>
-              <CornflowerMark size={44} />
+        {hasListings ? (
+          <ul className="dash-grid">
+            {summary.listings.map((listing) => (
+              <PropertyCard key={listing.id} listing={listing} />
+            ))}
+          </ul>
+        ) : (
+          <div className="card dash-empty">
+            <span className="dash-empty__mark" aria-hidden="true">
+              <CornflowerMark size={64} />
             </span>
-            <h3 style={{ fontSize: 'var(--text-lg)' }}>Пока здесь пусто</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', maxWidth: '42ch' }}>
+            <h3 className="title-md">Пока здесь пусто</h3>
+            <p className="dash-empty__text">
               Разместите первую квартиру. Объявление бесплатное, а сервисный сбор 5% платится только после
               состоявшейся аренды.
             </p>
@@ -123,56 +159,222 @@ export default async function DashboardPage() {
               Разместить квартиру
             </Link>
           </div>
-        ) : (
-          <ul className="listing-grid">
-            {summary.listings.map((listing) => (
-              <ListingRow key={listing.id} listing={listing} />
-            ))}
-          </ul>
         )}
       </section>
 
-      {/* --- balance -------------------------------------------------- */}
-      <section style={{ marginTop: '2rem' }}>
-        <div className="panel row" style={{ gap: '1rem', flexWrap: 'wrap' }}>
-          <div className="stack grow" style={{ gap: '0.25rem' }}>
-            <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-              Баланс сервисного сбора
-            </span>
-            <strong style={{ fontSize: 'var(--text-xl)', color: BigInt(stats.balanceMinor) < 0n ? 'var(--error)' : 'inherit' }}>
-              <Money minor={stats.balanceMinor} />
-            </strong>
-            <span className="hint">
-              {BigInt(stats.balanceMinor) < 0n
-                ? 'Это задолженность по сбору за завершённые аренды.'
-                : 'Задолженности нет.'}
-            </span>
+      {summary.upcoming.length > 0 && (
+        <section className="dash-section" aria-labelledby="upcoming-heading">
+          <div className="dash-section__head">
+            <h2 id="upcoming-heading" className="title-md">
+              Ближайшие заезды
+            </h2>
+            <Link href="/dashboard/bookings" className="link">
+              Все бронирования
+              <Icon name="chevronRight" size={16} />
+            </Link>
           </div>
-          <Link href="/dashboard/finance" className="btn btn-secondary">
-            Подробнее
-          </Link>
+          <ul className="dash-stay">
+            {summary.upcoming.map((stay) => (
+              <UpcomingRow key={stay.bookingId} stay={stay} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="dash-section dash-figures" aria-label="Показатели">
+        <Figure label="Активные объявления" value={String(stats.publishedListings)} href="/dashboard/listings" />
+        <Figure
+          label="Новые заявки"
+          value={String(stats.pendingRequests)}
+          href="/dashboard/bookings?status=REQUESTED"
+          emphasis={stats.pendingRequests > 0}
+        />
+        <Figure label="Ближайшие заезды" value={String(stats.upcomingCheckIns)} href="/dashboard/bookings" />
+        <Figure
+          label="Рейтинг"
+          value={stats.rating === null ? '—' : decimal(stats.rating)}
+          sub={
+            stats.reviewCount > 0
+              ? `${stats.reviewCount} ${plural(stats.reviewCount, 'отзыв', 'отзыва', 'отзывов')}`
+              : 'пока нет отзывов'
+          }
+          href="/dashboard/reviews"
+        />
+      </section>
+
+      <section className="dash-section dash-balance" aria-labelledby="balance-heading">
+        <div className="stack grow" style={{ gap: '0.2rem' }}>
+          <h2 id="balance-heading" className="dash-balance__label">
+            Баланс сервисного сбора
+          </h2>
+          <strong className={cx('dash-balance__value', inDebt && 'is-debt')}>
+            <Money minor={stats.balanceMinor} />
+          </strong>
+          <p className="hint dash-balance__hint">
+            {inDebt
+              ? 'Это задолженность по сбору за завершённые аренды.'
+              : 'Задолженности нет. Сбор 5% начисляется после завершённой аренды.'}
+          </p>
         </div>
+        <Link href="/dashboard/finance" className="btn btn-secondary">
+          Подробнее
+        </Link>
       </section>
 
       <style>{`
-        .section-heading { font-size: var(--text-lg); margin-bottom: 0.75rem; }
-        /* Plain figures on the page ground, not four bordered tiles. A
-           landlord workspace is not an analytics dashboard. */
-        .stat-grid {
-          display: grid;
-          gap: var(--space-4) var(--space-5);
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+        .dash { padding-block: var(--space-5) var(--space-8); }
+        @media (min-width: 768px) { .dash { padding-block: var(--space-6) var(--space-8); } }
+
+        .dash-head { display: flex; flex-direction: column; gap: 0.4rem; }
+        .dash-head__eyebrow { font-size: var(--text-xs); font-weight: 500; color: var(--text-tertiary); }
+        .dash-head__line { color: var(--text-secondary); max-width: 54ch; }
+
+        .dash-section { margin-top: var(--space-6); }
+        @media (min-width: 768px) { .dash-section { margin-top: var(--space-7); } }
+        .dash-section__head {
+          display: flex; align-items: center; justify-content: space-between;
+          gap: var(--space-3); flex-wrap: wrap;
+          margin-bottom: var(--space-4);
         }
-        .dash-stat { padding-block: var(--space-2); }
-        .dash-stat:hover strong { color: var(--primary); }
-        @media (min-width: 720px) { .stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-        .attention-list { gap: 0.5rem; list-style: none; padding: 0; margin: 0; }
-        .listing-grid {
-          display: grid; gap: 0.75rem; list-style: none; padding: 0; margin: 0;
+        @media (max-width: 400px) { .dash-add__tail { display: none; } }
+
+        .dash-calm {
+          display: flex; align-items: center; gap: 0.5rem;
+          font-size: var(--text-sm); color: var(--text-secondary);
+        }
+
+        /* --- требует внимания ---------------------------------------- *
+         * One white surface holding hairline-separated rows, rather than
+         * a stack of separate cards: the block reads as a single list of
+         * decisions instead of six competing boxes. Severity is a 3px
+         * rule and a tinted glyph — never a wash behind the text. */
+        .dash-att { list-style: none; margin: 0; padding: 0; overflow: hidden; }
+        .dash-att__item + .dash-att__item { border-top: 1px solid var(--border); }
+        .dash-att__row {
+          display: flex; align-items: flex-start; gap: var(--space-3);
+          padding: var(--space-4);
+          border-left: 3px solid var(--border-strong);
+          transition: background-color 140ms ease;
+        }
+        .dash-att__row:hover { background: var(--surface-sunken); }
+        /* The card clips its corners, so the ring is drawn inside it. */
+        .dash-att__row:focus-visible { outline-offset: -3px; }
+        .dash-att__row--urgent { border-left-color: var(--error); }
+        .dash-att__row--action { border-left-color: var(--warning); }
+        .dash-att__row--info { border-left-color: var(--primary); }
+        .dash-att__row--urgent .dash-att__icon { color: var(--error); }
+        .dash-att__row--action .dash-att__icon { color: var(--warning); }
+        .dash-att__row--info .dash-att__icon { color: var(--primary); }
+        .dash-att__icon { margin-top: 0.1rem; }
+        .dash-att__title { font-size: var(--text-base); font-weight: 600; line-height: 1.35; }
+        .dash-att__detail { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5; }
+        .dash-att__chev { color: var(--text-tertiary); align-self: center; }
+
+        /* --- ваши квартиры ------------------------------------------- */
+        .dash-grid {
+          display: grid; gap: var(--space-4);
           grid-template-columns: 1fr;
+          list-style: none; margin: 0; padding: 0;
         }
-        @media (min-width: 860px) { .listing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        .empty-state { align-items: center; text-align: center; gap: 0.75rem; padding: 3rem 1.5rem; }
+        @media (min-width: 640px) { .dash-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (min-width: 1080px) { .dash-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+        .dash-pc { display: flex; flex-direction: column; overflow: hidden; }
+        /* Housing is judged visually even by the person who owns it: the
+           photograph is how a landlord finds the right row. */
+        .dash-pc__media { position: relative; display: block; aspect-ratio: 3 / 2; background: var(--surface-sunken); }
+        .dash-pc__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .dash-pc__nophoto {
+          position: absolute; inset: 0;
+          display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem;
+          color: var(--text-tertiary); font-size: var(--text-xs);
+        }
+        .dash-pc__body { display: flex; flex-direction: column; gap: 0.35rem; padding: var(--space-4); flex: 1 1 auto; }
+        .dash-pc__top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+        .dash-pc__rating {
+          display: inline-flex; align-items: center; gap: 0.2rem;
+          font-size: var(--text-sm); font-weight: 600; flex: 0 0 auto;
+        }
+        .dash-pc__title { font-size: var(--text-base); font-weight: 600; line-height: 1.35; }
+        .dash-pc__title a:hover { color: var(--primary); }
+        .dash-pc__place { font-size: var(--text-sm); color: var(--text-secondary); }
+        .dash-pc__price { font-size: var(--text-sm); }
+        .dash-pc__price strong { font-weight: 600; }
+        .dash-pc__unit { color: var(--text-secondary); }
+        .dash-pc__notes { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.3rem; }
+        .dash-pc__note {
+          display: flex; align-items: flex-start; gap: 0.4rem;
+          font-size: var(--text-xs); font-weight: 500; line-height: 1.45;
+        }
+        .dash-pc__note svg { margin-top: 0.05rem; }
+        .dash-pc__note--primary { color: var(--primary); }
+        .dash-pc__note--warning { color: var(--warning); }
+        .dash-pc__note--error { color: var(--error); }
+        .dash-pc__actions {
+          display: flex; gap: var(--space-2); flex-wrap: wrap;
+          margin-top: auto; padding-top: var(--space-4);
+        }
+
+        .dash-empty {
+          display: flex; flex-direction: column; align-items: center; text-align: center;
+          gap: var(--space-3); padding: var(--space-7) var(--space-4);
+        }
+        .dash-empty__mark { color: var(--accent); opacity: 0.7; }
+        .dash-empty__text { color: var(--text-secondary); font-size: var(--text-sm); max-width: 46ch; }
+        .dash-empty .btn { margin-top: var(--space-2); }
+
+        /* --- ближайшие заезды ---------------------------------------- *
+         * Rows on the page ground, not another card: two stacked white
+         * boxes in a row would turn the page back into an admin panel. */
+        .dash-stay { list-style: none; margin: 0; padding: 0; }
+        .dash-stay__item + .dash-stay__item { border-top: 1px solid var(--border); }
+        .dash-stay__row {
+          display: flex; align-items: center; gap: var(--space-3);
+          min-height: 3.5rem;
+          padding: var(--space-3) var(--space-2);
+          border-radius: var(--radius-sm);
+          transition: background-color 140ms ease;
+        }
+        .dash-stay__row:hover { background: var(--surface); }
+        .dash-stay__date {
+          flex: 0 0 auto; width: 2.5rem;
+          display: flex; flex-direction: column; align-items: center; line-height: 1.05;
+        }
+        .dash-stay__day { font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.02em; }
+        .dash-stay__month { font-size: var(--text-2xs); color: var(--text-tertiary); }
+        .dash-stay__title { font-size: var(--text-sm); font-weight: 600; }
+        .dash-stay__meta { font-size: var(--text-xs); color: var(--text-secondary); }
+        .dash-stay__sum { font-size: var(--text-sm); font-weight: 600; white-space: nowrap; flex: 0 0 auto; }
+
+        /* --- показатели ----------------------------------------------- *
+         * Deliberately below the work. Four figures a landlord glances at
+         * once a week must not outrank the six they act on daily. */
+        .dash-figures {
+          display: grid; gap: var(--space-4);
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          border-top: 1px solid var(--border);
+          padding-top: var(--space-5);
+        }
+        @media (min-width: 640px) { .dash-figures { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+        .dash-fig { display: flex; flex-direction: column; gap: 0.1rem; padding-block: 0.2rem; }
+        .dash-fig__label { font-size: var(--text-xs); color: var(--text-secondary); }
+        .dash-fig__value { font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; }
+        .dash-fig__value.is-emphasis { color: var(--primary); }
+        .dash-fig:hover .dash-fig__value { color: var(--primary); }
+        .dash-fig__sub { font-size: var(--text-2xs); color: var(--text-tertiary); }
+
+        .dash-balance {
+          display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap;
+          border-top: 1px solid var(--border);
+          padding-top: var(--space-5);
+        }
+        .dash-balance__label {
+          font-size: var(--text-sm); font-weight: 500;
+          letter-spacing: 0; color: var(--text-secondary);
+        }
+        .dash-balance__value { font-size: var(--text-2xl); font-weight: 650; letter-spacing: -0.025em; }
+        .dash-balance__value.is-debt { color: var(--error); }
+        .dash-balance__hint { max-width: 48ch; }
       `}</style>
     </div>
   );
@@ -180,7 +382,134 @@ export default async function DashboardPage() {
 
 /* ------------------------------------------------------------------ */
 
-function Stat({
+function AttentionRow({ item }: { item: AttentionItem }) {
+  const tone = item.severity === 'URGENT' ? 'urgent' : item.severity === 'ACTION' ? 'action' : 'info';
+
+  return (
+    <li className="dash-att__item">
+      <Link href={item.href} className={`dash-att__row dash-att__row--${tone}`}>
+        <Icon name={ATTENTION_ICON[item.kind]} size={20} className="dash-att__icon" />
+        <span className="stack grow" style={{ gap: '0.2rem' }}>
+          <strong className="dash-att__title">{item.title}</strong>
+          <span className="dash-att__detail">{item.detail}</span>
+        </span>
+        <Icon name="chevronRight" size={18} className="dash-att__chev" />
+      </Link>
+    </li>
+  );
+}
+
+function PropertyCard({ listing }: { listing: DashboardListing }) {
+  const status = LISTING_STATUS[listing.status] ?? { label: listing.status, tone: 'solid-neutral' };
+  const place = listing.district ? `${listing.city}, ${listing.district}` : listing.city;
+
+  return (
+    <li className="card dash-pc">
+      {/* The title link below carries this destination for keyboard and
+          screen-reader users, so the photograph is a mouse shortcut only. */}
+      <Link href={`/listing/${listing.id}`} className="dash-pc__media" tabIndex={-1} aria-hidden="true">
+        {listing.coverPhoto ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={`/media/${listing.coverPhoto}`} alt="" loading="lazy" decoding="async" width={640} height={427} />
+        ) : (
+          <span className="dash-pc__nophoto">
+            <Icon name="image" size={22} />
+            Нет фото
+          </span>
+        )}
+      </Link>
+
+      <div className="dash-pc__body">
+        <div className="dash-pc__top">
+          <span className={`badge badge-${status.tone}`}>{status.label}</span>
+          {listing.rating !== null && (
+            <span
+              className="dash-pc__rating numeric"
+              aria-label={`Рейтинг ${decimal(listing.rating)} из 5`}
+            >
+              <Icon name="star" size={13} solid />
+              {decimal(listing.rating)}
+            </span>
+          )}
+        </div>
+
+        <h3 className="dash-pc__title">
+          <Link href={`/listing/${listing.id}`} className="clamp-2">
+            {listing.title}
+          </Link>
+        </h3>
+
+        <p className="dash-pc__place">{place}</p>
+
+        <p className="dash-pc__price">
+          <strong>
+            <Money minor={listing.basePriceMinor} showCurrency={false} />
+          </strong>{' '}
+          <span className="dash-pc__unit">{listing.priceUnit === 'MONTH' ? 'BYN в месяц' : 'BYN за ночь'}</span>
+        </p>
+
+        {(listing.pendingRequests > 0 ||
+          listing.calendarStale ||
+          (listing.status === 'REJECTED' && listing.rejectionReason)) && (
+          <div className="dash-pc__notes">
+            {listing.pendingRequests > 0 && (
+              <span className="dash-pc__note dash-pc__note--primary">
+                <Icon name="bell" size={15} />
+                {requestsPhrase(listing.pendingRequests)}
+              </span>
+            )}
+            {listing.calendarStale && (
+              <span className="dash-pc__note dash-pc__note--warning">
+                <Icon name="clock" size={15} />
+                Календарь давно не обновлялся
+              </span>
+            )}
+            {listing.status === 'REJECTED' && listing.rejectionReason && (
+              <span className="dash-pc__note dash-pc__note--error">
+                <Icon name="alert" size={15} />
+                {listing.rejectionReason}
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="dash-pc__actions">
+          <Link href={`/dashboard/listings/${listing.id}/edit`} className="btn btn-secondary">
+            Редактировать
+          </Link>
+          <Link href={`/dashboard/listings/${listing.id}/calendar`} className="btn btn-secondary">
+            Календарь
+          </Link>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function UpcomingRow({ stay }: { stay: UpcomingStay }) {
+  return (
+    <li className="dash-stay__item">
+      <Link href={`/dashboard/bookings/${stay.bookingId}`} className="dash-stay__row">
+        <span className="dash-stay__date">
+          <span className="sr-only">Заезд </span>
+          <span className="dash-stay__day numeric">{dayOf(stay.from)}</span>
+          <span className="dash-stay__month">{monthOf(stay.from)}</span>
+        </span>
+        <span className="stack grow" style={{ gap: '0.15rem' }}>
+          <strong className="dash-stay__title truncate">{stay.propertyTitle}</strong>
+          <span className="dash-stay__meta">
+            {stay.tenantName} · {formatNights(stay.nights)} · выезд {dayOf(stay.to)} {monthOf(stay.to)}
+          </span>
+        </span>
+        <span className="dash-stay__sum numeric">
+          <Money minor={stay.totalExpectedMinor} showCurrency={false} />
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+function Figure({
   label,
   value,
   sub,
@@ -194,146 +523,10 @@ function Stat({
   emphasis?: boolean;
 }) {
   return (
-    <Link
-      href={href}
-      className="dash-stat stack"
-      style={{ gap: '0.1rem' }}
-    >
-      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>{label}</span>
-      <strong
-        className="numeric"
-        style={{
-          fontSize: 'var(--text-3xl)',
-          fontWeight: 650,
-          letterSpacing: '-0.03em',
-          lineHeight: 1.1,
-          color: emphasis ? 'var(--primary)' : undefined,
-        }}
-      >
-        {value}
-      </strong>
-      {sub && <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-tertiary)' }}>{sub}</span>}
+    <Link href={href} className="dash-fig">
+      <span className="dash-fig__label">{label}</span>
+      <span className={cx('dash-fig__value', 'numeric', emphasis && 'is-emphasis')}>{value}</span>
+      {sub && <span className="dash-fig__sub">{sub}</span>}
     </Link>
   );
-}
-
-function AttentionRow({ item }: { item: AttentionItem }) {
-  const tone = item.severity === 'URGENT' ? 'danger' : item.severity === 'ACTION' ? 'warning' : 'info';
-  return (
-    <li>
-      <Link href={item.href} className="card row attention-row">
-        {/* A colour bar, not a coloured background: severity must not reduce
-            the contrast of the text sitting on it. */}
-        <span className={`attention-row__bar attention-row__bar--${tone}`} aria-hidden="true" />
-        <span className="stack grow" style={{ gap: '0.15rem', padding: '0.75rem 0' }}>
-          <strong style={{ fontSize: 'var(--text-sm)' }}>{item.title}</strong>
-          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>{item.detail}</span>
-        </span>
-        <span aria-hidden="true" style={{ color: 'var(--text-tertiary)', paddingRight: '0.875rem' }}>
-          →
-        </span>
-        <style>{`
-          .attention-row { gap: 0.75rem; overflow: hidden; }
-          .attention-row:hover { background: var(--surface-sunken); }
-          .attention-row__bar { width: 4px; align-self: stretch; flex: 0 0 auto; }
-          .attention-row__bar--danger { background: var(--error); }
-          .attention-row__bar--warning { background: var(--warning); }
-          .attention-row__bar--info { background: var(--primary); }
-        `}</style>
-      </Link>
-    </li>
-  );
-}
-
-function UpcomingRow({ stay }: { stay: UpcomingStay }) {
-  return (
-    <li>
-      <Link href={`/dashboard/bookings/${stay.bookingId}`} className="card row" style={{ gap: '0.75rem', padding: '0.75rem 0.875rem' }}>
-        <span className="stack grow" style={{ gap: '0.15rem' }}>
-          <strong className="truncate" style={{ fontSize: 'var(--text-sm)' }}>
-            {stay.propertyTitle}
-          </strong>
-          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-            {stay.tenantName} · {formatRange(stay.from, stay.to)} · {stay.nights}{' '}
-            {plural(stay.nights, 'ночь', 'ночи', 'ночей')}
-          </span>
-        </span>
-        <strong className="numeric" style={{ fontSize: 'var(--text-sm)', whiteSpace: 'nowrap' }}>
-          <Money minor={stay.totalExpectedMinor} showCurrency={false} />
-        </strong>
-      </Link>
-    </li>
-  );
-}
-
-function ListingRow({ listing }: { listing: DashboardListing }) {
-  const status = LISTING_STATUS[listing.status] ?? { label: listing.status, tone: 'neutral' };
-
-  return (
-    <li className="card row dash-listing">
-      <span className="dash-listing__media" aria-hidden="true">
-        {listing.coverPhoto ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/media/${listing.coverPhoto}`} alt="" loading="lazy" decoding="async" />
-        ) : (
-          <span className="dash-listing__nophoto">нет фото</span>
-        )}
-      </span>
-
-      <span className="stack grow" style={{ gap: '0.3rem', padding: '0.75rem 0' }}>
-        <span className="row" style={{ gap: '0.4rem', flexWrap: 'wrap' }}>
-          <span className={`badge badge-${status.tone}`}>{status.label}</span>
-          {listing.pendingRequests > 0 && (
-            <span className="badge badge-primary">
-              {listing.pendingRequests} {plural(listing.pendingRequests, 'заявка', 'заявки', 'заявок')}
-            </span>
-          )}
-          {listing.calendarStale && <span className="badge badge-warning">календарь устарел</span>}
-        </span>
-
-        <Link href={`/listing/${listing.id}`} className="truncate" style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>
-          {listing.title}
-        </Link>
-
-        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-          {listing.district ? `${listing.city}, ${listing.district}` : listing.city} ·{' '}
-          <Money minor={listing.basePriceMinor} showCurrency={false} />{' '}
-          {listing.priceUnit === 'MONTH' ? 'BYN/мес' : 'BYN/ночь'}
-          {listing.rating !== null && ` · ★ ${listing.rating.toFixed(1)}`}
-        </span>
-
-        {listing.status === 'REJECTED' && listing.rejectionReason && (
-          <span className="error-text">{listing.rejectionReason}</span>
-        )}
-
-        <span className="row" style={{ gap: '0.375rem', flexWrap: 'wrap', marginTop: '0.15rem' }}>
-          <Link href={`/dashboard/listings/${listing.id}/edit`} className="btn btn-secondary btn-sm">
-            Редактировать
-          </Link>
-          <Link href={`/dashboard/listings/${listing.id}/calendar`} className="btn btn-secondary btn-sm">
-            Календарь
-          </Link>
-        </span>
-      </span>
-
-      <style>{`
-        .dash-listing { gap: 0.75rem; align-items: stretch; overflow: hidden; }
-        .dash-listing__media {
-          flex: 0 0 auto; width: 6.5rem; background: var(--surface-sunken);
-          display: grid; place-items: center;
-        }
-        .dash-listing__media img { width: 100%; height: 100%; object-fit: cover; }
-        .dash-listing__nophoto { font-size: var(--text-2xs); color: var(--text-tertiary); }
-        @media (max-width: 420px) { .dash-listing__media { width: 4.5rem; } }
-      `}</style>
-    </li>
-  );
-}
-
-function formatRange(from: string, to: string): string {
-  const fmt = (iso: string) => {
-    const [, month, day] = iso.split('-');
-    return `${Number(day)}.${month}`;
-  };
-  return `${fmt(from)} — ${fmt(to)}`;
 }

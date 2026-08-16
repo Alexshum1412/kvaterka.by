@@ -6,6 +6,7 @@
  * caller is. Pages never receive the raw token — only the resolved identity.
  */
 
+import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { SESSION_COOKIE } from './api/router.ts';
 import { readyServices } from './runtime.ts';
@@ -19,7 +20,12 @@ export interface PageCaller {
   readonly emailVerified: boolean;
 }
 
-export async function currentUser(): Promise<PageCaller | null> {
+/**
+ * Memoised for the lifetime of one request. The layout, the header and the
+ * page itself all need to know who is calling, and without this each of
+ * them costs a separate session lookup on every render.
+ */
+export const currentUser = cache(async (): Promise<PageCaller | null> => {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -35,7 +41,7 @@ export async function currentUser(): Promise<PageCaller | null> {
     displayName: session.displayName,
     emailVerified: session.emailVerified,
   };
-}
+});
 
 /** Redirect to sign-in, preserving where the user was heading. */
 export function signInUrl(returnTo: string): string {

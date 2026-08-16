@@ -1,11 +1,11 @@
-import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { SearchForm } from '@/ui/search-form.tsx';
+import { SearchFilters, type AmenityOption } from '@/ui/search-filters.tsx';
 import { ListingCard, type ListingCardData } from '@/ui/listing-card.tsx';
 import { MapPanel } from '@/ui/map-panel.tsx';
 import { CardSkeleton, EmptyState, ErrorState, formatNights, plural } from '@/ui/primitives.tsx';
-import { ready } from '@/server/runtime.ts';
-import { SearchService } from '@/server/services/search-service.ts';
+import { ready, readyServices } from '@/server/runtime.ts';
+import { currentUser } from '@/server/session.ts';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,9 +43,10 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   let result;
   let failure: string | null = null;
 
+  const services = await readyServices();
+
   try {
-    const service = new SearchService(await ready());
-    result = await service.search({
+    result = await services.search.search({
       city: str(params.city),
       district: str(params.district),
       query: str(params.q),
@@ -60,15 +61,28 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       instantBooking: str(params.instant) === 'true',
       verifiedOnly: str(params.verified) === 'true',
       pets: str(params.pets) === 'true',
-      sort: (str(params.sort) as 'RELEVANCE' | 'PRICE_ASC' | 'PRICE_DESC' | 'RATING' | 'NEWEST') ?? 'RELEVANCE',
+      sort:
+        (str(params.sort) as 'RELEVANCE' | 'PRICE_ASC' | 'PRICE_DESC' | 'RATING' | 'NEWEST') ??
+        'RELEVANCE',
       limit: 24,
     });
   } catch (error) {
     // A search failure must not blank the page: the form stays usable so the
-    // user can change something and try again.
+    // visitor can change something and try again.
     failure = error instanceof Error && error.name === 'DomainError' ? error.message : null;
     result = { items: [], total: 0, limit: 24, offset: 0 };
   }
+
+  const database = await ready();
+  const amenityRows = await database.query<AmenityOption>(
+    `SELECT code, category, name_ru, icon FROM amenity ORDER BY sort_order`,
+  );
+
+  // One query for the whole page rather than one per card.
+  const viewer = await currentUser();
+  const saved = viewer
+    ? await services.favorites.savedAmong(viewer.userId, result.items.map((i) => i.id))
+    : new Set<string>();
 
   const nights =
     params.from && params.to && typeof params.from === 'string' && typeof params.to === 'string'
@@ -77,32 +91,45 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         )
       : undefined;
 
-  const activeFilters = [
-    str(params.instant) === 'true' && 'Мгновенное бронирование',
-    str(params.verified) === 'true' && 'Только проверенные',
-    str(params.pets) === 'true' && 'Можно с животными',
-  ].filter(Boolean) as string[];
+  const city = str(params.city);
+
+  // The query the server actually filtered on, flattened for the client
+  // filter bar so its chips cannot disagree with these results.
+  const appliedQuery: Record<string, string> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'string' && value.length > 0) appliedQuery[key] = value;
+  }
 
   return (
-    <div className="container" style={{ paddingBlock: '1.25rem' }}>
-      <Suspense fallback={<div className="skeleton" style={{ height: '6rem' }} />}>
-        <SearchForm compact />
-      </Suspense>
+    <div className="container srch">
+      <SearchForm
+        compact
+        initial={{
+          city: str(params.city),
+          from: str(params.from),
+          to: str(params.to),
+          durationMode: str(params.durationMode),
+          guests: str(params.guests),
+        }}
+      />
 
-      <div className="row" style={{ gap: '0.625rem', flexWrap: 'wrap', paddingBlock: 'var(--space-4)' }}>
-        <h1 className="title-lg">
-          {failure ? 'Поиск' : `${result.total} ${plural(result.total, 'объект', 'объекта', 'объектов')}`}
-          {str(params.city) && !failure && ` в городе ${str(params.city)}`}
+      <div className="srch__head">
+        <h1 className="srch__count">
+          {failure ? (
+            'Поиск'
+          ) : (
+            <>
+              {result.total} {plural(result.total, 'вариант', 'варианта', 'вариантов')}
+              {city && ` в городе ${city}`}
+            </>
+          )}
         </h1>
         {nights !== undefined && nights > 0 && (
-          <span className="badge badge-neutral">на {formatNights(nights)}</span>
+          <span className="srch__duration">на {formatNights(nights)}</span>
         )}
-        {activeFilters.map((f) => (
-          <span key={f} className="badge badge-primary">
-            {f}
-          </span>
-        ))}
       </div>
+
+      <SearchFilters amenities={amenityRows.rows} applied={appliedQuery} />
 
       {failure && (
         <ErrorState
@@ -113,20 +140,25 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
       {!failure && result.items.length === 0 && (
         <EmptyState
-          title="Ничего не найдено"
-          description="Попробуйте расширить даты, увеличить бюджет или убрать часть фильтров. Также можно посмотреть соседние районы."
+          title="Ничего не нашли"
+          description="Попробуйте изменить район или срок аренды — или уберите часть фильтров."
         />
       )}
 
       {result.items.length > 0 && (
-        <div className="search-layout">
-          <div className="search-results">
+        <div className="srch__layout">
+          <div className="srch__results">
             {result.items.map((item) => (
-              <ListingCard key={item.id} listing={item as unknown as ListingCardData} nights={nights} />
+              <ListingCard
+                key={item.id}
+                listing={item as unknown as ListingCardData}
+                nights={nights}
+                initialFavourite={viewer ? saved.has(item.id) : undefined}
+              />
             ))}
           </div>
 
-          <aside className="search-map" aria-label="Карта результатов">
+          <aside className="srch__map" id="map" aria-label="Карта результатов">
             <MapPanel
               markers={result.items.map((i) => ({
                 id: i.id,
@@ -143,31 +175,35 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       )}
 
       <style>{`
-        .search-layout { display: grid; gap: var(--space-5); }
-        /* Minimum 300px, so photos stay large and titles stop wrapping to
-           three lines. Two columns is the right density for browsing housing;
-           three only once there is genuinely room. */
-        .search-results {
+        .srch { padding-block: var(--space-4) var(--space-7); display: grid; gap: var(--space-4); }
+        .srch__head { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+        .srch__count { font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.018em; }
+        .srch__duration { font-size: var(--text-sm); color: var(--text-secondary); }
+
+        .srch__layout { display: grid; gap: var(--space-5); }
+        .srch__results {
           display: grid;
-          gap: var(--space-4);
+          gap: var(--space-5) var(--space-4);
           grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
         }
         @media (max-width: 560px) {
           /* On a phone this becomes a photo feed, which is what browsing
              housing actually is. */
-          .search-results { grid-template-columns: 1fr; gap: var(--space-5); }
+          .srch__results { grid-template-columns: 1fr; gap: var(--space-6); }
         }
-        /* On a phone the listings come FIRST. The map was previously ordered
-           above them, which pushed inventory 320px down the page — exactly the
-           mistake the audit flagged on the homepage. */
-        .search-map { min-height: 18rem; order: 1; margin-top: var(--space-2); }
+
+        /* Listings come FIRST on a phone. The map is reachable from the
+           filter bar rather than sitting on top of the inventory. */
+        .srch__map { order: 1; min-height: 20rem; scroll-margin-top: 5rem; }
         @media (min-width: 1024px) {
-          .search-layout { grid-template-columns: minmax(0, 1fr) 22rem; align-items: start; }
-          .search-map {
+          .srch__layout { grid-template-columns: minmax(0, 1fr) 21rem; align-items: start; }
+          .srch__map {
             order: 0;
             position: sticky;
-            top: 4.75rem;
-            height: calc(100vh - 6.5rem);
+            top: calc(var(--header-height) + 0.75rem);
+            /* dvh, not vh: iOS Safari changes the viewport as the toolbar
+               collapses and vh makes the panel jump. */
+            height: calc(100dvh - var(--header-height) - 1.5rem);
           }
         }
       `}</style>
@@ -177,7 +213,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
 export function SearchSkeleton() {
   return (
-    <div className="search-results">
+    <div className="srch__results">
       {Array.from({ length: 6 }, (_, i) => (
         <CardSkeleton key={i} />
       ))}

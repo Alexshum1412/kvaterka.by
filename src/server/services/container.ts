@@ -11,6 +11,7 @@ import { AuthService } from '../auth/auth-service.ts';
 import { AvailabilityService } from './availability-service.ts';
 import { BookingService } from './booking-service.ts';
 import { DashboardService } from './dashboard-service.ts';
+import { FavoriteService } from './favorite-service.ts';
 import { FinanceService } from './finance-service.ts';
 import { ListingService } from './listing-service.ts';
 import { MessagingService } from './messaging-service.ts';
@@ -26,6 +27,7 @@ export interface Services {
   readonly availability: AvailabilityService;
   readonly bookings: BookingService;
   readonly dashboard: DashboardService;
+  readonly favorites: FavoriteService;
   readonly reviews: ReviewService;
   readonly messaging: MessagingService;
   readonly notifications: NotificationService;
@@ -41,6 +43,7 @@ export function createServices(db: Db): Services {
     availability: new AvailabilityService(db),
     bookings: new BookingService(db),
     dashboard: new DashboardService(db),
+    favorites: new FavoriteService(db),
     reviews: new ReviewService(db),
     messaging: new MessagingService(db),
     notifications: new NotificationService(db),
