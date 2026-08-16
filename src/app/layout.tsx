@@ -5,8 +5,8 @@ import { SiteFooter } from '@/ui/site-footer';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Kvaterka — аренда жилья в Беларуси без сюрпризов',
-    template: '%s · Kvaterka',
+    default: 'Кватэрка.by — аренда жилья в Беларуси без сюрпризов',
+    template: '%s · Кватэрка.by',
   },
   description:
     'Найдите квартиру на сутки, месяц или год. Честная итоговая цена, проверенные хозяева, ' +
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'ru_BY',
-    siteName: 'Kvaterka',
+    siteName: 'Кватэрка.by',
   },
   robots: { index: true, follow: true },
 };
@@ -26,8 +26,8 @@ export const viewport: Viewport = {
   // who needs to magnify text, and it saves nothing.
   maximumScale: 5,
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#faf9f6' },
-    { media: '(prefers-color-scheme: dark)', color: '#0f1316' },
+    { media: '(prefers-color-scheme: light)', color: '#f6f8fc' },
+    { media: '(prefers-color-scheme: dark)', color: '#0b1220' },
   ],
 };
 

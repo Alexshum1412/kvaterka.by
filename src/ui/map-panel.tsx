@@ -56,7 +56,7 @@ export function MapPanel({ markers }: { markers: MapMarker[] }) {
   if (markers.length === 0) {
     return (
       <div className="map-panel map-panel--empty">
-        <p style={{ color: 'var(--fg-subtle)', fontSize: 'var(--text-sm)' }}>Нет объектов в этой области</p>
+        <p style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' }}>Нет объектов в этой области</p>
       </div>
     );
   }
@@ -97,7 +97,7 @@ export function MapPanel({ markers }: { markers: MapMarker[] }) {
                 <span className="numeric" style={{ fontSize: 'var(--text-sm)' }}>
                   {formatMoney(fromStorage(marker.priceMinor))}
                 </span>
-                <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--fg-subtle)' }}>
+                <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-tertiary)' }}>
                   Показано примерное расположение
                 </span>
               </Link>
@@ -112,7 +112,7 @@ export function MapPanel({ markers }: { markers: MapMarker[] }) {
           border: 1px solid var(--border);
           border-radius: var(--radius-lg);
           background:
-            linear-gradient(var(--bg-sunken), var(--bg-sunken)),
+            linear-gradient(var(--surface-sunken), var(--surface-sunken)),
             repeating-linear-gradient(0deg, transparent 0 39px, var(--border) 39px 40px),
             repeating-linear-gradient(90deg, transparent 0 39px, var(--border) 39px 40px);
           background-blend-mode: normal;
@@ -126,8 +126,8 @@ export function MapPanel({ markers }: { markers: MapMarker[] }) {
           position: absolute; inset-inline: 0; top: 0; z-index: 2;
           margin: 0; padding: 0.4rem 0.75rem;
           font-size: var(--text-2xs);
-          color: var(--fg-muted);
-          background: color-mix(in srgb, var(--bg-raised) 92%, transparent);
+          color: var(--text-secondary);
+          background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
           border-bottom: 1px solid var(--border);
         }
         .map-pin {
@@ -135,8 +135,8 @@ export function MapPanel({ markers }: { markers: MapMarker[] }) {
           transform: translate(-50%, -50%);
           min-height: 2.25rem;
           padding: 0.4rem 0.7rem;
-          background: var(--bg-raised);
-          color: var(--fg);
+          background: var(--surface-raised);
+          color: var(--text-primary);
           border: 1px solid var(--border-strong);
           border-radius: var(--radius-full);
           box-shadow: var(--shadow-card);
@@ -147,7 +147,7 @@ export function MapPanel({ markers }: { markers: MapMarker[] }) {
         }
         .map-pin:hover, .map-pin[aria-pressed='true'] {
           background: var(--primary);
-          color: var(--primary-fg);
+          color: var(--text-on-primary);
           border-color: var(--primary);
           z-index: 3;
         }

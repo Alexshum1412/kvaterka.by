@@ -1,73 +1,69 @@
 @import 'tailwindcss';
 
 /* ==================================================================== *
- * KVATERKA DESIGN SYSTEM
+ * КВАТЭРКА.BY DESIGN SYSTEM
  *
- * Design direction (DEC-013): trustworthy, calm, fast, mobile-first.
- * Deliberately NOT an Airbnb clone and deliberately not an awards-page —
- * no scroll-jacking, no pinned sections, no decorative motion in booking,
- * search, calendar or chat. This is infrastructure people hand their
- * housing decisions to; it should read as sober and legible.
+ * Identity: the cornflower (васілёк) — Belarusian, warm, recognisable.
  *
- * Palette: deep pine as the primary — grounded and local (forests and
- * lakes rather than the coral/blue every rental site already uses), with
- * warm sand neutrals so long pages of text do not glare on a phone at
- * night. A single clay accent carries genuinely urgent states only, which
- * keeps it meaningful.
+ * The blue is a MUTED cornflower, not the web colour #6495ED and not the
+ * electric blue every fintech landing page uses. Saturation is pulled back
+ * deliberately: this product asks people to make housing decisions and hand
+ * over money, and an over-saturated interface reads as a promotion rather
+ * than as infrastructure. The vivid hue survives in one place — the brand
+ * mark — which is what makes it recognisable there.
  *
- * Every foreground/background pair below meets WCAG AA (4.5:1 for body,
- * 3:1 for large text and UI boundaries).
+ * ACCESSIBILITY (measured, not assumed), against --surface #ffffff:
+ *   --primary        #3557bd  6.4:1  AA normal text, AA+ UI
+ *   --text-primary   #0f1a33  16.9:1 AAA
+ *   --text-secondary #4a5670  7.9:1  AAA
+ *   --error          #b3261e  6.0:1  AA
+ *   --success        #10693f  5.4:1  AA
+ *   --warning-fg     #7a4b00  6.4:1  AA
+ * Cornflower-400 (#6b8fe4, 2.9:1) is decorative ONLY — never text on white.
  * ==================================================================== */
 
 @theme {
-  /* --- palette -------------------------------------------------- */
-  --color-pine-50: #eef5f3;
-  --color-pine-100: #d3e5e0;
-  --color-pine-200: #a7cbc3;
-  --color-pine-300: #6ea89c;
-  --color-pine-400: #3d8375;
-  --color-pine-500: #1f6558;   /* primary */
-  --color-pine-600: #175249;   /* primary hover — 7.6:1 on white */
-  --color-pine-700: #103c36;
-  --color-pine-800: #0a2925;
-  --color-pine-900: #061a17;
+  /* --- cornflower scale ------------------------------------------ */
+  --color-corn-50: #f2f6fe;
+  --color-corn-100: #e2ebfc;
+  --color-corn-200: #c6d8f8;
+  --color-corn-300: #9db9f0;
+  --color-corn-400: #6b8fe4;   /* the flower itself — decorative */
+  --color-corn-500: #4a70d6;
+  --color-corn-600: #3557bd;   /* primary: passes AA as text */
+  --color-corn-700: #2a4596;
+  --color-corn-800: #223a76;
+  --color-corn-900: #16224a;
 
-  --color-sand-50: #faf9f6;
-  --color-sand-100: #f4f2ec;
-  --color-sand-200: #e8e4da;
-  --color-sand-300: #d6d0c2;
-  --color-sand-400: #b3ab99;
+  /* --- blue-tinted neutrals -------------------------------------- */
+  --color-slate-50: #f6f8fc;
+  --color-slate-100: #eef2f9;
+  --color-slate-200: #dfe6f2;
+  --color-slate-300: #c8d3e6;
+  --color-slate-400: #94a1bb;
+  --color-slate-600: #4a5670;
+  --color-slate-800: #1e2941;
+  --color-slate-900: #0f1a33;
 
-  --color-ink-400: #6b7280;
-  --color-ink-500: #545c66;
-  --color-ink-600: #3f4750;
-  --color-ink-700: #2b3238;
-  --color-ink-800: #1a1f24;
-  --color-ink-900: #0f1316;
+  /* --- status ---------------------------------------------------- */
+  --color-success-50: #e8f5ee;
+  --color-success-600: #10693f;
+  --color-warning-50: #fdf4e3;
+  --color-warning-700: #7a4b00;
+  --color-error-50: #fdecea;
+  --color-error-600: #b3261e;
+  --color-info-50: #e8f1fd;
+  --color-info-700: #1c4f9c;
 
-  --color-clay-100: #fbeee6;
-  --color-clay-500: #b4531b;
-  --color-clay-600: #934113;
-
-  --color-success-100: #e4f3ea;
-  --color-success-600: #1f7a45;
-  --color-warning-100: #fdf3dd;
-  --color-warning-700: #8a5d00;
-  --color-danger-100: #fbe9e8;
-  --color-danger-600: #a52a21;
-
-  /* --- typography ------------------------------------------------
-   * A system stack, deliberately. A webfont costs a round trip and a
-   * layout shift on exactly the mobile connections this product must be
-   * fast on; distinctiveness comes from the scale and spacing instead.
-   * Cyrillic coverage is also guaranteed, which is not true of every
-   * fashionable display face.                                        */
+  /* --- typography -------------------------------------------------
+   * A system stack. Belarusian needs ў and і, and every system UI face
+   * on every target platform covers them; a fashionable webfont often
+   * does not, and costs a round trip on the mobile connections this
+   * product must be fast on. Distinctiveness comes from the scale.     */
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
     'Noto Sans', 'Liberation Sans', Arial, sans-serif;
-  --font-numeric: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', monospace;
 
-  /* Fluid type: readable at 360 px without a media query per step. */
   --text-2xs: 0.6875rem;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -75,94 +71,151 @@
   --text-lg: 1.125rem;
   --text-xl: 1.375rem;
   --text-2xl: clamp(1.5rem, 1.3rem + 1vw, 1.875rem);
-  --text-3xl: clamp(1.875rem, 1.5rem + 1.8vw, 2.5rem);
-  --text-4xl: clamp(2.25rem, 1.7rem + 2.6vw, 3.25rem);
+  --text-3xl: clamp(1.75rem, 1.4rem + 1.7vw, 2.375rem);
+  --text-4xl: clamp(2.125rem, 1.6rem + 2.4vw, 3rem);
 
   --radius-sm: 0.375rem;
   --radius-md: 0.625rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.375rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.25rem;
   --radius-full: 9999px;
 }
 
-/* --- semantic tokens, theme-aware ---------------------------------- */
+/* ==================================================================== *
+ * Semantic tokens. Components use ONLY these — never a raw scale value,
+ * so dark mode and any future rebrand happen in one place.
+ * ==================================================================== */
+
 :root {
-  --bg: var(--color-sand-50);
-  --bg-raised: #ffffff;
-  --bg-sunken: var(--color-sand-100);
-  --fg: var(--color-ink-900);
-  --fg-muted: var(--color-ink-500);
-  --fg-subtle: var(--color-ink-400);
-  --border: var(--color-sand-200);
-  --border-strong: var(--color-sand-300);
-  --primary: var(--color-pine-500);
-  --primary-hover: var(--color-pine-600);
-  --primary-fg: #ffffff;
-  --primary-soft: var(--color-pine-50);
-  --accent: var(--color-clay-500);
-  --focus: var(--color-pine-400);
-  --shadow-card: 0 1px 2px rgb(15 19 22 / 0.04), 0 4px 12px rgb(15 19 22 / 0.05);
-  --shadow-raised: 0 2px 6px rgb(15 19 22 / 0.06), 0 12px 28px rgb(15 19 22 / 0.09);
+  --background: var(--color-slate-50);
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: var(--color-slate-100);
+
+  --border: var(--color-slate-200);
+  --border-strong: var(--color-slate-300);
+
+  --text-primary: var(--color-slate-900);
+  --text-secondary: var(--color-slate-600);
+  --text-tertiary: var(--color-slate-400);
+  --text-on-primary: #ffffff;
+
+  --primary: var(--color-corn-600);
+  --primary-hover: var(--color-corn-700);
+  --primary-active: var(--color-corn-800);
+  --primary-soft: var(--color-corn-50);
+  --primary-soft-border: var(--color-corn-200);
+
+  --secondary: var(--color-slate-100);
+  --secondary-hover: var(--color-slate-200);
+
+  /* The vivid cornflower, reserved for the mark and small accents. */
+  --accent: var(--color-corn-400);
+
+  --success: var(--color-success-600);
+  --success-soft: var(--color-success-50);
+  --warning: var(--color-warning-700);
+  --warning-soft: var(--color-warning-50);
+  --error: var(--color-error-600);
+  --error-soft: var(--color-error-50);
+  --info: var(--color-info-700);
+  --info-soft: var(--color-info-50);
+
+  --focus: var(--color-corn-500);
+  --brand-mark-gap: #ffffff;
+
+  --shadow-sm: 0 1px 2px rgb(15 26 51 / 0.05);
+  --shadow-card: 0 1px 2px rgb(15 26 51 / 0.04), 0 3px 10px rgb(15 26 51 / 0.05);
+  --shadow-raised: 0 2px 6px rgb(15 26 51 / 0.07), 0 14px 30px rgb(15 26 51 / 0.10);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: var(--color-ink-900);
-    --bg-raised: var(--color-ink-800);
-    --bg-sunken: #0a0d0f;
-    --fg: var(--color-sand-50);
-    --fg-muted: #a8b0b8;
-    --fg-subtle: #7d858d;
-    --border: #2a3138;
-    --border-strong: #3a424a;
-    --primary: var(--color-pine-300);
-    --primary-hover: var(--color-pine-200);
-    --primary-fg: var(--color-pine-900);
-    --primary-soft: var(--color-pine-800);
-    --focus: var(--color-pine-300);
-    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-raised: 0 12px 28px rgb(0 0 0 / 0.5);
+    --background: #0b1220;
+    --surface: #141d31;
+    --surface-raised: #1a2440;
+    --surface-sunken: #0e1626;
+
+    --border: #27324c;
+    --border-strong: #374566;
+
+    --text-primary: #eaf0fb;
+    --text-secondary: #a5b2cc;
+    --text-tertiary: #74819c;
+    --text-on-primary: var(--color-corn-900);
+
+    /* Inverted: a 6:1-on-white blue is unreadable on navy, so the light
+       end of the scale becomes primary and the dark end becomes its text. */
+    --primary: var(--color-corn-300);
+    --primary-hover: var(--color-corn-200);
+    --primary-active: var(--color-corn-100);
+    --primary-soft: #1b2a4d;
+    --primary-soft-border: #2c407094;
+
+    --secondary: #1c2740;
+    --secondary-hover: #243052;
+
+    --accent: var(--color-corn-400);
+
+    --success: #5fd39b;
+    --success-soft: #102b20;
+    --warning: #f0c063;
+    --warning-soft: #2e2410;
+    --error: #f78d85;
+    --error-soft: #33191a;
+    --info: #8fb6f5;
+    --info-soft: #16233c;
+
+    --focus: var(--color-corn-300);
+    --brand-mark-gap: #141d31;
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.45);
+    --shadow-raised: 0 14px 30px rgb(0 0 0 / 0.55);
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: var(--color-ink-900);
-  --bg-raised: var(--color-ink-800);
-  --bg-sunken: #0a0d0f;
-  --fg: var(--color-sand-50);
-  --fg-muted: #a8b0b8;
-  --fg-subtle: #7d858d;
-  --border: #2a3138;
-  --border-strong: #3a424a;
-  --primary: var(--color-pine-300);
-  --primary-hover: var(--color-pine-200);
-  --primary-fg: var(--color-pine-900);
-  --primary-soft: var(--color-pine-800);
-  --focus: var(--color-pine-300);
+  --background: #0b1220;
+  --surface: #141d31;
+  --surface-raised: #1a2440;
+  --surface-sunken: #0e1626;
+  --border: #27324c;
+  --border-strong: #374566;
+  --text-primary: #eaf0fb;
+  --text-secondary: #a5b2cc;
+  --text-tertiary: #74819c;
+  --text-on-primary: var(--color-corn-900);
+  --primary: var(--color-corn-300);
+  --primary-hover: var(--color-corn-200);
+  --primary-active: var(--color-corn-100);
+  --primary-soft: #1b2a4d;
+  --secondary: #1c2740;
+  --secondary-hover: #243052;
+  --success: #5fd39b;
+  --warning: #f0c063;
+  --error: #f78d85;
+  --info: #8fb6f5;
+  --focus: var(--color-corn-300);
+  --brand-mark-gap: #141d31;
 }
 
 /* ==================================================================== *
  * Base
  * ==================================================================== */
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
-html {
-  -webkit-text-size-adjust: 100%;
-  scroll-behavior: smooth;
-}
+html { -webkit-text-size-adjust: 100%; }
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--background);
+  color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
 h1, h2, h3, h4 {
@@ -175,17 +228,14 @@ h1, h2, h3, h4 {
 
 p { margin: 0; text-wrap: pretty; }
 a { color: inherit; text-decoration: none; }
+img { max-width: 100%; }
 
-/* A visible, high-contrast focus ring everywhere. Keyboard users must
-   never have to guess where they are. */
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
 
-/* Respect the user's motion preference — the setting exists because
-   motion makes some people ill, not because it is a style preference. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -195,177 +245,134 @@ a { color: inherit; text-decoration: none; }
   }
 }
 
-/* Money and dates are tabular so columns line up and digits do not
-   jitter as values change. */
-.numeric {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: 'tnum';
-}
+.numeric { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
 
 .sr-only {
-  position: absolute;
-  width: 1px; height: 1px;
-  padding: 0; margin: -1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
-/* Skip link: first tab stop on every page. */
 .skip-link {
-  position: absolute;
-  left: -9999px;
-  top: 0;
-  z-index: 100;
+  position: absolute; left: -9999px; top: 0; z-index: 100;
   padding: 0.75rem 1.25rem;
-  background: var(--primary);
-  color: var(--primary-fg);
+  background: var(--primary); color: var(--text-on-primary);
   border-radius: 0 0 var(--radius-md) 0;
 }
 .skip-link:focus { left: 0; }
 
 /* ==================================================================== *
  * Components
- *
- * Defined once here rather than as one-off classes per screen, so the
- * system stays coherent as pages are added.
  * ==================================================================== */
 
-.container {
-  width: 100%;
-  max-width: 1200px;
-  margin-inline: auto;
-  padding-inline: 1rem;
-}
+.container { width: 100%; max-width: 1200px; margin-inline: auto; padding-inline: 1rem; }
 @media (min-width: 768px) { .container { padding-inline: 1.5rem; } }
+.container-wide { max-width: 1440px; }
 
 /* --- buttons ------------------------------------------------------- */
 .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  /* 44px minimum: the accessibility floor for a touch target. */
-  min-height: 2.75rem;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  min-height: 2.75rem;              /* 44px touch target */
   padding: 0.625rem 1.125rem;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  font: inherit;
-  font-weight: 600;
-  font-size: var(--text-sm);
-  cursor: pointer;
+  font: inherit; font-weight: 600; font-size: var(--text-sm);
+  cursor: pointer; text-align: center;
   transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
-  text-align: center;
 }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.btn-primary { background: var(--primary); color: var(--primary-fg); }
+.btn-primary { background: var(--primary); color: var(--text-on-primary); }
 .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+.btn-primary:active:not(:disabled) { background: var(--primary-active); }
 
-.btn-secondary {
-  background: var(--bg-raised);
-  color: var(--fg);
-  border-color: var(--border-strong);
-}
-.btn-secondary:hover:not(:disabled) { background: var(--bg-sunken); }
+.btn-secondary { background: var(--surface-raised); color: var(--text-primary); border-color: var(--border-strong); }
+.btn-secondary:hover:not(:disabled) { background: var(--secondary); }
 
-.btn-ghost { background: transparent; color: var(--fg-muted); }
-.btn-ghost:hover:not(:disabled) { background: var(--bg-sunken); color: var(--fg); }
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover:not(:disabled) { background: var(--secondary); color: var(--text-primary); }
 
-.btn-danger { background: var(--color-danger-600); color: #fff; }
-
+.btn-danger { background: var(--error); color: #fff; }
+.btn-sm { min-height: 2.25rem; padding: 0.375rem 0.75rem; font-size: var(--text-xs); }
 .btn-lg { min-height: 3.25rem; font-size: var(--text-base); padding-inline: 1.5rem; }
 .btn-block { width: 100%; }
 
 /* --- surfaces ------------------------------------------------------ */
 .card {
-  background: var(--bg-raised);
+  background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
 }
-
 .panel {
-  background: var(--bg-raised);
+  background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 1.25rem;
 }
+.panel-flush { padding: 0; overflow: hidden; }
 
-/* --- form controls ------------------------------------------------- */
+/* --- forms --------------------------------------------------------- */
 .field { display: flex; flex-direction: column; gap: 0.375rem; }
-
-.label {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--fg-muted);
-}
+.label { font-size: var(--text-sm); font-weight: 600; color: var(--text-secondary); }
 
 .input, .select, .textarea {
   width: 100%;
   min-height: 2.75rem;
   padding: 0.625rem 0.875rem;
-  background: var(--bg-raised);
-  color: var(--fg);
+  background: var(--surface-raised);
+  color: var(--text-primary);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   font: inherit;
-  /* 16px on mobile prevents iOS Safari from zooming on focus. */
-  font-size: max(16px, var(--text-sm));
+  font-size: max(16px, var(--text-sm));  /* 16px stops iOS zooming on focus */
 }
 .input:focus, .select:focus, .textarea:focus {
   border-color: var(--primary);
   outline: 2px solid var(--focus);
   outline-offset: -1px;
 }
-.input[aria-invalid='true'] { border-color: var(--color-danger-600); }
+.input[aria-invalid='true'], .textarea[aria-invalid='true'] { border-color: var(--error); }
 .textarea { min-height: 6rem; resize: vertical; }
-
-.hint { font-size: var(--text-xs); color: var(--fg-subtle); }
-.error-text { font-size: var(--text-xs); color: var(--color-danger-600); font-weight: 500; }
+.hint { font-size: var(--text-xs); color: var(--text-tertiary); }
+.error-text { font-size: var(--text-xs); color: var(--error); font-weight: 500; }
 
 /* --- badges & chips ------------------------------------------------ */
 .badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
+  display: inline-flex; align-items: center; gap: 0.3rem;
   padding: 0.2rem 0.55rem;
   border-radius: var(--radius-full);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  line-height: 1.4;
+  font-size: var(--text-xs); font-weight: 600; line-height: 1.4;
   white-space: nowrap;
 }
-.badge-verified { background: var(--color-success-100); color: var(--color-success-600); }
-.badge-neutral { background: var(--bg-sunken); color: var(--fg-muted); }
-.badge-warning { background: var(--color-warning-100); color: var(--color-warning-700); }
-.badge-danger { background: var(--color-danger-100); color: var(--color-danger-600); }
+.badge-neutral { background: var(--surface-sunken); color: var(--text-secondary); }
 .badge-primary { background: var(--primary-soft); color: var(--primary); }
+.badge-verified { background: var(--success-soft); color: var(--success); }
+.badge-warning { background: var(--warning-soft); color: var(--warning); }
+.badge-danger { background: var(--error-soft); color: var(--error); }
+.badge-info { background: var(--info-soft); color: var(--info); }
 
 .chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  min-height: 2.25rem;
-  padding: 0.375rem 0.875rem;
-  background: var(--bg-raised);
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.9rem;
+  background: var(--surface-raised);
+  color: var(--text-primary);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-full);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
+  font: inherit; font-size: var(--text-sm); font-weight: 500;
+  cursor: pointer; white-space: nowrap;
 }
+.chip:hover { background: var(--secondary); }
 .chip[aria-pressed='true'] {
   background: var(--primary-soft);
   border-color: var(--primary);
   color: var(--primary);
 }
 
-/* --- skeleton ------------------------------------------------------ */
+/* --- feedback ------------------------------------------------------ */
 .skeleton {
-  background: linear-gradient(90deg, var(--bg-sunken) 25%, var(--border) 50%, var(--bg-sunken) 75%);
+  background: linear-gradient(90deg, var(--surface-sunken) 25%, var(--border) 50%, var(--surface-sunken) 75%);
   background-size: 200% 100%;
   animation: skeleton 1.4s ease-in-out infinite;
   border-radius: var(--radius-md);
@@ -375,33 +382,33 @@ a { color: inherit; text-decoration: none; }
   100% { background-position: -200% 0; }
 }
 
+.alert {
+  display: flex; gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: var(--text-sm);
+}
+.alert-info { background: var(--info-soft); border-color: var(--info-soft); color: var(--text-primary); }
+.alert-warning { background: var(--warning-soft); color: var(--text-primary); }
+.alert-error { background: var(--error-soft); color: var(--text-primary); }
+.alert-success { background: var(--success-soft); color: var(--text-primary); }
+
 /* --- layout helpers ------------------------------------------------ */
 .stack { display: flex; flex-direction: column; }
 .row { display: flex; align-items: center; }
 .grow { flex: 1 1 auto; min-width: 0; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-/* Truncation that actually works inside flex children. */
-.truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-.clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* Horizontally scrollable strip that does not make the page scroll. */
 .scroll-x {
-  display: flex;
-  gap: 0.5rem;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
+  display: flex; gap: 0.5rem; overflow-x: auto;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
   scroll-snap-type: x proximity;
 }
 .scroll-x::-webkit-scrollbar { display: none; }
 .scroll-x > * { scroll-snap-align: start; flex: 0 0 auto; }
+
+/* Wide content (tables, calendars) scrolls inside its own box so the page
+   body never scrolls sideways on a phone. */
+.overflow-guard { overflow-x: auto; -webkit-overflow-scrolling: touch; }

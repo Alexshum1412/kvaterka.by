@@ -7,7 +7,7 @@ export function SiteFooter() {
         borderTop: '1px solid var(--border)',
         marginTop: '4rem',
         padding: '2.5rem 0',
-        background: 'var(--bg-raised)',
+        background: 'var(--surface-raised)',
       }}
     >
       <div className="container stack" style={{ gap: '1.5rem' }}>
@@ -37,28 +37,28 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--fg-subtle)', maxWidth: '75ch' }}>
-          Kvaterka — площадка для размещения объявлений и общения между хозяином и арендатором.
+        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', maxWidth: '75ch' }}>
+          Кватэрка.by — площадка для размещения объявлений и общения между хозяином и арендатором.
           Платформа не является стороной договора аренды и не принимает арендную плату: расчёты
           стороны ведут между собой напрямую. Сервисный сбор 5% платит хозяин после подтверждённой
           сделки.
         </p>
 
-        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--fg-subtle)' }}>
-          © {new Date().getFullYear()} Kvaterka. Беларусь.
+        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
+          © {new Date().getFullYear()} Кватэрка.by · Беларусь
         </p>
       </div>
 
       <style>{`
         .footer-link {
           font-size: var(--text-sm);
-          color: var(--fg-muted);
+          color: var(--text-secondary);
           /* Padded so a thumb has room: these are standalone navigation
              links, not links inline in a sentence. */
           display: inline-block;
           padding-block: 0.3rem;
         }
-        .footer-link:hover { color: var(--fg); text-decoration: underline; }
+        .footer-link:hover { color: var(--text-primary); text-decoration: underline; }
       `}</style>
     </footer>
   );

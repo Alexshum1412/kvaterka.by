@@ -109,7 +109,7 @@ export function BookingPanel({
         <h3 style={{ fontSize: 'var(--text-lg)' }}>
           {result.status === 'CONFIRMED' ? 'Бронирование подтверждено' : 'Запрос отправлен'}
         </h3>
-        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--fg-muted)' }}>
+        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
           {result.status === 'CONFIRMED'
             ? 'Даты закреплены за вами. Точный адрес и контакты хозяина теперь доступны в вашем бронировании.'
             : 'Хозяин ответит в течение 48 часов. Даты пока не заблокированы — их может занять другой запрос, подтверждённый раньше.'}
@@ -125,7 +125,7 @@ export function BookingPanel({
     <div className="panel stack booking-panel" style={{ gap: '0.875rem' }}>
       <div className="row" style={{ gap: '0.4rem', alignItems: 'baseline' }}>
         <strong style={{ fontSize: 'var(--text-xl)' }}>{basePriceFormatted}</strong>
-        <span style={{ color: 'var(--fg-muted)', fontSize: 'var(--text-sm)' }}>
+        <span style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
           {priceUnit === 'MONTH' ? 'в месяц' : 'за ночь'}
         </span>
       </div>
@@ -188,7 +188,7 @@ export function BookingPanel({
             .filter((l) => l.code !== 'DEPOSIT')
             .map((line) => (
               <div key={line.code} className="row" style={{ justifyContent: 'space-between', gap: '1rem' }}>
-                <span style={{ fontSize: 'var(--text-sm)', color: 'var(--fg-muted)' }}>{line.label}</span>
+                <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{line.label}</span>
                 <span className="numeric" style={{ fontSize: 'var(--text-sm)' }}>
                   {/* A variable line shows a dash, never a made-up figure. */}
                   {line.variable ? 'по счётчику' : `${line.amountFormatted} BYN`}

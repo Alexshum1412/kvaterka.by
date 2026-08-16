@@ -97,7 +97,7 @@ export function EmptyState({
     >
       <h3 style={{ fontSize: 'var(--text-lg)' }}>{title}</h3>
       {description && (
-        <p style={{ color: 'var(--fg-muted)', maxWidth: '38ch', fontSize: 'var(--text-sm)' }}>{description}</p>
+        <p style={{ color: 'var(--text-secondary)', maxWidth: '38ch', fontSize: 'var(--text-sm)' }}>{description}</p>
       )}
       {action}
     </div>
@@ -106,10 +106,10 @@ export function EmptyState({
 
 export function ErrorState({ title, detail }: { title: string; detail?: string }) {
   return (
-    <div className="panel stack" role="alert" style={{ gap: '0.5rem', borderColor: 'var(--color-danger-600)' }}>
+    <div className="panel stack" role="alert" style={{ gap: '0.5rem', borderColor: 'var(--error)' }}>
       <strong>{title}</strong>
       {/* Users get a plain explanation and a next step, never a stack trace. */}
-      {detail && <p style={{ color: 'var(--fg-muted)', fontSize: 'var(--text-sm)' }}>{detail}</p>}
+      {detail && <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>{detail}</p>}
     </div>
   );
 }

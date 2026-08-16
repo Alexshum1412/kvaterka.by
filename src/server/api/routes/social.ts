@@ -419,3 +419,22 @@ export const notificationRoutes: AnyRoute[] = [
     },
   }),
 ];
+
+/* ================================================================== *
+ * Landlord dashboard
+ * ================================================================== */
+
+export const dashboardRoutes: AnyRoute[] = [
+  defineRoute({
+    method: 'GET',
+    path: '/dashboard/summary',
+    summary: 'Everything the landlord overview needs, in one call',
+    tags: ['dashboard'],
+    auth: 'required',
+    async handler({ ctx, caller }) {
+      // Scoped to the caller by the service query itself — there is no
+      // parameter here that could be pointed at somebody else's data.
+      return ctx.services.dashboard.landlordSummary(caller.userId);
+    },
+  }),
+];

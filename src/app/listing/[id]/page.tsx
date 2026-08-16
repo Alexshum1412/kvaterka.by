@@ -87,7 +87,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
   return (
     <div className="container" style={{ paddingBlock: '1.25rem' }}>
       <nav aria-label="Навигация" style={{ fontSize: 'var(--text-sm)', marginBottom: '0.75rem' }}>
-        <Link href={`/search?city=${encodeURIComponent(listing.city)}`} style={{ color: 'var(--fg-muted)' }}>
+        <Link href={`/search?city=${encodeURIComponent(listing.city)}`} style={{ color: 'var(--text-secondary)' }}>
           ← {listing.city}
         </Link>
       </nav>
@@ -103,7 +103,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           {listing.rating !== null && (
             <span className="numeric" style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>
               ★ {Number(listing.rating).toFixed(1)}{' '}
-              <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}>
+              <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>
                 ({listing.reviewCount} {plural(Number(listing.reviewCount), 'отзыв', 'отзыва', 'отзывов')})
               </span>
             </span>
@@ -152,7 +152,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             </dl>
 
             {listing.description && (
-              <p style={{ marginTop: '1rem', color: 'var(--fg-muted)', whiteSpace: 'pre-line' }}>
+              <p style={{ marginTop: '1rem', color: 'var(--text-secondary)', whiteSpace: 'pre-line' }}>
                 {listing.description}
               </p>
             )}
@@ -201,7 +201,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           {/* --- location --------------------------------------------- */}
           <section className="panel">
             <h2 className="section-title">Расположение</h2>
-            <p style={{ color: 'var(--fg-muted)', fontSize: 'var(--text-sm)', marginBottom: '0.75rem' }}>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', marginBottom: '0.75rem' }}>
               {listing.district ? `${listing.city}, ${listing.district}` : listing.city}. Показано примерное
               расположение — точный адрес открывается после подтверждения бронирования.
             </p>
@@ -228,7 +228,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
             <div className="row" style={{ gap: '1rem', flexWrap: 'wrap' }}>
               <div className="stack grow" style={{ gap: '0.35rem' }}>
                 <strong>{owner.displayName}</strong>
-                <span style={{ fontSize: 'var(--text-sm)', color: 'var(--fg-muted)' }}>
+                <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
                   {owner.accountKind === 'COMPANY' ? 'Компания' : 'Частный хозяин'} ·{' '}
                   {owner.completedRentals} {plural(Number(owner.completedRentals), 'сделка', 'сделки', 'сделок')}
                 </span>
@@ -249,7 +249,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               Отзывы {listing.reviewCount ? `(${listing.reviewCount})` : ''}
             </h2>
             {reviewData.length === 0 ? (
-              <p style={{ color: 'var(--fg-muted)', fontSize: 'var(--text-sm)' }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
                 Отзывов пока нет. Их можно оставить только после завершённой аренды, поэтому здесь не
                 бывает случайных оценок.
               </p>
@@ -264,7 +264,7 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
                         <span className="numeric" style={{ fontSize: 'var(--text-sm)' }}>
                           ★ {r.ratings.overall}
                         </span>
-                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--fg-subtle)' }}>
+                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
                           {r.stayLength}
                         </span>
                       </div>
@@ -310,13 +310,13 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           .listing-aside { position: sticky; top: 4.75rem; }
         }
         .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin: 0; }
-        .fact dt { font-size: var(--text-xs); color: var(--fg-subtle); }
+        .fact dt { font-size: var(--text-xs); color: var(--text-tertiary); }
         .fact dd { margin: 0; font-size: var(--text-sm); font-weight: 600; }
         .amenities, .rules { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
         .amenities { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
         .amenities li { display: flex; flex-direction: column; font-size: var(--text-sm); }
-        .amenity-confirm { font-size: var(--text-2xs); color: var(--color-success-600); font-weight: 600; }
-        .rules li { font-size: var(--text-sm); color: var(--fg-muted); }
+        .amenity-confirm { font-size: var(--text-2xs); color: var(--success); font-weight: 600; }
+        .rules li { font-size: var(--text-sm); color: var(--text-secondary); }
       `}</style>
     </div>
   );
@@ -327,9 +327,9 @@ function Gallery({ photos }: { photos: { id: string; storageKey: string }[] }) {
     return (
       <div
         className="card"
-        style={{ aspectRatio: '16 / 9', background: 'var(--bg-sunken)', display: 'grid', placeItems: 'center' }}
+        style={{ aspectRatio: '16 / 9', background: 'var(--surface-sunken)', display: 'grid', placeItems: 'center' }}
       >
-        <span style={{ color: 'var(--fg-subtle)', fontSize: 'var(--text-sm)' }}>Фотографий пока нет</span>
+        <span style={{ color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' }}>Фотографий пока нет</span>
       </div>
     );
   }
@@ -354,7 +354,7 @@ function Gallery({ photos }: { photos: { id: string; storageKey: string }[] }) {
           border-radius: var(--radius-lg);
           overflow: hidden;
         }
-        .gallery img { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--bg-sunken); }
+        .gallery img { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--surface-sunken); }
         .gallery__main { aspect-ratio: 16 / 10; }
         .gallery__thumb { display: none; }
         @media (min-width: 760px) {

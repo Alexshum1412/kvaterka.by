@@ -18,7 +18,7 @@ export default function HomePage() {
         <div className="container stack" style={{ gap: '1.5rem', maxWidth: '900px' }}>
           <div className="stack" style={{ gap: '0.75rem' }}>
             <h1 style={{ fontSize: 'var(--text-4xl)' }}>Аренда без сюрпризов</h1>
-            <p style={{ fontSize: 'var(--text-lg)', color: 'var(--fg-muted)', maxWidth: '52ch' }}>
+            <p style={{ fontSize: 'var(--text-lg)', color: 'var(--text-secondary)', maxWidth: '52ch' }}>
               Квартиры на сутки, на месяц и на год. Честная итоговая цена, проверенные хозяева и
               отзывы только от тех, кто действительно снимал.
             </p>
@@ -69,7 +69,7 @@ export default function HomePage() {
           ].map((item) => (
             <div key={item.title} className="panel stack" style={{ gap: '0.5rem' }}>
               <h2 style={{ fontSize: 'var(--text-lg)' }}>{item.title}</h2>
-              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--fg-muted)' }}>{item.body}</p>
+              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{item.body}</p>
             </div>
           ))}
         </div>
@@ -78,8 +78,8 @@ export default function HomePage() {
       <section className="container" style={{ paddingBottom: '3rem' }}>
         <div className="panel host-cta">
           <div className="stack grow" style={{ gap: '0.5rem' }}>
-            <h2 style={{ fontSize: 'var(--text-xl)' }}>Сдаёте жильё?</h2>
-            <p style={{ color: 'var(--fg-muted)', fontSize: 'var(--text-sm)', maxWidth: '58ch' }}>
+            <h2 style={{ fontSize: 'var(--text-xl)' }}>Сдаёте квартиру?</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', maxWidth: '58ch' }}>
               Разместите объявление бесплатно. Сервисный сбор 5% платится только после того, как
               аренда состоялась и это подтвердили обе стороны. Деньги за аренду вы получаете
               напрямую от арендатора.
@@ -95,8 +95,8 @@ export default function HomePage() {
         .hero {
           padding-block: clamp(2rem, 5vw, 4rem);
           background:
-            radial-gradient(120% 80% at 15% 0%, var(--primary-soft) 0%, transparent 60%),
-            var(--bg);
+            linear-gradient(180deg, var(--primary-soft) 0%, transparent 70%),
+            var(--background);
           border-bottom: 1px solid var(--border);
         }
         .promise-grid {

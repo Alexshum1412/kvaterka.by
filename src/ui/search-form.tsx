@@ -159,7 +159,7 @@ export function SearchForm({ compact = false }: { compact?: boolean }) {
           display: grid;
           gap: 0.75rem;
           padding: 1rem;
-          background: var(--bg-raised);
+          background: var(--surface-raised);
           border: 1px solid var(--border);
           border-radius: var(--radius-lg);
           box-shadow: var(--shadow-card);

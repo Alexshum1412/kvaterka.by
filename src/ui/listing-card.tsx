@@ -56,14 +56,14 @@ export function ListingCard({ listing, nights }: { listing: ListingCardData; nig
 
         <div className="stack" style={{ gap: '0.375rem', padding: '0.875rem' }}>
           <div className="row" style={{ gap: '0.5rem', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--fg-subtle)' }}>
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
               {PROPERTY_TYPE_LABEL[listing.propertyType] ?? listing.propertyType}
               {listing.district ? ` · ${listing.district}` : ` · ${listing.city}`}
             </span>
             {listing.rating !== null && (
               <span className="numeric" style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>
                 ★ {listing.rating.toFixed(1)}
-                <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}> ({listing.reviewCount})</span>
+                <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}> ({listing.reviewCount})</span>
               </span>
             )}
           </div>
@@ -72,7 +72,7 @@ export function ListingCard({ listing, nights }: { listing: ListingCardData; nig
             {listing.title}
           </h3>
 
-          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--fg-muted)' }}>
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
             {[
               listing.rooms !== null && `${listing.rooms} ${plural(listing.rooms, 'комната', 'комнаты', 'комнат')}`,
               listing.areaSqm && `${Math.round(Number(listing.areaSqm))} м²`,
@@ -93,7 +93,7 @@ export function ListingCard({ listing, nights }: { listing: ListingCardData; nig
                 <strong style={{ fontSize: 'var(--text-lg)' }}>
                   <Money minor={listing.stayTotalMinor} />
                 </strong>
-                <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--fg-subtle)' }}>
+                <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-tertiary)' }}>
                   всего{nights ? ` за ${formatNights(nights)}` : ''}, включая обязательные сборы
                 </span>
               </span>
@@ -102,7 +102,7 @@ export function ListingCard({ listing, nights }: { listing: ListingCardData; nig
                 <strong style={{ fontSize: 'var(--text-lg)' }}>
                   <Money minor={listing.basePriceMinor} />
                 </strong>
-                <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--fg-subtle)' }}>
+                <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-tertiary)' }}>
                   {listing.priceUnit === 'MONTH' ? 'в месяц' : 'за ночь'}
                 </span>
               </span>
@@ -111,7 +111,7 @@ export function ListingCard({ listing, nights }: { listing: ListingCardData; nig
             {listing.distanceMeters !== undefined && (
               <span
                 className="numeric"
-                style={{ marginLeft: 'auto', fontSize: 'var(--text-xs)', color: 'var(--fg-subtle)' }}
+                style={{ marginLeft: 'auto', fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}
               >
                 {listing.distanceMeters < 1000
                   ? `${listing.distanceMeters} м`
@@ -120,7 +120,7 @@ export function ListingCard({ listing, nights }: { listing: ListingCardData; nig
             )}
           </div>
 
-          <p style={{ fontSize: 'var(--text-2xs)', color: 'var(--fg-subtle)' }}>
+          <p style={{ fontSize: 'var(--text-2xs)', color: 'var(--text-tertiary)' }}>
             {isCompany ? 'Компания' : 'Частный хозяин'} · {listing.owner.displayName}
             {listing.owner.verificationLevel >= 1 && ' · личность подтверждена'}
           </p>
@@ -130,12 +130,12 @@ export function ListingCard({ listing, nights }: { listing: ListingCardData; nig
       <style>{`
         .listing-card { overflow: hidden; transition: box-shadow 140ms ease; }
         .listing-card:hover { box-shadow: var(--shadow-raised); }
-        .listing-card__media { position: relative; aspect-ratio: 4 / 3; background: var(--bg-sunken); }
+        .listing-card__media { position: relative; aspect-ratio: 4 / 3; background: var(--surface-sunken); }
         .listing-card__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .listing-card__placeholder {
           width: 100%; height: 100%;
           background:
-            repeating-linear-gradient(45deg, var(--bg-sunken) 0 12px, var(--border) 12px 24px);
+            repeating-linear-gradient(45deg, var(--surface-sunken) 0 12px, var(--border) 12px 24px);
           opacity: 0.55;
         }
         .listing-card__tags {
