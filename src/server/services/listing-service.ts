@@ -20,6 +20,11 @@ import { isValidLatLng, isWithinBelarus, publicLocationFor } from '../domain/geo
 import { hasErrorCode, PG_ERROR, type Db, type Sql } from '../db/sql.ts';
 import { DomainError, forbidden, invalid, notFound } from './errors.ts';
 import { writeAudit } from './audit.ts';
+import {
+  MODERATION_REASON_CODES,
+  reasonSentence,
+  type ModerationReasonCode,
+} from '../domain/moderation.ts';
 
 export type ListingStatus =
   | 'DRAFT'
@@ -46,6 +51,18 @@ const MODERATOR_TRANSITIONS: Partial<Record<ListingStatus, readonly ListingStatu
 
 /** Fields a landlord may not change while people can book the listing. */
 const LOCKED_WHILE_LIVE: readonly string[] = [];
+
+export interface ModerationReview {
+  readonly id: string;
+  readonly decision: string;
+  readonly reasonCodes: readonly string[];
+  readonly comment: string | null;
+  readonly fromStatus: string;
+  readonly createdAt: string;
+  readonly moderatorName: string | null;
+}
+
+
 
 /**
  * Everything except the property type is optional, because the wizard
@@ -288,7 +305,7 @@ export class ListingService {
     // endpoint reports whether a stranger's draft exists.
     if (row.owner_id !== ownerId) throw notFound('Объявление');
 
-    const [photos, amenities] = await Promise.all([
+    const [photos, amenities, lastReview] = await Promise.all([
       this.db.query<Record<string, any>>(
         `SELECT id, storage_key, is_cover, sort_order, caption
            FROM property_photo WHERE property_id = $1 ORDER BY sort_order, created_at`,
@@ -298,12 +315,24 @@ export class ListingService {
         `SELECT amenity_code FROM property_amenity WHERE property_id = $1`,
         [propertyId],
       ),
+      // The codes behind the current rejection, so the wizard can offer to
+      // open the step that needs fixing rather than just naming it.
+      this.db.query<{ reason_codes: string[]; comment: string | null }>(
+        `SELECT reason_codes, comment FROM listing_moderation_review
+          WHERE property_id = $1 AND decision = 'REJECTED'
+          ORDER BY created_at DESC LIMIT 1`,
+        [propertyId],
+      ),
     ]);
 
     return {
       id: row.id,
       status: row.status,
       rejectionReason: row.rejection_reason,
+      // Only meaningful while the listing is actually rejected; once it is
+      // resubmitted the notice must stop being shown.
+      rejectionCodes: row.status === 'REJECTED' ? (lastReview.rows[0]?.reason_codes ?? []) : [],
+      moderatorComment: row.status === 'REJECTED' ? (lastReview.rows[0]?.comment ?? null) : null,
       title: row.title,
       description: row.description,
       propertyType: row.property_type,
@@ -453,8 +482,11 @@ export class ListingService {
         throw invalid('Укажите цену или выберите «Цена договорная»', { field: 'basePriceMinor' });
       }
 
+      // submitted_at is the queue's clock: a resubmission moves the listing
+      // to the back of the line rather than keeping its original place,
+      // which is the honest ordering when the content has changed.
       await tx.query(
-        `UPDATE property SET status='PENDING_MODERATION', rejection_reason=NULL WHERE id=$1`,
+        `UPDATE property SET status='PENDING_MODERATION', rejection_reason=NULL, submitted_at=now() WHERE id=$1`,
         [propertyId],
       );
       await writeAudit(tx, {
@@ -474,10 +506,23 @@ export class ListingService {
     moderatorId: string,
     decision: 'PUBLISHED' | 'REJECTED' | 'PAUSED',
     reason?: string,
+    reasonCodes?: readonly ModerationReasonCode[],
   ): Promise<void> {
-    if (decision !== 'PUBLISHED' && !reason?.trim()) {
+    const codes = [...new Set(reasonCodes ?? [])];
+    for (const code of codes) {
+      if (!MODERATION_REASON_CODES.includes(code)) {
+        throw invalid(`Неизвестная причина: ${code}`);
+      }
+    }
+
+    // A rejection must say something actionable. Codes are the structured
+    // form; a bare comment is accepted and recorded as OTHER so that
+    // callers predating the vocabulary keep working rather than silently
+    // losing their explanation.
+    if (decision !== 'PUBLISHED' && codes.length === 0 && !reason?.trim()) {
       throw invalid('Укажите причину решения');
     }
+    const effectiveCodes = codes.length > 0 ? codes : decision === 'PUBLISHED' ? [] : ['OTHER' as const];
 
     await this.db.transaction(async (tx) => {
       const current = await this.load(tx, propertyId, true);
@@ -487,9 +532,27 @@ export class ListingService {
         `UPDATE property
             SET status = $2,
                 rejection_reason = $3,
+                submitted_at = CASE WHEN $2 = 'PUBLISHED' THEN NULL ELSE submitted_at END,
                 published_at = CASE WHEN $2 = 'PUBLISHED' THEN COALESCE(published_at, now()) ELSE published_at END
           WHERE id = $1`,
-        [propertyId, decision, decision === 'REJECTED' ? reason! : null],
+        [propertyId, decision, decision === 'REJECTED' ? (reason?.trim() || reasonSentence(effectiveCodes)) : null],
+      );
+
+      // The decision as a domain record, kept forever. A resubmission adds
+      // a row; it never overwrites one.
+      await tx.query(
+        `INSERT INTO listing_moderation_review
+           (id, property_id, moderator_id, decision, reason_codes, comment, from_status)
+         VALUES ($1,$2,$3,$4,$5::text[],$6,$7)`,
+        [
+          uuidv7(),
+          propertyId,
+          moderatorId,
+          decision,
+          effectiveCodes,
+          reason?.trim() || null,
+          current.status,
+        ],
       );
 
       await writeAudit(tx, {
@@ -498,11 +561,173 @@ export class ListingService {
         action: 'listing.moderate',
         targetType: 'property',
         targetId: propertyId,
-        changes: { status: { from: current.status, to: decision } },
+        changes: {
+          status: { from: current.status, to: decision },
+          ...(effectiveCodes.length > 0 ? { reasonCodes: { from: null, to: effectiveCodes } } : {}),
+        },
         reason: reason ?? null,
         source: 'admin',
       });
     });
+  }
+
+  /**
+   * The moderator's view.
+   *
+   * Deliberately built from the same public projection a tenant gets,
+   * plus the owner's public trust facts and the photo set. It does NOT
+   * include the street, house or apartment number: DEC-020 gives the
+   * exact address a single entitlement-checked accessor, and "a
+   * moderator is looking at it" is not an entitlement. A moderator
+   * verifies that the *approximate* location is plausible, which is what
+   * a tenant will see anyway.
+   *
+   * It contains no identity documents. Those live in a separate private
+   * bucket reachable only with `document.read`, which only VERIFIER
+   * holds, and every read of one is logged.
+   */
+  async getForModeration(propertyId: string): Promise<Record<string, unknown>> {
+    const { rows } = await this.db.query<Record<string, any>>(
+      `SELECT p.id, p.status, p.rejection_reason, p.title, p.description, p.property_type,
+              p.city, p.district, p.region,
+              p.public_latitude, p.public_longitude, p.location_precision,
+              p.rooms, p.area_sqm::text AS area_sqm, p.floor, p.total_floors,
+              p.beds, p.bathrooms, p.max_guests,
+              p.smoking_policy, p.pets_policy, p.children_allowed, p.parties_allowed,
+              p.quiet_hours_from, p.quiet_hours_to, p.check_in_from, p.check_out_until,
+              p.min_nights, p.max_nights,
+              p.base_price_minor::text AS base_price_minor, p.price_unit,
+              p.cleaning_fee_minor::text AS cleaning_fee_minor,
+              p.utilities_mode, p.utilities_fixed_minor::text AS utilities_fixed_minor, p.utilities_note,
+              p.deposit_minor::text AS deposit_minor,
+              p.booking_mode, p.negotiation_enabled,
+              p.created_at, p.submitted_at, p.published_at,
+              p.property_verified_at,
+              u.id AS owner_id, u.display_name AS owner_name, u.account_kind,
+              u.verification_level, u.created_at AS owner_since,
+              (SELECT count(*)::int FROM booking b
+                WHERE b.landlord_id = u.id AND b.status = 'COMPLETED') AS completed_rentals,
+              (SELECT count(*)::int FROM property p2
+                WHERE p2.owner_id = u.id AND p2.deleted_at IS NULL) AS listing_count,
+              (SELECT round(avg(r.overall)::numeric, 2) FROM review r
+                WHERE r.subject_id = u.id AND r.status = 'PUBLISHED') AS owner_rating
+         FROM property p JOIN app_user u ON u.id = p.owner_id
+        WHERE p.id = $1 AND p.deleted_at IS NULL`,
+      [propertyId],
+    );
+    const row = rows[0];
+    if (!row) throw notFound('Объявление');
+
+    const [photos, amenities] = await Promise.all([
+      this.db.query<Record<string, any>>(
+        `SELECT id, storage_key, is_cover, sort_order, width, height, byte_size
+           FROM property_photo WHERE property_id = $1 ORDER BY sort_order, created_at`,
+        [propertyId],
+      ),
+      this.db.query<Record<string, any>>(
+        `SELECT a.code, a.category, a.name_ru, a.icon
+           FROM property_amenity pa JOIN amenity a ON a.code = pa.amenity_code
+          WHERE pa.property_id = $1 ORDER BY a.sort_order`,
+        [propertyId],
+      ),
+    ]);
+
+    return {
+      id: row.id,
+      status: row.status,
+      rejectionReason: row.rejection_reason,
+      title: row.title,
+      description: row.description,
+      propertyType: row.property_type,
+      city: row.city,
+      district: row.district,
+      region: row.region,
+      // The blurred point, the same one the public map shows.
+      location: {
+        latitude: row.public_latitude,
+        longitude: row.public_longitude,
+        precision: row.location_precision,
+      },
+      rooms: row.rooms,
+      areaSqm: row.area_sqm,
+      floor: row.floor,
+      totalFloors: row.total_floors,
+      beds: row.beds,
+      bathrooms: row.bathrooms,
+      maxGuests: row.max_guests,
+      rules: {
+        smoking: row.smoking_policy,
+        pets: row.pets_policy,
+        childrenAllowed: row.children_allowed,
+        partiesAllowed: row.parties_allowed,
+        quietHoursFrom: row.quiet_hours_from,
+        quietHoursTo: row.quiet_hours_to,
+        checkInFrom: row.check_in_from,
+        checkOutUntil: row.check_out_until,
+      },
+      duration: { minNights: row.min_nights, maxNights: row.max_nights },
+      pricing: {
+        basePriceMinor: row.base_price_minor,
+        priceUnit: row.price_unit,
+        cleaningFeeMinor: row.cleaning_fee_minor,
+        utilitiesMode: row.utilities_mode,
+        utilitiesFixedMinor: row.utilities_fixed_minor,
+        utilitiesNote: row.utilities_note,
+        depositMinor: row.deposit_minor,
+      },
+      bookingMode: row.booking_mode,
+      negotiationEnabled: row.negotiation_enabled,
+      createdAt: String(row.created_at),
+      submittedAt: row.submitted_at === null ? null : String(row.submitted_at),
+      publishedAt: row.published_at === null ? null : String(row.published_at),
+      propertyVerified: row.property_verified_at !== null,
+      owner: {
+        id: row.owner_id,
+        displayName: row.owner_name,
+        accountKind: row.account_kind,
+        verificationLevel: row.verification_level,
+        memberSince: String(row.owner_since),
+        completedRentals: row.completed_rentals,
+        listingCount: row.listing_count,
+        rating: row.owner_rating === null ? null : Number(row.owner_rating),
+      },
+      photos: photos.rows.map((p) => ({
+        id: p.id,
+        storageKey: p.storage_key,
+        isCover: p.is_cover,
+        width: p.width,
+        height: p.height,
+        byteSize: p.byte_size,
+      })),
+      amenities: amenities.rows.map((a) => ({
+        code: a.code,
+        category: a.category,
+        name_ru: a.name_ru,
+        icon: a.icon,
+      })),
+    };
+  }
+
+  /** Every decision ever taken on a listing, newest first. */
+  async moderationHistory(propertyId: string): Promise<ModerationReview[]> {
+    const { rows } = await this.db.query<Record<string, any>>(
+      `SELECT r.id, r.decision, r.reason_codes, r.comment, r.from_status, r.created_at,
+              u.display_name AS moderator_name
+         FROM listing_moderation_review r
+         LEFT JOIN app_user u ON u.id = r.moderator_id
+        WHERE r.property_id = $1
+        ORDER BY r.created_at DESC`,
+      [propertyId],
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      decision: r.decision,
+      reasonCodes: r.reason_codes ?? [],
+      comment: r.comment,
+      fromStatus: r.from_status,
+      createdAt: String(r.created_at),
+      moderatorName: r.moderator_name,
+    }));
   }
 
   async setStatusByOwner(
