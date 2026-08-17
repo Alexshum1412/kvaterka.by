@@ -6,6 +6,7 @@ import { bookingRoutes } from './bookings.ts';
 import { favoriteRoutes } from './favorites.ts';
 import { chatRoutes, dashboardRoutes, notificationRoutes, profileRoutes, reviewRoutes } from './social.ts';
 import { adminRoutes, financeRoutes } from './admin.ts';
+import { staffRoutes } from './staff.ts';
 import { defineRoute } from '../http.ts';
 
 /** Liveness/readiness. No auth, no rate limit — monitoring must always reach it. */
@@ -37,5 +38,6 @@ export const allRoutes: AnyRoute[] = [
   ...chatRoutes,
   ...notificationRoutes,
   ...financeRoutes,
+  ...staffRoutes,
   ...adminRoutes,
 ];
