@@ -42,6 +42,27 @@ export const bookingRoutes: AnyRoute[] = [
         idempotencyKey: ctx.headers['idempotency-key'],
       });
 
+      // The tenant's note was previously accepted, validated and then
+      // dropped on the floor. It becomes a real first message in the
+      // property's conversation, which means the existing contact filter
+      // applies to it — a phone number in a booking request must not be a
+      // way around the rules that govern chat.
+      //
+      // A blocked or redacted message does not fail the booking: the dates
+      // matter more than the note, and the filter has already done its job.
+      if (body.message) {
+        try {
+          const conversation = await ctx.services.messaging.startConversation(
+            body.propertyId,
+            caller.userId,
+          );
+          await ctx.services.messaging.sendMessage(conversation.id, caller.userId, body.message);
+        } catch {
+          // Never surface why: the filter's behaviour is not something a
+          // sender should be able to probe.
+        }
+      }
+
       await ctx.services.notifications.enqueue({
         userId: booking.landlord_id,
         category: booking.status === 'CONFIRMED' ? 'BOOKING_DECISION' : 'BOOKING_REQUEST',
@@ -112,13 +133,56 @@ export const bookingRoutes: AnyRoute[] = [
         throw notFound('Бронирование');
       }
 
-      const { rows: events } = await ctx.db.query(
-        `SELECT event_type, actor, from_status, to_status, occurred_at
-           FROM booking_event WHERE booking_id=$1 ORDER BY id`,
-        [params.id!],
-      );
+      const counterpartyId =
+        booking.tenant_id === caller.userId ? booking.landlord_id : booking.tenant_id;
 
-      return { ...present(booking, caller.userId), timeline: events };
+      const [{ rows: events }, { rows: people }] = await Promise.all([
+        ctx.db.query(
+          `SELECT event_type, actor, from_status, to_status, occurred_at
+             FROM booking_event WHERE booking_id=$1 ORDER BY id`,
+          [params.id!],
+        ),
+        // Public trust facts only. A landlord deciding on a request needs to
+        // know who is asking; they do not need an email, a phone number or
+        // anything from the verification documents. The columns selected
+        // here are the whole allowance.
+        ctx.db.query(
+          `SELECT u.id, u.display_name, u.account_kind, u.company_name,
+                  u.verification_level, u.created_at,
+                  u.completed_rentals_as_tenant, u.completed_rentals_as_landlord,
+                  (SELECT round(avg(r.overall)::numeric, 2) FROM review r
+                    WHERE r.subject_id = u.id AND r.status = 'PUBLISHED') AS rating,
+                  (SELECT count(*)::int FROM review r
+                    WHERE r.subject_id = u.id AND r.status = 'PUBLISHED') AS review_count
+             FROM app_user u WHERE u.id = $1`,
+          [counterpartyId],
+        ),
+      ]);
+
+      const person = people[0] as Record<string, any> | undefined;
+
+      return {
+        ...present(booking, caller.userId),
+        timeline: events,
+        counterparty: person
+          ? {
+              id: person.id,
+              displayName: person.display_name,
+              accountKind: person.account_kind,
+              companyName: person.company_name,
+              verificationLevel: person.verification_level,
+              memberSince: String(person.created_at),
+              // The count that matters is the one for the role they are
+              // playing in THIS booking.
+              completedRentals:
+                booking.tenant_id === caller.userId
+                  ? person.completed_rentals_as_landlord
+                  : person.completed_rentals_as_tenant,
+              rating: person.rating === null ? null : Number(person.rating),
+              reviewCount: person.review_count,
+            }
+          : null,
+      };
     },
   }),
 

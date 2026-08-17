@@ -99,6 +99,34 @@ export class BookingService {
         throw new DomainError('SELF_BOOKING', 'Нельзя забронировать собственный объект');
       }
 
+      /* One live request per tenant, per property, per overlapping dates.
+       *
+       * This is what actually makes a double-click safe when the client
+       * sends no idempotency key: the key path above only helps a caller
+       * who supplied one, and our own API must not depend on the client
+       * behaving well.
+       *
+       * It is scoped to ACTIVE states on purpose. Two different tenants
+       * competing for the same dates is legitimate and stays legitimate;
+       * so does re-requesting after withdrawing or being declined. What
+       * is refused is the same person holding two open requests for the
+       * same nights, which is never anything but an accident. */
+      const duplicate = await tx.query<{ id: string }>(
+        `SELECT id FROM booking
+          WHERE tenant_id = $1 AND property_id = $2
+            AND status IN ('REQUESTED', 'OFFER_PENDING', 'CONFIRMED', 'CHECKED_IN')
+            AND stay_period && daterange($3::date, $4::date, '[)')
+          LIMIT 1`,
+        [tenantId, propertyId, from, to],
+      );
+      if (duplicate.rows[0]) {
+        const existing = await tx.query<BookingRow>(
+          `SELECT ${BOOKING_COLUMNS} FROM booking WHERE id = $1`,
+          [duplicate.rows[0].id],
+        );
+        return existing.rows[0]!;
+      }
+
       const q = quote(from, to, {
         basePriceMinor: BigInt(property.base_price_minor),
         basePriceUnit: property.price_unit,
