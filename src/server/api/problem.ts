@@ -12,6 +12,7 @@ import { DomainError, type ErrorCode } from '../services/errors.ts';
 import { hasErrorCode, isPgError, PG_ERROR } from '../db/sql.ts';
 import { WeakPasswordError } from '../auth/credentials.ts';
 import { IllegalTransitionError } from '../domain/booking/states.ts';
+import { IllegalDisputeTransitionError } from '../domain/dispute.ts';
 import { PricingError } from '../domain/pricing.ts';
 import { MoneyError } from '../domain/money.ts';
 import type { ApiResponse } from './http.ts';
@@ -83,6 +84,14 @@ export function toProblem(
   // Their messages are written for developers, so only a generic message goes out.
   if (error instanceof IllegalTransitionError) {
     return problem('ILLEGAL_TRANSITION', 409, 'Это действие сейчас недоступно', correlationId);
+  }
+  // Same shape, different aggregate. Without this a staff member clicking an
+  // action a colleague already performed gets a 500 and an entry in the error
+  // log, rather than "this is no longer available".
+  if (error instanceof IllegalDisputeTransitionError) {
+    return error.reason === 'REASON_REQUIRED'
+      ? problem('VALIDATION_FAILED', 422, 'Для этого действия нужно указать причину', correlationId)
+      : problem('ILLEGAL_TRANSITION', 409, 'Это действие сейчас недоступно', correlationId);
   }
   if (error instanceof PricingError) {
     return problem('VALIDATION_FAILED', 422, 'Некорректные даты или цена', correlationId);
