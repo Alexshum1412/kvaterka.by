@@ -61,6 +61,14 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       instantBooking: str(params.instant) === 'true',
       verifiedOnly: str(params.verified) === 'true',
       pets: str(params.pets) === 'true',
+      // Every one of these is enforced server-side by SearchService. A
+      // filter the backend cannot apply is not exposed in the UI.
+      propertyTypes: str(params.types)?.split(',').filter(Boolean),
+      minBeds: num(params.beds),
+      smoking: str(params.smoking) === 'true' ? true : undefined,
+      children: str(params.children) === 'true' ? true : undefined,
+      minRating: num(params.minRating),
+      negotiable: str(params.negotiable) === 'true' ? true : undefined,
       sort:
         (str(params.sort) as 'RELEVANCE' | 'PRICE_ASC' | 'PRICE_DESC' | 'RATING' | 'NEWEST') ??
         'RELEVANCE',

@@ -40,6 +40,9 @@ export async function SiteHeader() {
           </Link>
           {user ? (
             <>
+              <Link href="/trips" className="sh__link">
+                Мои поездки
+              </Link>
               <Link href="/dashboard" className="sh__link">
                 Мои квартиры
               </Link>

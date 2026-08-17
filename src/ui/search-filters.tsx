@@ -49,6 +49,15 @@ const SORTS: { value: string; label: string }[] = [
   { value: 'NEWEST', label: 'Сначала новые' },
 ];
 
+const PROPERTY_TYPES: { value: string; label: string }[] = [
+  { value: 'APARTMENT', label: 'Квартира' },
+  { value: 'ROOM', label: 'Комната' },
+  { value: 'STUDIO', label: 'Студия' },
+  { value: 'HOUSE', label: 'Дом' },
+  { value: 'COTTAGE', label: 'Коттедж' },
+  { value: 'TOWNHOUSE', label: 'Таунхаус' },
+];
+
 /** Parameters that describe the search itself, not the narrowing of it. */
 const KEPT_ON_RESET = ['city', 'district', 'q', 'from', 'to'];
 
@@ -85,6 +94,13 @@ export function SearchFilters({
   const [chosen, setChosen] = useState<Set<string>>(
     () => new Set((params.get('amenities') ?? '').split(',').filter(Boolean)),
   );
+  const [types, setTypes] = useState<Set<string>>(
+    () => new Set((params.get('types') ?? '').split(',').filter(Boolean)),
+  );
+  const [beds, setBeds] = useState(() => params.get('beds') ?? '');
+  const [rating, setRating] = useState(() => params.get('rating') ?? '');
+  const [smoking, setSmoking] = useState(() => params.get('smoking') === 'true');
+  const [children, setChildren] = useState(() => params.get('children') === 'true');
 
   const amenityNames = useMemo(
     () => new Map(amenities.map((a) => [a.code, a.name_ru])),
@@ -110,6 +126,18 @@ export function SearchFilters({
     const duration = DURATIONS.find((x) => x.value === d);
     if (duration) out.push({ key: 'durationMode', label: duration.label });
 
+    for (const t of (params.get('types') ?? '').split(',').filter(Boolean)) {
+      out.push({ key: `type:${t}`, label: PROPERTY_TYPES.find((x) => x.value === t)?.label ?? t });
+    }
+
+    const b = params.get('beds');
+    if (b) out.push({ key: 'beds', label: `от ${b} ${plural(Number(b), 'спального места', 'спальных мест', 'спальных мест')}` });
+
+    const rt = params.get('minRating');
+    if (rt) out.push({ key: 'minRating', label: `рейтинг от ${rt}` });
+
+    if (params.get('smoking') === 'true') out.push({ key: 'smoking', label: 'Можно курить' });
+    if (params.get('children') === 'true') out.push({ key: 'children', label: 'Можно с детьми' });
     if (params.get('pets') === 'true') out.push({ key: 'pets', label: 'Можно с животными' });
     if (params.get('verified') === 'true') out.push({ key: 'verified', label: 'Только проверенные' });
     if (params.get('instant') === 'true') out.push({ key: 'instant', label: 'Мгновенное бронирование' });
@@ -141,6 +169,11 @@ export function SearchFilters({
     set('verified', verified ? 'true' : null);
     set('instant', instant ? 'true' : null);
     set('amenities', chosen.size > 0 ? [...chosen].join(',') : null);
+    set('types', types.size > 0 ? [...types].join(',') : null);
+    set('beds', beds || null);
+    set('minRating', rating || null);
+    set('smoking', smoking ? 'true' : null);
+    set('children', children ? 'true' : null);
 
     setOpen(false);
     push(next);
@@ -154,6 +187,12 @@ export function SearchFilters({
       setChosen(new Set(rest));
       if (rest.length > 0) next.set('amenities', rest.join(','));
       else next.delete('amenities');
+    } else if (key.startsWith('type:')) {
+      const value = key.slice('type:'.length);
+      const rest = [...types].filter((t) => t !== value);
+      setTypes(new Set(rest));
+      if (rest.length > 0) next.set('types', rest.join(','));
+      else next.delete('types');
     } else if (key === 'price') {
       next.delete('priceMin');
       next.delete('priceMax');
@@ -164,6 +203,10 @@ export function SearchFilters({
       if (key === 'rooms') setRooms('');
       if (key === 'guests') setGuests('');
       if (key === 'durationMode') setDurationMode('');
+      if (key === 'beds') setBeds('');
+      if (key === 'minRating') setRating('');
+      if (key === 'smoking') setSmoking(false);
+      if (key === 'children') setChildren(false);
       if (key === 'pets') setPets(false);
       if (key === 'verified') setVerified(false);
       if (key === 'instant') setInstant(false);
@@ -186,6 +229,11 @@ export function SearchFilters({
     setVerified(false);
     setInstant(false);
     setChosen(new Set());
+    setTypes(new Set());
+    setBeds('');
+    setRating('');
+    setSmoking(false);
+    setChildren(false);
     setOpen(false);
     push(next);
   }
@@ -359,11 +407,79 @@ export function SearchFilters({
             </fieldset>
 
             <fieldset className="fl__set fl__set--wide">
+              <legend className="fl__legend">Тип жилья</legend>
+              <div className="fl__row">
+                {PROPERTY_TYPES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    className="chip chip-sm"
+                    aria-pressed={types.has(t.value)}
+                    onClick={() =>
+                      setTypes((prev) => {
+                        const copy = new Set(prev);
+                        if (copy.has(t.value)) copy.delete(t.value);
+                        else copy.add(t.value);
+                        return copy;
+                      })
+                    }
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="fl__set">
+              <legend className="fl__legend">Спальных мест, не меньше</legend>
+              <div className="fl__row">
+                {['1', '2', '3', '4', '6'].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className="chip chip-sm"
+                    aria-pressed={beds === n}
+                    onClick={() => setBeds(beds === n ? '' : n)}
+                  >
+                    {n}
+                    {n === '6' ? '+' : ''}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="fl__set">
+              <legend className="fl__legend">Рейтинг хозяина</legend>
+              <div className="fl__row">
+                {['4', '4.5'].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className="chip chip-sm"
+                    aria-pressed={rating === n}
+                    onClick={() => setRating(rating === n ? '' : n)}
+                  >
+                    <Icon name="star" size={14} solid />
+                    от {n}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="fl__set fl__set--wide">
               <legend className="fl__legend">Правила и бронирование</legend>
               <div className="fl__row">
                 <button type="button" className="chip chip-sm" aria-pressed={pets} onClick={() => setPets(!pets)}>
                   <Icon name="paw" size={15} />
                   Можно с животными
+                </button>
+                <button type="button" className="chip chip-sm" aria-pressed={children} onClick={() => setChildren(!children)}>
+                  <Icon name="baby" size={15} />
+                  Можно с детьми
+                </button>
+                <button type="button" className="chip chip-sm" aria-pressed={smoking} onClick={() => setSmoking(!smoking)}>
+                  <Icon name="smoking" size={15} />
+                  Можно курить
                 </button>
                 <button
                   type="button"
