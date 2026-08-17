@@ -52,6 +52,9 @@ export function BookingPanel({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ id: string; status: string } | null>(null);
+  // A final look before committing, with room for a note to the landlord.
+  const [confirming, setConfirming] = useState<'REQUEST' | 'INSTANT' | null>(null);
+  const [message, setMessage] = useState('');
 
   const instantAvailable = bookingMode === 'INSTANT' || bookingMode === 'INSTANT_AND_REQUEST';
   const nights =
@@ -91,11 +94,12 @@ export function BookingPanel({
     try {
       const booking = await api.post<{ id: string; status: string }>(
         '/bookings',
-        { propertyId, from, to, guests, instant },
+        { propertyId, from, to, guests, instant, ...(message.trim() ? { message: message.trim() } : {}) },
         // A double-tap on a phone must not create two bookings.
         { idempotencyKey: `${propertyId}:${from}:${to}:${guests}:${instant}` },
       );
       setResult(booking);
+      setConfirming(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не удалось отправить запрос');
     } finally {
@@ -238,26 +242,71 @@ export function BookingPanel({
         </p>
       )}
 
-      <div className="bp__actions">
-        {instantAvailable && (
+      {confirming === null ? (
+        <div className="bp__actions">
+          {instantAvailable && (
+            <button
+              type="button"
+              className="btn btn-primary btn-lg btn-block"
+              disabled={!quote || submitting}
+              onClick={() => setConfirming('INSTANT')}
+            >
+              Забронировать сразу
+            </button>
+          )}
           <button
             type="button"
-            className="btn btn-primary btn-lg btn-block"
+            className={instantAvailable ? 'btn btn-secondary btn-block' : 'btn btn-primary btn-lg btn-block'}
             disabled={!quote || submitting}
-            onClick={() => submit(true)}
+            onClick={() => setConfirming('REQUEST')}
           >
-            {submitting ? 'Отправляем…' : 'Забронировать сразу'}
+            Отправить заявку
           </button>
-        )}
-        <button
-          type="button"
-          className={instantAvailable ? 'btn btn-secondary btn-block' : 'btn btn-primary btn-lg btn-block'}
-          disabled={!quote || submitting}
-          onClick={() => submit(false)}
-        >
-          {submitting ? 'Отправляем…' : 'Отправить запрос хозяину'}
-        </button>
-      </div>
+        </div>
+      ) : (
+        <div className="bp__confirm">
+          <p className="bp__confirmLead">
+            {confirming === 'INSTANT'
+              ? 'Даты будут закреплены сразу после подтверждения.'
+              : 'Хозяин ответит на заявку. Даты пока не закрепляются.'}
+          </p>
+
+          <label className="field">
+            <span className="label">Сообщение хозяину</span>
+            <textarea
+              className="textarea"
+              rows={4}
+              maxLength={2000}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Здравствуйте! Планирую приехать в Минск на несколько дней…"
+            />
+            <span className="hint">
+              Необязательно. Контакты и ссылки на другие сервисы в переписке скрываются — до
+              подтверждённого бронирования общение идёт здесь.
+            </span>
+          </label>
+
+          <div className="bp__confirmActions">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={submitting}
+              onClick={() => setConfirming(null)}
+            >
+              Назад
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={submitting}
+              onClick={() => submit(confirming === 'INSTANT')}
+            >
+              {submitting ? 'Отправляем…' : confirming === 'INSTANT' ? 'Подтвердить бронирование' : 'Отправить заявку'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <p className="hint">
         Оплата аренды происходит напрямую между вами и хозяином. Платформа не принимает арендную плату и
