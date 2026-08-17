@@ -220,10 +220,21 @@ export async function SiteHeader() {
             display: flex;
             align-items: center;
             flex: 0 0 auto;
-            gap: var(--space-5);
+            /* Tighter than the desktop rhythm on purpose. The nav cannot shrink
+               — five nowrap links — so between 768 and 900 it is the widest
+               fixed thing in the bar, and at exactly 768 the row used to be a
+               pixel too wide and scrolled the whole page sideways. */
+            gap: var(--space-4);
             margin-inline-start: var(--space-4);
           }
           .sh__icon-link { display: none; }
+          /* The identity block gives up width by dropping the name rather than
+             by squeezing it to a clipped stub next to the monogram. */
+          .sh__name { display: none; }
+        }
+        @media (min-width: 900px) {
+          .sh__nav { gap: var(--space-5); }
+          .sh__name { display: block; }
         }
       `}</style>
     </header>
