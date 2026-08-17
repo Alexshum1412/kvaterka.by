@@ -339,7 +339,10 @@ export class SearchService {
     return { items, total: Number(countResult.rows[0]?.total ?? 0), limit, offset };
   }
 
-  private orderClause(filters: SearchFilters, push: (v: unknown) => string): string {
+  // `_push` is unused: every ordering is a fixed column list with no bound
+  // parameters. It stays in the signature so the clause builders share one
+  // shape with the filter builders that do bind values.
+  private orderClause(filters: SearchFilters, _push: (v: unknown) => string): string {
     switch (filters.sort) {
       case 'PRICE_ASC':
         return 'p.base_price_minor ASC, p.id';

@@ -79,7 +79,7 @@ async function attachPhoto(token: string, id: string) {
 describe('draft creation', () => {
   it('creates a listing from a property type alone', async () => {
     const landlord = await api.signUp();
-    const id = await startDraft(landlord.token);
+    await startDraft(landlord.token);
 
     const mine = await api.get('/listings/mine', { token: landlord.token });
     expect(mine.status).toBe(200);

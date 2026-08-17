@@ -8,7 +8,7 @@ import { MapPanel } from '@/ui/map-panel.tsx';
 import { Amenities } from '@/ui/amenities.tsx';
 import { ModerationDecision } from '@/ui/moderation-decision.tsx';
 import { Icon, type IconName } from '@/ui/icons.tsx';
-import { Money, formatNightsGenitive, plural } from '@/ui/primitives.tsx';
+import { Money, formatNightsGenitive } from '@/ui/primitives.tsx';
 import { MODERATION_REASON_TEXT, type ModerationReasonCode } from '@/server/domain/moderation.ts';
 
 export const dynamic = 'force-dynamic';

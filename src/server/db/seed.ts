@@ -7,7 +7,7 @@
  * validation.
  */
 
-import { humanReference, uuidv7 } from '../../lib/id.ts';
+import { uuidv7 } from '../../lib/id.ts';
 import { publicLocationFor } from '../domain/geo.ts';
 import { hashPassword } from '../auth/credentials.ts';
 import type { Db } from './sql.ts';
