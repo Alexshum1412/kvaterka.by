@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { currentUser, signInUrl } from '@/server/session.ts';
 import { ready } from '@/server/runtime.ts';
 import { can } from '@/server/auth/rbac.ts';
+import { StaffShell } from '@/ui/staff-shell.tsx';
 import { Icon } from '@/ui/icons.tsx';
 import { Money, plural } from '@/ui/primitives.tsx';
 
@@ -147,14 +148,14 @@ export default async function ModerationQueuePage({
   };
 
   return (
-    <div className="container mq">
-      <header className="mq__head">
-        <h1 className="title-lg">Модерация объявлений</h1>
-        <p className="text-sm muted">
-          {countFor.get('PENDING_MODERATION') ?? 0} в очереди · {total} всего
-        </p>
-      </header>
-
+    // The same shell as the dispute console: moderation and disputes are two
+    // views of one operations job, not two products (§17).
+    <StaffShell
+      roles={user.roles}
+      current="/moderation"
+      title="Модерация объявлений"
+      subtitle={`${countFor.get('PENDING_MODERATION') ?? 0} в очереди · ${total} всего`}
+    >
       <nav className="mq__tabs" aria-label="Статус">
         {TABS.map((t) => {
           const active = t.status === status;
@@ -288,9 +289,6 @@ export default async function ModerationQueuePage({
       )}
 
       <style>{`
-        .mq { padding-block: var(--space-5) var(--space-8); max-width: 68rem; }
-        .mq__head { display: grid; gap: 0.2rem; margin-bottom: var(--space-4); }
-
         .mq__tabs { display: flex; gap: var(--space-1); flex-wrap: wrap; margin-bottom: var(--space-4); }
         .mq__tab {
           display: inline-flex; align-items: center; gap: 0.4rem;
@@ -351,6 +349,6 @@ export default async function ModerationQueuePage({
           .mq__filters > * { flex: 1 1 100%; }
         }
       `}</style>
-    </div>
+    </StaffShell>
   );
 }
