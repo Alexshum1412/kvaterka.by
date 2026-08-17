@@ -156,3 +156,35 @@ Traceability from the master specification to implementation. Status vocabulary 
 | UX-003 | Loading / empty / error states | Every async surface | NOT STARTED |
 | UX-004 | Original design language | Not an Airbnb clone; own identity | NOT STARTED |
 | UX-005 | Errors never leak internals | Stable codes, safe messages, correlation id | IMPLEMENTED (`errors.ts`) |
+
+---
+
+## Reconciliation — tenant journey slice (2026-08-17)
+
+The status table above is **stale in parts**: several rows still read `NOT STARTED`
+for things that have since shipped and are covered by tests. Rather than sweep the
+whole table on the strength of a UI existing — which the status vocabulary
+explicitly forbids — only the rows this slice's tests actually prove are restated
+here. Everything else keeps its old value until someone verifies it row by row.
+
+Verified by `tests/tenant-journey.integration.test.ts` (30 tests) and
+`tests/moderation.integration.test.ts` (32 tests):
+
+| ID | Restated status | Evidence |
+|---|---|---|
+| AUTH-009 | TESTED | anonymous search returns published listings; anonymous booking is 401 |
+| LIST-002 | TESTED | wizard creates from a property type alone; submit refuses without a photo |
+| LIST-003 | TESTED | `DRAFT → PENDING_MODERATION → PUBLISHED`, rejection carries structured reasons |
+| BOOK-001 | TESTED | request creates `REQUESTED` without holding the calendar |
+| BOOK-002 | TESTED | landlord accept confirms and holds the dates; decline frees them |
+| BOOK-003 | TESTED | two tenants may request the same nights; only one confirmation succeeds |
+| BOOK-004 | TESTED | idempotent with a key, and with none (DEC-034) |
+| PRICE-001 | TESTED | quote returns integer minor units for the real stay |
+
+Not implemented in this slice, and deliberately not restated: payment processing,
+escrow, reviews (the write path), completion beyond the existing FSM states, and
+`PRICE-008` negotiation. `BOOK-010` check-out remains unbuilt.
+
+The intended platform role is unchanged: a venue connecting the parties, with rent
+paid directly between them. No new legal claim is made here, and no legally gated
+feature was enabled.

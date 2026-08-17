@@ -587,3 +587,47 @@ The same reasoning already governs identity documents: `document.read` is held b
 **Trade-offs.** A moderator cannot personally confirm a building exists at a given address. That check belongs to property verification, which is a different role with a different audit trail.
 
 **Revisit when.** Property verification is built out — and then it gets its own entitlement, not this one.
+
+---
+
+## DEC-033 — The booking note is a chat message, not a booking field
+
+**Question.** A tenant may attach a note to a booking request. The API accepted `message`, validated it, passed it into `requestBooking` — and the service dropped it on the floor. Where should it live?
+
+**Options.** (a) A `message` column on `booking`. (b) Discard it (the status quo, unintentionally). (c) Post it as the first message of the property's conversation.
+
+**Chosen.** (c).
+
+**Why.** (b) was a bug, not a decision: the field was in the zod schema and the input interface, so every layer advertised a feature that did nothing. Worse, it was the kind of bug that looks like a feature in a demo.
+
+(a) is the obvious fix and the wrong one, because it creates a second place where tenant-authored prose reaches a landlord — and only one of the two would be behind the contact filter. A phone number in a booking note would then be a documented way around the rules that govern chat. The filter is the reason this project has a messaging service at all.
+
+(c) routes the note through `MessagingService.sendMessage`, so it is filtered, stored with its original preserved for dispute evidence, and logged as a moderation event exactly like any other message. It also means the conversation a landlord opens from the request already contains the tenant's opening line, which is what both sides expect.
+
+A filtered or blocked note does not fail the booking. The dates matter more than the note, and the filter has already done its job by the time the decision is made.
+
+**Trade-offs.** The message is not visible on the booking row itself; it is one click away in the thread. A failure to open the conversation is swallowed rather than surfaced, deliberately — the reason a message was refused is not something a sender should be able to probe.
+
+**Revisit when.** Bookings need structured, non-prose metadata from the tenant (arrival time, number of pets), which is a form, not a message.
+
+---
+
+## DEC-034 — One live request per tenant, per property, per dates
+
+**Question.** `POST /bookings` is idempotent when the caller sends an `Idempotency-Key`. The route's comment claimed the domain guarded it too, without one. It did not — a double click created two REQUESTED rows.
+
+**Options.** (a) Correct the comment and rely on the client sending a key. (b) Derive a fallback idempotency key server-side from tenant + property + dates. (c) A domain rule: refuse a second *active* request for overlapping dates from the same tenant on the same property.
+
+**Chosen.** (c).
+
+**Why.** (a) is honest but leaves the API depending on client good behaviour, which §22 explicitly rules out.
+
+(b) looked right and is subtly wrong. A derived key is permanent, so a tenant who withdrew a request, or was declined, could never request those dates again — the endpoint would keep replaying the dead booking forever.
+
+(c) states the actual rule. Two *different* tenants competing for the same nights is legitimate and stays legitimate, which is the behaviour a marketplace needs; re-requesting after a withdrawal or a decline is also legitimate. What is never anything but an accident is one person holding two open requests for the same nights, and that is what is now refused — by returning the existing booking, so a double click is indistinguishable from a single one.
+
+Scoped to `REQUESTED`, `OFFER_PENDING`, `CONFIRMED` and `CHECKED_IN`, using the same `daterange` overlap operator as the exclusion constraint that prevents double-booking, so the two rules cannot disagree about what "overlapping" means.
+
+**Trade-offs.** A tenant who genuinely wants two overlapping bookings on one property — which has no legitimate meaning — cannot have them. The HTTP idempotency layer stays in place; this is a second, independent guard rather than a replacement.
+
+**Revisit when.** Multi-unit properties exist, where one tenant booking two overlapping stays on the same listing could be real.
