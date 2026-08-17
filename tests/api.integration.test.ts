@@ -525,7 +525,9 @@ describe('booking API', () => {
     );
     const stranger = await api.signUp();
     const res = await api.post(`/bookings/${created.body.id}/accept`, {}, { token: stranger.token });
-    expect(res.status).toBe(403);
+    // 404, not 403: a 403 would confirm that this booking id is real, which is
+    // the whole enumeration problem the GET route already avoided.
+    expect(res.status).toBe(404);
   });
 
   it('hides a booking from anyone who is not a participant', async () => {

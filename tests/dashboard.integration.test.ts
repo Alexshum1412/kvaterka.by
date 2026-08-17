@@ -323,13 +323,18 @@ describe('privacy of the dashboard payload', () => {
     const landlord = await api.signUp();
     await api.post(
       '/listings',
-      { ...LISTING, street: 'ул. Секретная', houseNumber: '13', apartmentNumber: '42' },
+      // Unmistakable fixture values. '42' as a needle passed or failed
+      // depending on the millisecond in `calendarUpdatedAt` — a two-character
+      // number occurs in timestamps and uuids by accident, so the assertion
+      // was testing luck rather than privacy.
+      { ...LISTING, street: 'ул. Секретная', houseNumber: 'ДОМ-ZZQ', apartmentNumber: 'КВ-ZZQ' },
       { token: landlord.token },
     );
     const res = await api.get('/dashboard/summary', { token: landlord.token });
     const serialised = JSON.stringify(res.body);
     expect(serialised).not.toContain('Секретная');
-    expect(serialised).not.toContain('42');
+    expect(serialised).not.toContain('ДОМ-ZZQ');
+    expect(serialised).not.toContain('КВ-ZZQ');
   });
 
   it('scopes the service to one user even when called directly', async () => {

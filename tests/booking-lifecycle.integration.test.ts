@@ -496,8 +496,19 @@ describe('authorization', () => {
     bookingId = b.id;
   });
 
-  it('does not let a stranger accept a request', async () => {
-    await expect(service.acceptRequest(bookingId, otherTenant)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  /* A stranger gets NOT_FOUND, not FORBIDDEN.
+   *
+   * These two used to assert FORBIDDEN, which is the weaker answer: it
+   * confirms that a booking with that id exists, so anyone who guesses ids can
+   * enumerate real bookings by the difference between 403 and 404. The read
+   * path (`GET /bookings/:id`) already answered 404; the mutation paths did
+   * not, and now they agree.
+   *
+   * The wrong PARTY still gets FORBIDDEN — see the two tests below, which are
+   * unchanged. They already know the booking exists, and answering "not found"
+   * to a tenant looking at their own booking would just look broken. */
+  it('hides a booking from a stranger who tries to accept it', async () => {
+    await expect(service.acceptRequest(bookingId, otherTenant)).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it('does not let the tenant accept their own request', async () => {
@@ -508,11 +519,11 @@ describe('authorization', () => {
     await expect(service.withdraw(bookingId, landlord)).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
-  it('does not let a stranger confirm completion', async () => {
+  it('hides a booking from a stranger who tries to confirm completion', async () => {
     await service.acceptRequest(bookingId, landlord);
     await service.openCompletionWindow(bookingId);
     await expect(service.confirmCompletion(bookingId, otherTenant, 'TOOK_PLACE')).rejects.toMatchObject({
-      code: 'FORBIDDEN',
+      code: 'NOT_FOUND',
     });
   });
 
