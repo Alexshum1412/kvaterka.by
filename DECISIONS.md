@@ -525,3 +525,65 @@ The rule that matters most: success is reported only after the bytes are on disk
 **Trade-offs.** Development bytes live in `.media/`, which is gitignored and is not production storage. The media route serves them with `X-Content-Type-Options: nosniff` and re-checks the resolved path against the root, so a key still cannot escape.
 
 **Revisit when.** An object-storage provider is chosen — then this endpoint issues presigned URLs and keeps the ownership check.
+
+---
+
+## DEC-030 — Rejection reasons are codes, and every decision is kept
+
+**Question.** `property.rejection_reason` is one text column that the next decision overwrites. Is that enough for a moderation workflow?
+
+**Options.** (a) Keep the single column and a free-text reject button. (b) Add reason codes to the column. (c) A row per decision, with structured codes, alongside the existing column.
+
+**Chosen.** (c), as `listing_moderation_review` in migration 0009.
+
+**Why.** Free text fails three separate jobs at once. It cannot be counted, so nobody can ever learn why listings actually get rejected. It cannot be translated. And it cannot be linked to anything — which matters most, because the useful thing to do with a rejection is send the landlord back to the *step* that needs fixing, and only a code can carry that mapping. `MODERATION_REASON_STEP` is what turns "слишком мало фотографий" into opening screen three of the wizard.
+
+Overwriting was the other half of the problem. A listing rejected twice for the same reason looked exactly like one rejected once; a moderator picking up a resubmission could not see what a colleague had already asked for. So each decision is now a row, and the column keeps the *current* reason because the dashboard and the wizard already read it.
+
+This is not a second audit log. `audit_log` records that an actor did something, generically, as a diff, across the whole system. This records the moderation decision as a domain object with the reasons that drive user-facing behaviour. Both are written in the same transaction.
+
+Backwards compatibility was deliberate: a caller that supplies only free text still works and is recorded as `OTHER` with the text as the comment. Silently dropping an explanation would have been worse than accepting an unstructured one.
+
+**Trade-offs.** The vocabulary is duplicated between TypeScript and a SQL `CHECK`. That is intentional — the codes are branch conditions in the UI, so adding one is a code change anyway, and the constraint stops a typo reaching the database. Both sites carry a comment pointing at the other.
+
+**Revisit when.** Reason counts start driving product decisions, at which point the codes want their own table with descriptions and an `active` flag.
+
+---
+
+## DEC-031 — Immutable history, except when the listing itself goes
+
+**Question.** The review history is append-only. Its `property_id` has `ON DELETE CASCADE`. Those contradict: deleting a property tried to cascade, the trigger refused, and a listing that had ever been moderated could no longer be deleted at all.
+
+**Options.** (a) Drop the append-only trigger. (b) Change the foreign key to `RESTRICT`. (c) Allow the delete only when it is a cascade.
+
+**Chosen.** (c), in migration 0010.
+
+**Why.** (a) gives up the property the table exists for — history that can be edited is not history. (b) is defensible, since the project soft-deletes with `deleted_at` and hard deletes are not a normal operation, but it turns a legitimate cleanup into a foreign-key error and leaves orphaned moderation notes as the only alternative.
+
+(c) draws the distinction that actually matters: a row deleted on its own is somebody editing history, while a row deleted because its listing is gone is the listing taking its history with it — which is also the data-minimising outcome, since moderation notes about a property that no longer exists serve nobody. During a cascade the parent row is already gone when the row trigger fires, and during a direct delete it is still there, so the trigger can tell them apart reliably.
+
+The tamper-evident trail is unaffected either way: `audit_log` records every `listing.moderate` action independently, keyed by target id, and is cascaded from nothing. A test asserts exactly that — the history disappears with the listing, the audit row does not.
+
+**Trade-offs.** The trigger now contains a condition rather than an unconditional refusal, so it must be read carefully. Two tests pin both halves.
+
+**Revisit when.** Another append-only table acquires a cascading parent — then this becomes a shared helper rather than a one-off function.
+
+---
+
+## DEC-032 — A moderator does not get the exact address
+
+**Question.** A moderator checks that a listing is real and correctly described. Does that require the street and apartment number?
+
+**Options.** (a) Yes — show the full address for verification. (b) No — show the same blurred point a tenant sees.
+
+**Chosen.** (b).
+
+**Why.** DEC-020 gave the exact address exactly one accessor, `revealExactLocation`, which checks entitlement first, and the reason was that a stable blurred point is only privacy-preserving if nothing else leaks the real one. "A moderator is looking at it" is not an entitlement; it is a new access path, and adding one would quietly undo that decision for every listing on the platform.
+
+What a moderator actually needs is to judge whether the *approximate* location is plausible — which is the location a tenant will act on anyway. If a listing's real address matters (a fraud investigation), that is a separate, logged, entitlement-checked act, not a side effect of routine review.
+
+The same reasoning already governs identity documents: `document.read` is held by VERIFIER alone, not by MODERATOR, SUPPORT, FINANCE or even ADMIN, and every read is written to `document_access_log`. The moderation screen says so in plain words, so a moderator is not left wondering whether they are missing a tool.
+
+**Trade-offs.** A moderator cannot personally confirm a building exists at a given address. That check belongs to property verification, which is a different role with a different audit trail.
+
+**Revisit when.** Property verification is built out — and then it gets its own entitlement, not this one.

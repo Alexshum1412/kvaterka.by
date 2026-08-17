@@ -95,6 +95,14 @@ Supporting tables: `booking_offer` (immutable negotiation chain, unique partial 
 
 **Also here:** `dispute_case` + `case_event`, `fraud_signal` (signals with severity, never one opaque verdict), `notification` (+ `notification_preference`, `telegram_connection`) with a unique dedupe key per user × channel, `favorite` (composite PK `(user_id, property_id)` — the dedupe, which is what lets the API expose an idempotent PUT/DELETE pair with no idempotency record; DEC-025), `saved_search`, `report`, and `feature_flag` with `requires_legal_approval` for the rewards gate (DEC-015).
 
+### Moderation — `0009_moderation_reviews.sql`, `0010_review_cascade.sql`
+
+**`listing_moderation_review`** — one row per moderation decision, append-only. `reason_codes text[]` is CHECK-constrained against the same vocabulary as `src/server/domain/moderation.ts`; a `REJECTED` row must carry at least one. `from_status` records what the listing was before the decision so the history still reads correctly after later transitions. The single `property.rejection_reason` column remains as the *current* reason (the dashboard and wizard read it); this table is the history behind it, and it is what lets a resubmission show a moderator what a colleague already asked for (DEC-030).
+
+Its append-only trigger is not the shared `forbid_mutation()`: deleting a listing must be able to cascade into its history, while deleting a history row on its own must not be possible. `forbid_review_mutation()` separates those by checking whether the parent still exists (DEC-031).
+
+**`property.submitted_at`** — the moderation queue orders by how long a landlord has actually waited, and a resubmission moves them to the back of the line. A partial index covers the pending queue.
+
 ## Append-only tables
 
 `audit_log`, `ledger_entry`, `booking_event`, `listing_snapshot`, `case_event`, `document_access_log`, `message_moderation_event`.
