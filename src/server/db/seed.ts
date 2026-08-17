@@ -200,6 +200,40 @@ export async function seedDemoData(db: Db): Promise<{ listings: number }> {
   );
   await db.query(`INSERT INTO user_role (user_id, role) VALUES ($1,'MODERATOR')`, [moderatorId]);
 
+  /* A support agent and an administrator, so the operations console can be
+     walked end to end in development.
+
+     Without these the console's two most consequential paths — deciding a case
+     and deciding the disputed booking behind it — cannot be exercised by
+     clicking at all, only by a test. That is the wrong way round for the part
+     of the product that moves somebody's money.
+
+     These are safe to seed because `seedDemoData` is only ever called from the
+     `DATABASE_URL=pglite` branch of the runtime, and pglite throws outright
+     when NODE_ENV is production. A demo administrator cannot reach a
+     production database through this path.
+
+     SUPPORT deliberately gets `case.handle` without `case.resolve`, which is
+     what makes the split visible while developing: log in as support and the
+     resolve buttons are simply not there. */
+  const supportId = uuidv7();
+  await db.query(
+    `INSERT INTO app_user (id, email, display_name, password_hash, email_verified_at, verification_level)
+     VALUES ($1,'support@demo.kvaterka.by','Марына Падтрымка',$2, now(), 1)`,
+    [supportId, password],
+  );
+  await db.query(`INSERT INTO user_role (user_id, role) VALUES ($1,'SUPPORT')`, [supportId]);
+
+  const adminId = uuidv7();
+  await db.query(
+    `INSERT INTO app_user (id, email, display_name, password_hash, email_verified_at, verification_level)
+     VALUES ($1,'admin@demo.kvaterka.by','Сяргей Адміністратар',$2, now(), 2)`,
+    [adminId, password],
+  );
+  // ADMIN, and still not VERIFIER: reading somebody's passport stays a
+  // separate grant even for the demo administrator (rbac.ts).
+  await db.query(`INSERT INTO user_role (user_id, role) VALUES ($1,'ADMIN')`, [adminId]);
+
   for (const [index, listing] of LISTINGS.entries()) {
     const id = uuidv7();
     const owner = landlords[index % landlords.length]!;
