@@ -29,3 +29,6 @@ Thumbs.db
 
 # Uploaded media in development. Production uses object storage.
 .media/
+
+# Local plugin artifact (redb), not project source.
+ruvector.db
