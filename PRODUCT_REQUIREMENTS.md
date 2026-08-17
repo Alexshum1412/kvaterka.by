@@ -61,7 +61,9 @@ Traceability from the master specification to implementation. Status vocabulary 
 | BOOK-007 | Idempotent creation | Retry with the same key returns the original booking | TESTED |
 | BOOK-008 | Cancellation frees the calendar | Cancelled dates immediately re-bookable | TESTED |
 | BOOK-009 | Duration and guest limits enforced | Out-of-range requests rejected with a specific code | TESTED |
-| BOOK-010 | Check-in / check-out records | One per booking × kind × reporter, with photos | IMPLEMENTED (check-in); check-out NOT STARTED |
+| BOOK-010 | Check-in / check-out records | One per booking × kind × reporter, with photos | TESTED (both, via `stay_event`); photo attachment NOT STARTED |
+| BOOK-012 | A stay reaches the completion window | Tenant check-out, or the scheduled sweep (DEC-037) | TESTED |
+| BOOK-013 | Either party can report a problem instead of answering | Opens a `dispute_case`; no automatic resolution (DEC-036) | TESTED |
 | BOOK-011 | Request expiry | Unanswered requests expire on a schedule | IMPLEMENTED (FSM + index); worker NOT STARTED |
 
 ## FEE — Service fee and landlord debt
@@ -76,7 +78,7 @@ Traceability from the master specification to implementation. Status vocabulary 
 | FEE-006 | Immutable ledger | Update/delete rejected by trigger | TESTED |
 | FEE-007 | Balance from the ledger | `SUM(amount_minor)`; no mutable balance column | TESTED |
 | FEE-008 | Auditable fee | `base`, `bps`, `fee` stored; `verifyStoredFee()` re-derives | TESTED |
-| FEE-009 | Debt restricts new commercial activity, not active rentals | Restrictions must not harm a live booking | NOT STARTED |
+| FEE-009 | Debt restricts new commercial activity, not active rentals | Restrictions must not harm a live booking | TESTED |
 | FEE-010 | Reminders, grace period, admin override | With audit and reason | NOT STARTED |
 
 ## COMPLETE — Two-sided completion
@@ -109,13 +111,15 @@ Traceability from the master specification to implementation. Status vocabulary 
 
 | ID | Requirement | Acceptance criteria | Status |
 |---|---|---|---|
-| REV-001 | Two-sided reviews | Tenant→landlord and landlord→tenant | TESTED (schema) |
-| REV-002 | Only after a completed rental | FK to booking; window opens on completion | IMPLEMENTED |
+| REV-001 | Two-sided reviews | Tenant→landlord and landlord→tenant | TESTED |
+| REV-002 | Only after a completed rental | FK to booking; window opens on completion | TESTED |
 | REV-003 | One per side per rental | DB unique constraint | TESTED |
 | REV-004 | Structured dimensions per role | Each role's own set enforced by CHECK | TESTED |
-| REV-005 | Anti-retaliation publication | Publish when both submit, or on timeout | NOT STARTED |
+| REV-005 | Anti-retaliation publication | Publish when both submit, or on timeout | TESTED |
 | REV-006 | Cannot review yourself | CHECK | TESTED |
-| REV-007 | Guest-confirmed facts | `confirmed_facts` feeds the evidence layer | IMPLEMENTED (schema) |
+| REV-007 | Guest-confirmed facts | `confirmed_facts` feeds the evidence layer | TESTED |
+| REV-008 | Review text is contact-filtered | Same filter as chat; redaction recorded (DEC-039) | TESTED |
+| REV-009 | Published reviews are immutable; reporting does not hide | Report queues for `review.moderate` (DEC-040) | TESTED |
 
 ## VERIFY / TRUST
 
@@ -128,6 +132,7 @@ Traceability from the master specification to implementation. Status vocabulary 
 | VERIFY-005 | Retention and purge | `purge_after` per document, job-enforced | NOT STARTED |
 | TRUST-001 | Behaviour-based trust score | Documented, gameable-resistant, cold-start handled | NOT STARTED |
 | TRUST-002 | Trust cannot be bought | Paid promotion separate from organic ranking | NOT STARTED |
+| TRUST-003 | Public profile reflects completed activity, and only that | Counts and rating update on completion; no contact details, no counterparties | TESTED |
 
 ## SEARCH / ADMIN / NOTIFY / LEGAL
 
@@ -181,9 +186,38 @@ Verified by `tests/tenant-journey.integration.test.ts` (30 tests) and
 | BOOK-004 | TESTED | idempotent with a key, and with none (DEC-034) |
 | PRICE-001 | TESTED | quote returns integer minor units for the real stay |
 
-Not implemented in this slice, and deliberately not restated: payment processing,
-escrow, reviews (the write path), completion beyond the existing FSM states, and
-`PRICE-008` negotiation. `BOOK-010` check-out remains unbuilt.
+Not implemented in that slice, and deliberately not restated there: payment
+processing, escrow, reviews (the write path), completion beyond the existing FSM
+states, and `PRICE-008` negotiation.
+
+## Status reconciliation — the completion and review slice
+
+Verified by `tests/completion-reviews.integration.test.ts` (56 tests) over the
+real dispatcher, plus a browser walkthrough of the same journey. Only rows this
+suite actually exercises are restated:
+
+| ID | Restated status | Evidence |
+|---|---|---|
+| BOOK-010 | TESTED | check-in and check-out each write one `stay_event` per reporter; a retry is a no-op |
+| BOOK-012 | TESTED | tenant check-out and the `lifecycle.run` sweep both reach `COMPLETION_PENDING`; neither completes a booking |
+| BOOK-013 | TESTED | a report opens one `dispute_case`, freezes the fee, and leaves `resolution` NULL |
+| FEE-001 | TESTED | 480.00 BYN base → 24.00 BYN; 99.99 → 5.00 with half-up rounding |
+| FEE-004 | TESTED | three repeated confirmations produce one `service_fee` and one ledger accrual |
+| FEE-005 | TESTED | `NOT_TAKEN_PLACE` and `DISPUTED` accrue nothing; silence with no check-in record accrues nothing |
+| FEE-009 | TESTED | a restricted landlord cannot accept a NEW booking but can still check in, check out and complete an ACTIVE one |
+| REV-001 | TESTED | both directions submit, and each side becomes eligible independently |
+| REV-002 | TESTED | eligibility and submission both refused before completion and after cancellation |
+| REV-005 | TESTED | the first review stays `PENDING` and invisible; both publish together, or a lone one publishes when the window closes |
+| REV-007 | TESTED | confirmed facts aggregate as `confirmed`/`total`, including a contradiction |
+| REV-008 | TESTED | a phone number and an email in review text are redacted and a moderation note is recorded |
+| REV-009 | TESTED | reporting leaves the review `PUBLISHED`; reporting your own is refused |
+| TRUST-003 | TESTED | completed-rental counts and rating update for both sides; the public profile carries no email, phone or counterparty id |
+
+Still not implemented, and deliberately not restated: payment processing, escrow,
+`PRICE-008` negotiation, a staff queue for dispute cases, stay photos on
+check-in/check-out records, and any scheduler that calls `lifecycle.run` on its
+own. `REV-002`'s review window is opened by the transition (DEC-035); bookings
+completed before that fix still carry a NULL deadline and are not backfilled.
 
 The intended platform role is unchanged: a venue connecting the parties, with rent
 paid directly between them. No new legal claim is made here, and no legally gated

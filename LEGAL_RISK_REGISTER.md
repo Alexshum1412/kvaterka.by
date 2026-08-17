@@ -210,7 +210,9 @@ What this register *is* good for: it names the questions precisely, records the 
 
 **If unfavourable.** The fee may be unenforceable as modelled. The ledger design tolerates waiving or writing off historical fees without rewriting records.
 
-**Lawyer:** yes — draft, not merely review.
+**Now user-facing.** `/dashboard/finance` shows a landlord the accrual, the arithmetic and the word «задолженность». That does not change the legal position, and no new dependency arises from it, but it does mean the assumption is now visible to users rather than only present in the schema. The page is worded as a record of what the platform has charged, never as a completed transaction, and states plainly that no payment method is connected. Restrictions are still gated behind the `fee.enforcement` flag, so with the flag off a landlord sees the number and loses nothing.
+
+**Lawyer:** yes — draft, not merely review. The wording on `/dashboard/finance` should be reviewed together with the terms, since it is the text a landlord actually reads when a debt appears.
 
 ---
 

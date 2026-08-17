@@ -631,3 +631,141 @@ Scoped to `REQUESTED`, `OFFER_PENDING`, `CONFIRMED` and `CHECKED_IN`, using the 
 **Trade-offs.** A tenant who genuinely wants two overlapping bookings on one property — which has no legitimate meaning — cannot have them. The HTTP idempotency layer stays in place; this is a second, independent guard rather than a replacement.
 
 **Revisit when.** Multi-unit properties exist, where one tenant booking two overlapping stays on the same listing could be real.
+
+---
+
+## DEC-035 — The review window is opened by the transition, not by the review service
+
+**Question.** `OPEN_REVIEW_WINDOW` has been declared as a side effect of the transition into `COMPLETED` since the state machine was written. Nothing executed it: `booking.review_deadline_at` stayed NULL on every completed rental. Where should the deadline be stamped?
+
+**Options.** (a) Lazily, the first time somebody asks whether they may review. (b) In `ReviewService`, when the first review arrives. (c) In `BookingService.applyResolution`, in the same transaction as the status change.
+
+**Chosen.** (c).
+
+**Why.** This was a bug with two silent consequences, and both are worth recording because neither was visible from a passing test suite.
+
+The landlord's «можно оставить отзыв» prompt counts completed bookings with a live `review_deadline_at`, so it was permanently zero — a feature that existed, was tested at the service layer, and could never appear on screen.
+
+The more serious one: `publishExpiredWindows()` only publishes reviews whose booking has a deadline that has passed. With the column NULL, a one-sided review could never publish. The entire point of the deadline is that a party cannot suppress criticism forever simply by never writing their own review, and that protection was inert.
+
+Options (a) and (b) both make the deadline depend on somebody showing up, which is exactly the dependency the deadline exists to remove. (c) puts it where the state machine already says it belongs: the transition into `COMPLETED` is the event that opens the window, so the same transaction that writes `status = 'COMPLETED'` writes the clock. `NOT_TAKEN_PLACE` and `DISPUTED` get no deadline, because there is nothing to review.
+
+`REVIEW_WINDOW_DAYS` moved to `domain/booking/completion.ts` beside `COMPLETION_WINDOW_DAYS` so the booking service can reach it without importing a service, and `ReviewService` re-exports it. One definition, two readers.
+
+**Trade-offs.** A booking completed before this change still has a NULL deadline. `eligibility()` treats NULL as "open", so those remain reviewable rather than being retroactively closed — the safer direction — but they will not auto-publish one-sided. A backfill is a data migration, not a code change, and is not attempted here.
+
+**Revisit when.** The window needs to differ by stay length; a one-night stay and a one-year tenancy plausibly deserve different review deadlines.
+
+---
+
+## DEC-036 — Reporting a problem opens a case; nothing resolves it automatically
+
+**Question.** `OPEN_DISPUTE` exists in the FSM from `CONFIRMED`, `CHECKED_IN` and `COMPLETION_PENDING`, with no service method, no endpoint and no UI. The completion screen therefore offered two answers — it happened, or it did not — and nothing else. What happens to a tenant whose stay happened but went badly?
+
+**Options.** (a) Leave it out; let them answer `TOOK_PLACE` and complain in chat. (b) Build a full case-management system with staff resolution screens. (c) Wire `OPEN_DISPUTE` to the existing `dispute_case` / `case_event` tables and stop there.
+
+**Chosen.** (c).
+
+**Why.** (a) makes the product ask people to misreport. The completion answer decides money; a screen whose only exits are two factual claims will get a false one from anybody whose situation is neither.
+
+(b) is a different product. Nothing in this slice justifies building a queue, an SLA, an assignment model and a resolution workflow, and a half-built one would be worse than none.
+
+(c) is the smallest honest mechanism. `dispute_case` and `case_event` were already designed and already carried the right categories; the booking moves to `DISPUTED`, which the FSM already defines as the state where completion side effects are frozen — so no fee accrues while a case is open, and none can be avoided by opening one either, because `DISPUTED` is not `NOT_TAKEN_PLACE`.
+
+Resolution stays exactly where the state machine put it: `RESOLVE_DISPUTE_AS_*`, actor `ADMIN`. There is no automatic timeout, no "if nobody responds it becomes X", and the screen says so — «Автоматических решений по обращениям нет — решение принимает человек». A placeholder that admits it is a placeholder is safe; one that quietly closes cases is not.
+
+A second report on the same booking joins the open case as another `case_event` rather than opening a second one, and does not attempt a state transition, because `DISPUTED` has no outgoing `OPEN_DISPUTE`.
+
+**Trade-offs.** Staff currently have no screen for these cases — they are rows plus an in-app notification to holders of `case.view`. Until a queue is built, a case that nobody looks at stays open and the fee stays unaccrued, which is the correct direction to fail in.
+
+**Revisit when.** There are enough cases to need a queue; that is the point at which the moderation-queue pattern from DEC-031 should be reused rather than reinvented.
+
+---
+
+## DEC-037 — Check-out is a tenant statement that opens the window, not a completion
+
+**Question.** `REACH_STAY_END` is SYSTEM-only, and nothing scheduled ran it. A confirmed stay therefore sat in `CONFIRMED` or `CHECKED_IN` forever: the completion window never opened, so no fee could ever accrue and no review could ever be written. How does a stay end?
+
+**Options.** (a) Let the planned end date complete the booking automatically. (b) Let either party fire `REACH_STAY_END`. (c) Add `CHECK_OUT` for the tenant, plus a scheduled sweep that fires the existing `REACH_STAY_END`.
+
+**Chosen.** (c).
+
+**Why.** (a) is explicitly ruled out by the brief and by the evidence model: a date passing is not evidence that a rental happened, and completing on it would charge a fee with no evidence at all.
+
+(b) muddies the actor. `SYSTEM` means "the platform observed a clock"; a landlord pressing it means something else entirely, and would let a landlord push a checked-in tenant out of `CHECKED_IN` from the outside.
+
+(c) keeps the two meanings apart. `CHECK_OUT` is tenant-only and does exactly one thing: move `CHECKED_IN → COMPLETION_PENDING` and start the confirmation clock. It decides nothing — `resolveCompletion()` still weighs both answers and the platform's own check-in record. A tenant pressing it is offering evidence, not a verdict.
+
+The sweep (`POST /admin/lifecycle/run`, permission `lifecycle.run`) finds stays whose last night has passed and hands each to the existing `openCompletionWindow`, then hands expired windows to the existing `resolveExpiredCompletion`, then publishes expired review windows. It contains no completion rules of its own; a sweep that decided outcomes would be a second completion system with its own bugs.
+
+It is an endpoint rather than an in-process timer because a Next.js deployment may be several short-lived instances, where a timer either never runs or runs N times. A cron with a credential is honest about who is doing the work, and `lifecycle.run` is a permission ADMIN alone holds, so the action is authorised and audited.
+
+Both `CHECK_IN` and `CHECK_OUT` now also write a `stay_event` row — a table that existed, was designed for exactly this, and was unused. It is `UNIQUE (booking_id, kind, reported_by)`, so a retry is a no-op rather than a second piece of "evidence". The authoritative flag the completion rules read is still `booking.checked_in_at`; the table is the audit trail behind it, not a second source of truth.
+
+**Trade-offs.** Nothing runs the sweep in development unless somebody calls it, and no ADMIN account is seeded, so the scheduled paths are exercised by the test suite rather than by clicking. Early departure remains `CANCEL_BY_TENANT`, not `CHECK_OUT`, which is the pre-existing behaviour and unchanged here.
+
+**Revisit when.** A hosted scheduler exists; the endpoint is the thing it should call.
+
+---
+
+## DEC-038 — A stranger gets 404 from booking mutations, not 403
+
+**Question.** `GET /bookings/:id` answers 404 to anyone who is not a participant, deliberately. The mutation endpoints — accept, cancel, check-in, completion — answered 403. Should they agree?
+
+**Options.** (a) Leave it; 403 is the technically accurate code. (b) Answer 404 whenever the caller is not a party to the booking.
+
+**Chosen.** (b).
+
+**Why.** 403 confirms that a booking with that id exists. Anyone who can guess or harvest ids can then enumerate real bookings by the difference between the two codes, which is precisely the leak the read path was written to avoid. Two routes over the same resource disagreeing about it is worse than either choice made consistently.
+
+The distinction that matters is not "authorised" versus "unauthorised" but "party" versus "stranger". A stranger gets 404. A caller who *is* a party but the wrong one — a landlord trying to check in, a tenant trying to accept their own request — still gets 403, because they already know the booking exists and answering "not found" to somebody looking at their own booking is a lie that reads as a broken product.
+
+One helper, `participantRole()`, now makes that call in every path, so they cannot drift apart again.
+
+**Trade-offs.** Three existing tests asserted the old 403 and were updated to assert 404 — strengthening, not weakening: they now pin the anti-enumeration property rather than the leak.
+
+**Revisit when.** Never, for this resource. The same rule should be applied to any other resource whose existence is private.
+
+---
+
+## DEC-039 — Review text goes through the contact filter; redaction is recorded, not punished
+
+**Question.** Chat is filtered for phone numbers, emails and off-platform handles. Reviews were not. A review is public and permanent. What should happen to a review containing contact details?
+
+**Options.** (a) Nothing; reviews are between adults. (b) Reject the review and make the author rewrite it. (c) Filter the text, store the filtered version, publish normally, and record that it happened.
+
+**Chosen.** (c).
+
+**Why.** (a) makes reviews the documented way around the filter, which would make the filter pointless — a listing page is a far better place to publish a phone number than a private thread.
+
+(b) punishes the author for the platform's rule, and loses work they may have spent several minutes on. It also creates a probing oracle: submit, see what is rejected, learn the detector's boundaries.
+
+(c) treats it the way chat already does. `filterMessage` runs over `body`, `whatWasGood` and `whatToImprove`. `contactReleased` is deliberately NOT set, even though these two people have completed a rental together and are entitled to each other's details — that entitlement does not extend to publishing them to everyone who reads the listing.
+
+Redacted reviews still publish. What is recorded instead is a `moderation_note` naming the detectors that fired, so a holder of `review.moderate` can see a pattern of it without the removed text being stored anywhere public.
+
+**Trade-offs.** Filtering is not free of false positives; a review mentioning a bus route number could lose it. The note makes that recoverable by a moderator rather than invisible.
+
+**Revisit when.** The filter gains a confidence threshold that would let a high-confidence match be handled differently from a marginal one.
+
+---
+
+## DEC-040 — Reviews are immutable once written, and reporting one does not hide it
+
+**Question.** Can an author edit a published review? Can the person it is about get it taken down?
+
+**Options.** (a) Editable within a window. (b) Immutable, with reporting for moderation.
+
+**Chosen.** (b), which is what the schema already implied — `review_one_per_side` plus a publication timestamp, with no update path anywhere in the service.
+
+**Why.** A review is a trust-critical record about somebody else. If it can be edited after publication, then what a reader saw yesterday and what they see today are different claims with the same timestamp, and the rating that fed a trust profile is no longer the rating that was written.
+
+More practically: an editable review is a lever. "Change your review or I will change mine" only works if changing is possible. The simultaneous-publication rule (both sides in, or the window closes) exists to remove exactly that pressure, and editability would put it back.
+
+Reporting is therefore the only route, and it deliberately does not hide the review. A report files a row in the existing `report` queue with `target_type = 'REVIEW'` and changes nothing about the review's status; a moderator with `review.moderate` decides. If reporting hid a review even temporarily, the first thing anybody would do with a bad rating is report it.
+
+Reporting an unpublished review answers 404 rather than 403, because whether an unpublished review exists is exactly what the publication delay conceals. Reporting your own is refused outright.
+
+**Trade-offs.** A typo is permanent. That is the cost of the record being a record.
+
+**Revisit when.** Never for content. An author deleting their own review — a different act from editing it — is a separate question tied to account deletion and data-protection obligations.

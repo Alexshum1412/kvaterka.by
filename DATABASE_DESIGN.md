@@ -103,6 +103,20 @@ Its append-only trigger is not the shared `forbid_mutation()`: deleting a listin
 
 **`property.submitted_at`** — the moderation queue orders by how long a landlord has actually waited, and a resubmission moves them to the back of the line. A partial index covers the pending queue.
 
+### Tables the completion and review slice brought into use — no migration
+
+That slice added **no migration**. Everything it needed already existed, which is worth recording because "the schema was designed for this" is a claim that should be checkable:
+
+**`stay_event`** — `UNIQUE (booking_id, kind, reported_by)` with `kind IN ('CHECK_IN','CHECK_OUT')`. Written for the first time by `checkIn()` and `checkOut()`; the uniqueness means a retried request adds no second piece of "evidence". The flag the completion rules actually read is still `booking.checked_in_at`, in the same transaction — this table is the trail behind that flag, not a competing source of truth (DEC-037). `stay_photo` remains unused: photo attachment is not built.
+
+**`booking.review_deadline_at`** — added in `0006_api_support.sql` with an index over `status = 'COMPLETED'`, and never written until now. `applyResolution()` stamps it on the transition into `COMPLETED` only (DEC-035).
+
+**`dispute_case` + `case_event`** — the category `CHECK` already carried the vocabulary the completion screen needed. One open case per booking; a second report from the other party appends a `case_event` rather than opening a second case. `resolution` stays NULL: there is no automated resolution path (DEC-036).
+
+**`report`** — `target_type` already allowed `'REVIEW'`. Reporting a review files a row here and changes nothing about `review.status` (DEC-040).
+
+**`review.moderation_note`** — now carries the names of the contact-filter detectors that fired on a review's free text, so a redaction is visible to `review.moderate` without the removed text being stored anywhere public (DEC-039).
+
 ## Append-only tables
 
 `audit_log`, `ledger_entry`, `booking_event`, `listing_snapshot`, `case_event`, `document_access_log`, `message_moderation_event`.
