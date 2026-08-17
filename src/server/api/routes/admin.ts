@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { defineRoute, type AnyRoute } from '../http.ts';
 import { writeAudit } from '../../services/audit.ts';
 import { invalid } from '../../services/errors.ts';
+import { MODERATION_REASON_CODES } from '../../domain/moderation.ts';
 
 /**
  * Staff endpoints.
@@ -111,19 +112,92 @@ export const adminRoutes: AnyRoute[] = [
     tags: ['admin'],
     auth: 'required',
     permission: 'listing.moderate',
-    query: z.object({ limit: z.coerce.number().int().min(1).max(100).optional() }),
+    query: z.object({
+      limit: z.coerce.number().int().min(1).max(100).optional(),
+      offset: z.coerce.number().int().min(0).optional(),
+      status: z.enum(['PENDING_MODERATION', 'PUBLISHED', 'REJECTED', 'PAUSED', 'ALL']).optional(),
+      city: z.string().trim().max(80).optional(),
+      q: z.string().trim().max(120).optional(),
+      sort: z.enum(['WAITING_LONGEST', 'WAITING_SHORTEST', 'CITY', 'RECENTLY_DECIDED']).optional(),
+    }),
     async handler({ query, ctx }) {
-      const { rows } = await ctx.db.query(
-        `SELECT p.id, p.title, p.city, p.status, p.created_at, p.base_price_minor::text AS base_price_minor,
-                u.display_name AS owner_name, u.verification_level AS owner_verification,
-                (SELECT count(*)::int FROM property_photo ph WHERE ph.property_id = p.id) AS photo_count
-           FROM property p JOIN app_user u ON u.id = p.owner_id
-          WHERE p.status = 'PENDING_MODERATION' AND p.deleted_at IS NULL
-          ORDER BY p.created_at
-          LIMIT $1`,
-        [query.limit ?? 50],
-      );
-      return rows;
+      const limit = query.limit ?? 25;
+      const offset = query.offset ?? 0;
+      const status = query.status ?? 'PENDING_MODERATION';
+
+      const where: string[] = ['p.deleted_at IS NULL'];
+      const params: unknown[] = [];
+      const push = (value: unknown): string => {
+        params.push(value);
+        return `$${params.length}`;
+      };
+
+      if (status === 'ALL') {
+        // Everything a moderator has any business seeing. A DRAFT is the
+        // landlord's private workspace and is never in this queue.
+        where.push(`p.status IN ('PENDING_MODERATION','PUBLISHED','REJECTED','PAUSED')`);
+      } else {
+        where.push(`p.status = ${push(status)}`);
+      }
+      if (query.city) where.push(`lower(p.city) = lower(${push(query.city)})`);
+      if (query.q) {
+        const like = `%${query.q}%`;
+        where.push(`(p.title ILIKE ${push(like)} OR u.display_name ILIKE ${push(like)} OR p.city ILIKE ${push(like)})`);
+      }
+
+      const order = {
+        WAITING_LONGEST: 'COALESCE(p.submitted_at, p.created_at) ASC',
+        WAITING_SHORTEST: 'COALESCE(p.submitted_at, p.created_at) DESC',
+        CITY: 'p.city ASC, COALESCE(p.submitted_at, p.created_at) ASC',
+        RECENTLY_DECIDED: 'p.updated_at DESC',
+      }[query.sort ?? 'WAITING_LONGEST'];
+
+      const sql = `
+        SELECT p.id, p.title, p.city, p.district, p.status, p.property_type,
+               p.created_at, p.submitted_at, p.rejection_reason,
+               p.base_price_minor::text AS base_price_minor, p.price_unit,
+               u.id AS owner_id, u.display_name AS owner_name,
+               u.verification_level AS owner_verification,
+               (SELECT count(*)::int FROM property_photo ph WHERE ph.property_id = p.id) AS photo_count,
+               (SELECT storage_key FROM property_photo ph
+                 WHERE ph.property_id = p.id ORDER BY is_cover DESC, sort_order LIMIT 1) AS cover_photo,
+               (SELECT count(*)::int FROM listing_moderation_review r WHERE r.property_id = p.id) AS review_count
+          FROM property p JOIN app_user u ON u.id = p.owner_id
+         WHERE ${where.join(' AND ')}
+         ORDER BY ${order}
+         LIMIT ${push(limit)} OFFSET ${push(offset)}`;
+
+      const [{ rows }, counts] = await Promise.all([
+        ctx.db.query(sql, params),
+        // The tab counts, in one pass rather than four queries.
+        ctx.db.query<{ status: string; total: string }>(
+          `SELECT status, count(*)::text AS total FROM property
+            WHERE deleted_at IS NULL
+              AND status IN ('PENDING_MODERATION','PUBLISHED','REJECTED','PAUSED')
+            GROUP BY status`,
+        ),
+      ]);
+
+      return {
+        items: rows,
+        limit,
+        offset,
+        counts: Object.fromEntries(counts.rows.map((r) => [r.status, Number(r.total)])),
+      };
+    },
+  }),
+
+  defineRoute({
+    method: 'GET',
+    path: '/admin/moderation/listings/:id',
+    summary: 'Everything a moderator needs to decide, plus the decision history',
+    tags: ['admin'],
+    auth: 'required',
+    permission: 'listing.moderate',
+    async handler({ params, ctx }) {
+      const listing = await ctx.services.listings.getForModeration(params.id!);
+      const history = await ctx.services.listings.moderationHistory(params.id!);
+      return { listing, history };
     },
   }),
 
@@ -136,10 +210,18 @@ export const adminRoutes: AnyRoute[] = [
     permission: 'listing.moderate',
     body: z.object({
       decision: z.enum(['PUBLISHED', 'REJECTED', 'PAUSED']),
+      /** The moderator's own words. Optional on top of the codes. */
       reason: z.string().trim().max(1000).optional(),
+      reasonCodes: z.array(z.enum(MODERATION_REASON_CODES)).max(11).optional(),
     }),
     async handler({ params, body, ctx, caller }) {
-      await ctx.services.listings.moderate(params.id!, caller.userId, body.decision, body.reason);
+      await ctx.services.listings.moderate(
+        params.id!,
+        caller.userId,
+        body.decision,
+        body.reason,
+        body.reasonCodes,
+      );
 
       const { rows } = await ctx.db.query(`SELECT owner_id FROM property WHERE id=$1`, [params.id!]);
       const ownerId = (rows[0] as { owner_id?: string })?.owner_id;

@@ -188,6 +188,18 @@ export async function seedDemoData(db: Db): Promise<{ listings: number }> {
   );
   await db.query(`INSERT INTO user_role (user_id, role) VALUES ($1,'TENANT')`, [tenantId]);
 
+  /* A moderator, so the moderation console is reachable in development.
+     MODERATOR only — deliberately not VERIFIER, because the whole point of
+     that split is that reviewing a listing and reading somebody's passport
+     are different jobs held by different people (rbac.ts). */
+  const moderatorId = uuidv7();
+  await db.query(
+    `INSERT INTO app_user (id, email, display_name, password_hash, email_verified_at, verification_level)
+     VALUES ($1,'moderator@demo.kvaterka.by','Ганна Мадэратар',$2, now(), 2)`,
+    [moderatorId, password],
+  );
+  await db.query(`INSERT INTO user_role (user_id, role) VALUES ($1,'MODERATOR')`, [moderatorId]);
+
   for (const [index, listing] of LISTINGS.entries()) {
     const id = uuidv7();
     const owner = landlords[index % landlords.length]!;

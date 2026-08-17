@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { CornflowerMark } from './brand.tsx';
 import { Icon } from './icons.tsx';
 import { currentUser } from '@/server/session.ts';
+import { can } from '@/server/auth/rbac.ts';
 
 /**
  * The site header.
@@ -48,6 +49,15 @@ export async function SiteHeader() {
               <Link href="/dashboard/chat" className="sh__link">
                 Сообщения
               </Link>
+              {/* Staff only. An ordinary account gets a 404 from the page
+                  itself, so this link is the only thing that reveals the
+                  console exists — and only to someone who holds the
+                  permission. */}
+              {can(user.roles, 'listing.moderate') && (
+                <Link href="/moderation" className="sh__link sh__link--staff">
+                  Модерация
+                </Link>
+              )}
             </>
           ) : (
             <>
@@ -123,6 +133,7 @@ export async function SiteHeader() {
         .sh__tld { font-weight: 500; color: var(--text-secondary); }
 
         .sh__nav { display: none; }
+        .sh__link--staff { color: var(--primary); font-weight: 600; }
         .sh__link {
           display: inline-flex;
           align-items: center;

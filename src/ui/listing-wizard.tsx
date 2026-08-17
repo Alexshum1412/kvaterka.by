@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon, AMENITY_CATEGORY, amenityIcon, type IconName } from '@/ui/icons.tsx';
 import { formatNightsGenitive, plural } from '@/ui/primitives.tsx';
+import {
+  MODERATION_REASON_TEXT,
+  firstStepForReasons,
+  type ModerationReasonCode,
+} from '@/server/domain/moderation.ts';
 import type { AmenityOption } from '@/ui/search-filters.tsx';
 
 /**
@@ -131,7 +136,15 @@ export function ListingWizard({
   const [photos, setPhotos] = useState<Photo[]>(
     () => ((listing?.photos as Photo[] | undefined) ?? []).map((p) => ({ ...p })),
   );
-  const [step, setStep] = useState(() => (listing ? firstIncompleteStep(listing) : 0));
+  const [step, setStep] = useState(() => {
+    if (!listing) return 0;
+    // A rejected listing opens on the step the moderator objected to, so
+    // the landlord never has to hunt for what to change.
+    const codes = (listing.rejectionCodes as string[] | undefined) ?? [];
+    if (listing.status === 'REJECTED' && codes.length > 0) return firstStepForReasons(codes);
+    return firstIncompleteStep(listing);
+  });
+  const [noticeOpen, setNoticeOpen] = useState(listing?.status === 'REJECTED');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -302,6 +315,43 @@ export function ListingWizard({
       </header>
 
       <main className="wz__body">
+        {noticeOpen && (
+          <aside className="wz__rejected" role="status">
+            <div className="wz__rejectedHead">
+              <Icon name="alert" size={18} />
+              <strong>Модератор попросил исправить объявление</strong>
+              <button
+                type="button"
+                className="wz__rejectedClose"
+                onClick={() => setNoticeOpen(false)}
+                aria-label="Скрыть замечания"
+              >
+                <Icon name="close" size={15} />
+              </button>
+            </div>
+            <ul className="wz__rejectedList">
+              {((draft.rejectionCodes as string[] | undefined) ?? []).map((code) => (
+                <li key={code}>
+                  {MODERATION_REASON_TEXT[code as ModerationReasonCode] ?? code}
+                  <button
+                    type="button"
+                    className="link wz__jump"
+                    onClick={() => void go(firstStepForReasons([code]))}
+                  >
+                    Перейти к шагу
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {typeof draft.moderatorComment === 'string' && draft.moderatorComment && (
+              <p className="wz__rejectedComment">«{draft.moderatorComment}»</p>
+            )}
+            <p className="hint">
+              Исправьте и отправьте объявление снова — заполнять всё заново не нужно.
+            </p>
+          </aside>
+        )}
+
         {step === 0 && (
           <Step title="Что вы сдаёте?" lead="С этого начнём — остальное можно заполнять постепенно.">
             <div className="wz__cards">
@@ -805,6 +855,26 @@ export function ListingWizard({
 
         .wz__submit { display: grid; gap: var(--space-3); padding-top: var(--space-4); border-top: 1px solid var(--border); }
         .wz__error { display: flex; align-items: center; gap: 0.4rem; font-size: var(--text-sm); }
+
+        .wz__rejected {
+          display: grid; gap: var(--space-2);
+          padding: var(--space-4);
+          background: var(--warning-soft);
+          border-radius: var(--radius-md);
+        }
+        .wz__rejectedHead { display: flex; align-items: center; gap: 0.5rem; }
+        .wz__rejectedHead > svg { color: var(--warning); flex: 0 0 auto; }
+        .wz__rejectedHead > strong { flex: 1 1 auto; font-size: var(--text-sm); }
+        .wz__rejectedClose {
+          display: grid; place-items: center; width: 2.25rem; height: 2.25rem;
+          background: none; border: 0; border-radius: var(--radius-sm);
+          cursor: pointer; color: var(--text-secondary);
+        }
+        .wz__rejectedClose:hover { background: color-mix(in srgb, var(--surface) 60%, transparent); }
+        .wz__rejectedList { display: grid; gap: var(--space-2); margin: 0; padding-left: 1.1rem; font-size: var(--text-sm); }
+        .wz__rejectedList li { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+        .wz__jump { background: none; border: 0; cursor: pointer; font: inherit; font-size: var(--text-xs); font-weight: 600; }
+        .wz__rejectedComment { font-size: var(--text-sm); font-style: italic; }
 
         .wz__nav {
           position: fixed; inset-inline: 0; bottom: 0; z-index: 30;
