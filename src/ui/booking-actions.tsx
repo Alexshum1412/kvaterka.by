@@ -16,13 +16,25 @@ import { Icon } from '@/ui/icons.tsx';
  * then refuses, rather than a button the API would have accepted.
  */
 
-/** FSM event → the endpoint that performs it and how it reads to a human. */
+/**
+ * FSM event → the endpoint that performs it and how it reads to a human.
+ *
+ * THE KEYS MUST BE FSM EVENT NAMES. They were `ACCEPT` and `DECLINE` while the
+ * transition table emits `ACCEPT_REQUEST` and `DECLINE_REQUEST`, so every
+ * incoming action was filtered out as unknown and a landlord looking at a
+ * pending request saw the heading «Что можно сделать» with no buttons under it
+ * — the one action the whole booking flow depends on. Nothing in typecheck or
+ * the API tests could see it, because both sides were internally consistent.
+ *
+ * CONFIRM_COMPLETION and OPEN_DISPUTE are deliberately absent: they are not
+ * one-tap transitions, and the completion panel owns them.
+ */
 const ACTIONS: Record<
   string,
   { path: string; label: string; tone: 'primary' | 'secondary' | 'danger'; confirm?: string; needsReason?: boolean }
 > = {
-  ACCEPT: { path: 'accept', label: 'Принять заявку', tone: 'primary' },
-  DECLINE: { path: 'decline', label: 'Отклонить', tone: 'secondary', needsReason: true },
+  ACCEPT_REQUEST: { path: 'accept', label: 'Принять заявку', tone: 'primary' },
+  DECLINE_REQUEST: { path: 'decline', label: 'Отклонить', tone: 'secondary', needsReason: true },
   WITHDRAW: {
     path: 'withdraw',
     label: 'Отозвать заявку',
@@ -43,7 +55,14 @@ const ACTIONS: Record<
     confirm: 'Отменить подтверждённое бронирование? Арендатор уже рассчитывает на эти даты.',
     needsReason: true,
   },
-  CHECK_IN: { path: 'check-in', label: 'Я заселился', tone: 'primary' },
+  CHECK_IN: { path: 'check-in', label: 'Подтвердить заселение', tone: 'primary' },
+  CHECK_OUT: {
+    path: 'check-out',
+    label: 'Проживание закончилось',
+    tone: 'primary',
+    confirm:
+      'Отметить, что проживание закончилось? После этого обе стороны подтверждают, состоялась ли аренда.',
+  },
 };
 
 export function BookingActions({

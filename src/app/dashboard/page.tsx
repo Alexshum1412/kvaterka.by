@@ -126,7 +126,7 @@ export default async function DashboardPage() {
         </p>
       ) : null}
 
-      <section className="dash-section" aria-labelledby="listings-heading">
+      <section id="listings" className="dash-section" aria-labelledby="listings-heading">
         <div className="dash-section__head">
           <h2 id="listings-heading" className="title-md">
             Ваши квартиры
@@ -182,7 +182,11 @@ export default async function DashboardPage() {
       )}
 
       <section className="dash-section dash-figures" aria-label="Показатели">
-        <Figure label="Активные объявления" value={String(stats.publishedListings)} href="/dashboard/listings" />
+        {/* Every href here must resolve. `/dashboard/listings` and
+            `/dashboard/reviews` did not exist: the listings live in the section
+            above on this same page, and a landlord's reviews live on their
+            public profile, which is also what a tenant sees. */}
+        <Figure label="Активные объявления" value={String(stats.publishedListings)} href="#listings" />
         <Figure
           label="Новые заявки"
           value={String(stats.pendingRequests)}
@@ -198,7 +202,7 @@ export default async function DashboardPage() {
               ? `${stats.reviewCount} ${plural(stats.reviewCount, 'отзыв', 'отзыва', 'отзывов')}`
               : 'пока нет отзывов'
           }
-          href="/dashboard/reviews"
+          href={`/profiles/${user.userId}`}
         />
       </section>
 
@@ -502,7 +506,10 @@ function PropertyCard({ listing }: { listing: DashboardListing }) {
 function UpcomingRow({ stay }: { stay: UpcomingStay }) {
   return (
     <li className="dash-stay__item">
-      <Link href={`/dashboard/bookings/${stay.bookingId}`} className="dash-stay__row">
+      {/* /bookings/:id — the booking detail page is shared by both sides.
+          This pointed at /dashboard/bookings/:id, which has never existed, so
+          every upcoming stay on the dashboard led to a 404. */}
+      <Link href={`/bookings/${stay.bookingId}`} className="dash-stay__row">
         <span className="dash-stay__date">
           <span className="sr-only">Заезд </span>
           <span className="dash-stay__day numeric">{dayOf(stay.from)}</span>

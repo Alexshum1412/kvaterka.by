@@ -254,7 +254,11 @@ function buildAttention(
       kind: 'CONFIRM_COMPLETION',
       title: 'Подтвердите, состоялась ли аренда',
       detail: 'Без подтверждения обеих сторон аренда не закроется и отзывы не откроются.',
-      href: '/dashboard/bookings?status=COMPLETION_PENDING',
+      // The tab keys on /dashboard/bookings are COMPLETION and HISTORY. These
+      // used to send the landlord to ?status=COMPLETION_PENDING and
+      // ?status=COMPLETED, which match no tab, so the page silently fell back
+      // to «Новые заявки» — the one screen the notice was not about.
+      href: '/dashboard/bookings?status=COMPLETION',
       severity: 'ACTION',
       count: awaitingCompletion,
     });
@@ -302,7 +306,7 @@ function buildAttention(
       kind: 'REVIEW_PENDING',
       title: 'Можно оставить отзыв об арендаторе',
       detail: 'Отзывы обеих сторон публикуются одновременно.',
-      href: '/dashboard/bookings?status=COMPLETED',
+      href: '/dashboard/bookings?status=HISTORY',
       severity: 'INFO',
       count: reviewsPending,
     });
