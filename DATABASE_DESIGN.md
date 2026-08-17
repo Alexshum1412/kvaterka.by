@@ -117,6 +117,18 @@ That slice added **no migration**. Everything it needed already existed, which i
 
 **`review.moderation_note`** — now carries the names of the contact-filter detectors that fired on a review's free text, so a redaction is visible to `review.moderate` without the removed text being stored anywhere public (DEC-039).
 
+### Staff operations — `0011_dispute_operations.sql`
+
+**`dispute_case.category`** gains `SAFETY_CONCERN`. The original vocabulary had no way to say "I do not feel safe here": the nearest options were `ACCESS_PROBLEM` (about a key) and `OTHER` (about nothing), and a safety report filed as `OTHER` queues behind a complaint about towels. Priority routing is the whole reason categories are structured, so the one category that must never be routed as ordinary feedback has to exist.
+
+**`dispute_case.resolved_by`** is new, and a `CHECK` now requires that a terminal case carries all three of `resolution`, `resolved_at` and `resolved_by`. The first two existed but nothing required them, so a case could reach `RESOLVED` with no record of what was decided or by whom — the one thing an accountability record must not leave optional.
+
+**`case_event.visibility`** (`INTERNAL` | `PARTIES`, defaulting to `INTERNAL`) separates what a party did from what staff wrote to each other. Without it, every read has to remember which `event_type` values are safe to show a tenant, and one forgetful join is an internal note in somebody's inbox (DEC-043). The default is the safe one, so an event type added later is invisible until somebody deliberately says otherwise. The migration backfills the existing `OPENED_BY_PARTY` rows, which required lowering the append-only trigger for one statement inside the migration's transaction — spelled out in the file rather than done quietly.
+
+**Indexes** `dispute_case_assignee_idx` and `dispute_case_open_idx` are partial, covering the two queries the console runs on every page load: "what is assigned to me" and the open-case set the priority rule joins against.
+
+**No priority column** — deliberately. Priority is derived from category, booking state, fraud signals and age, in `priorityOf()` and in `PRIORITY_SQL`, and a test asserts the two agree across the whole matrix (DEC-041).
+
 ## Append-only tables
 
 `audit_log`, `ledger_entry`, `booking_event`, `listing_snapshot`, `case_event`, `document_access_log`, `message_moderation_event`.

@@ -769,3 +769,85 @@ Reporting an unpublished review answers 404 rather than 403, because whether an 
 **Trade-offs.** A typo is permanent. That is the cost of the record being a record.
 
 **Revisit when.** Never for content. An author deleting their own review — a different act from editing it — is a separate question tied to account deletion and data-protection obligations.
+
+---
+
+## DEC-041 — Dispute priority is derived, never stored
+
+**Question.** The queue has to put a case from somebody currently locked out of a flat above a month-old complaint about a slow reply. Where does that ordering come from?
+
+**Options.** (a) A `priority` column staff set by hand. (b) A `priority` column a trigger or a job maintains. (c) No column: derive it from facts the platform already holds, every time it is asked.
+
+**Chosen.** (c).
+
+**Why.** A stored priority is a second copy of a conclusion whose inputs keep changing. The stay ends, the case ages past its target, a fraud signal lands against one of the parties — each of those should change the answer, and with a column each of them needs somebody or something to remember to write it. What actually happens is that the column goes stale and the queue quietly sorts by yesterday's facts.
+
+Deriving it also settles §14's "do not allow users to manipulate priority directly" by construction rather than by a rule: there is nothing to manipulate. Category is chosen from a fixed vocabulary, booking state comes from the FSM, the fraud signal is written by the platform, and age is arithmetic. A user can pick a category — and `SAFETY_CONCERN` deliberately raises priority, because that is what it is for — but they cannot set the priority itself, and a false category is visible to the person reading the case.
+
+The rule is written twice, in `priorityOf()` and in `PRIORITY_SQL`, and that is the real cost of this decision. It has to be: the queue orders and paginates in the database, so it cannot sort on a value computed after the rows arrive without fetching every case first, which §4 rules out. Two implementations of one rule drift, so a test runs the whole matrix of category × booking state through both and asserts they agree. Without that test this would be the wrong choice.
+
+**Trade-offs.** No manual override. A handler who thinks a case deserves more attention than the rule gives it can escalate, which is a state change with a written reason — a better record than a silently bumped number would be. If overrides turn out to be needed, they should be an explicit, audited column that shadows the derived value rather than replacing it.
+
+**Revisit when.** Somebody needs to deprioritise a known-vexatious case, or the rule needs an input the platform does not already record.
+
+---
+
+## DEC-042 — Case status is workflow; the booking is decided separately
+
+**Question.** A dispute freezes a booking: no fee accrues while a case is open. When staff resolve the case, should the booking resolve with it?
+
+**Options.** (a) Resolving a case applies an outcome to the booking automatically. (b) Two separate acts, with separate permissions.
+
+**Chosen.** (b).
+
+**Why.** They are different decisions with different consequences and, deliberately, different costs.
+
+Closing a case says "we have finished looking at this". Deciding the booking says "the rental did happen, so a fee is owed" — or that it did not. The second moves money. Fusing them means every case closure is also a financial decision, including the ones closed as duplicates or withdrawn, and it means a handler cannot tidy the queue without touching somebody's balance.
+
+So `RESOLVE` needs `case.resolve` and writes a resolution to `dispute_case`. `POST /admin/disputes/:id/booking-outcome` also needs `case.resolve` and goes through `BookingService.resolveDispute`, which runs `RESOLVE_DISPUTE_AS_*` from the booking state machine — a transition that has existed since the FSM was written and had no caller, which is why a DISPUTED booking was previously frozen for good.
+
+The financial safety property falls out of that split. There is no amount anywhere in the request: an administrator chooses an outcome, and the fee is derived from the booking's own frozen terms by the same `accrueServiceFee` the ordinary completion path uses. A staff member cannot type a number that becomes a ledger row, and a test posts `feeMinor: '999999'` to prove the field is not part of the contract. Waiving an accrued fee stays where it was — `fee.waive`, in FinanceService, writing a compensating entry rather than deleting one.
+
+**Trade-offs.** Two clicks where a product manager would want one, and a case can sit RESOLVED while its booking is still DISPUTED. That combination is visible in the queue and in the case file, and it is a truthful state: we finished looking, and the booking outcome is a separate call that somebody has to make.
+
+**Revisit when.** Resolution templates exist — "confirmed, rental happened" as one action — at which point it should be one button that performs both acts explicitly, not one act that silently does two things.
+
+---
+
+## DEC-043 — Case events carry a visibility, and it defaults to internal
+
+**Question.** `case_event` is one append-only stream holding both what a party did and what staff wrote to each other. How does a reader know which is which?
+
+**Options.** (a) By `event_type`: every read remembers which types are safe to show. (b) An explicit `visibility` column.
+
+**Chosen.** (b), defaulting to `INTERNAL`.
+
+**Why.** (a) is a rule that lives in the head of whoever writes the next query. There will be a next query — a party-facing case timeline, an export, a support email — and the failure mode is an internal note about a suspected duplicate account arriving in a tenant's inbox. That is not a bug you get to fix quietly.
+
+The default matters as much as the column. `INTERNAL` means a new event type added next year is invisible to users until somebody deliberately marks it otherwise. Fail closed: the mistake it prevents is disclosure, and the mistake it causes is a party not seeing something they could have.
+
+Exactly one event type is currently `PARTIES`: `OPENED_BY_PARTY`, whose note is the party's own words about their own case. `REQUEST_INFORMATION` is also visible, because the text of that one IS the message to the party — but the party receives it through the notification service, not by reading the case file. Nothing in the product shows a tenant the case stream directly.
+
+**Trade-offs.** The migration backfills the existing `OPENED_BY_PARTY` rows, which meant disabling the append-only trigger for the length of one statement. That is spelled out in the migration rather than done quietly, because "the append-only table was briefly not append-only" is something a future reader deserves to find in the history rather than discover.
+
+**Revisit when.** Parties get a case timeline of their own, at which point this column is the thing that makes it safe to build.
+
+---
+
+## DEC-044 — Evidence is assembled per caller, and an absence is named
+
+**Question.** A case file draws on bookings, messages, reviews, fraud signals, moderation history and the ledger. Who sees which parts?
+
+**Options.** (a) Anyone with `case.view` sees the whole file. (b) Each section gated on its own existing permission.
+
+**Chosen.** (b).
+
+**Why.** (a) turns `case.view` into the most powerful permission in the system by accident. A support agent needs to know what happened to a booking; that is not the same as needing to read two people's private conversation, and the platform already says so — `message.review` exists, and SUPPORT does not hold it.
+
+So the file is assembled from the caller's entitlements: message bodies need `message.review`, the financial picture needs `debt.view`, and identity documents are reachable from here by nobody at all — including ADMIN. That last one is not a new rule, it is the existing one held to: `document.read` is VERIFIER's alone, the only route to a document is in the verification routes, every read is logged, and the whole path is additionally behind a legal flag that is off. A dispute is not an entitlement, and adding one here would have quietly undone that.
+
+A section the caller cannot have is ABSENT from the payload and NAMED on the screen — «нет доступа с вашими правами, требуется message.review» — rather than returned empty. `messages: []` and "no access to messages" are different facts, and a case file that renders them identically will eventually have somebody conclude there was no conversation.
+
+**Trade-offs.** A support agent working a case that hinges on what was said in chat has to hand it to a moderator. That is the intended shape: the escalation is visible and recorded, where a blanket read would not be.
+
+**Revisit when.** Support genuinely cannot resolve common cases without message access — and then the answer is a scoped, per-case, logged grant, not adding `message.review` to the role.

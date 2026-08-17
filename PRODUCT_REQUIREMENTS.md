@@ -64,6 +64,7 @@ Traceability from the master specification to implementation. Status vocabulary 
 | BOOK-010 | Check-in / check-out records | One per booking × kind × reporter, with photos | TESTED (both, via `stay_event`); photo attachment NOT STARTED |
 | BOOK-012 | A stay reaches the completion window | Tenant check-out, or the scheduled sweep (DEC-037) | TESTED |
 | BOOK-013 | Either party can report a problem instead of answering | Opens a `dispute_case`; no automatic resolution (DEC-036) | TESTED |
+| BOOK-014 | A disputed booking has an exit | `RESOLVE_DISPUTE_AS_*` through the FSM, ADMIN only (DEC-042) | TESTED |
 | BOOK-011 | Request expiry | Unanswered requests expire on a schedule | IMPLEMENTED (FSM + index); worker NOT STARTED |
 
 ## FEE — Service fee and landlord debt
@@ -142,9 +143,18 @@ Traceability from the master specification to implementation. Status vocabulary 
 | SEARCH-002 | Russian full-text with typo tolerance | Stemming + trigram similarity | TESTED (query level) |
 | SEARCH-003 | Structured filters | Amenities, rules, price, duration, verification | NOT STARTED |
 | SEARCH-004 | Map search with clustering and bounds | Mobile-first | NOT STARTED |
-| ADMIN-001 | Admin panel exists in MVP | Moderation, verification, cases, users, flags | NOT STARTED |
-| ADMIN-002 | All admin actions audited | Actor, target, diff, reason | IMPLEMENTED (mechanism) |
+| ADMIN-001 | Admin panel exists in MVP | Moderation, verification, cases, users, flags | IN PROGRESS — moderation + disputes have screens; verification, reports and users are API-only |
+| ADMIN-002 | All admin actions audited | Actor, target, diff, reason | TESTED (dispute + booking-outcome paths) |
 | ADMIN-003 | No manual DB edits for business operations | Every operation has an audited code path | IN PROGRESS |
+| CASE-001 | Dispute queue ordered by what is most pressing | Active stay, safety/fraud, then age; server-side filter and paging | TESTED |
+| CASE-002 | Deterministic priority users cannot set | Derived from category, booking state, signals and age (DEC-041) | TESTED |
+| CASE-003 | Case workflow through a transition table | Only declared moves; a reason required for consequential ones | TESTED |
+| CASE-004 | Deciding a case is separate from deciding the booking | `case.resolve` for both; no amount crosses the boundary (DEC-042) | TESTED |
+| CASE-005 | Internal notes never reach the parties | `case_event.visibility` defaults to INTERNAL (DEC-043) | TESTED |
+| CASE-006 | Evidence assembled per entitlement | Messages need `message.review`, finance `debt.view` (DEC-044) | TESTED |
+| CASE-007 | Identity documents unreachable from a case | No role, including ADMIN, reaches one from the console | TESTED |
+| CASE-008 | Assignment to staff who work cases | Assign, reassign, unassign; every change in the case history | TESTED |
+| CASE-009 | Staff communication through the notification queue | The console is never exposed; internal notes never sent | TESTED |
 | NOTIFY-001 | In-app / email / Telegram | Preferences per category and channel | NOT STARTED (schema TESTED) |
 | NOTIFY-002 | Idempotent delivery | Dedupe key unique per user × channel | TESTED (schema) |
 | NOTIFY-003 | Telegram is notifications only | Canonical history stays on-platform | IMPLEMENTED (by design) |
@@ -213,12 +223,42 @@ suite actually exercises are restated:
 | REV-009 | TESTED | reporting leaves the review `PUBLISHED`; reporting your own is refused |
 | TRUST-003 | TESTED | completed-rental counts and rating update for both sides; the public profile carries no email, phone or counterparty id |
 
-Still not implemented, and deliberately not restated: payment processing, escrow,
-`PRICE-008` negotiation, a staff queue for dispute cases, stay photos on
+Still not implemented at that point, and deliberately not restated there:
+payment processing, escrow, `PRICE-008` negotiation, stay photos on
 check-in/check-out records, and any scheduler that calls `lifecycle.run` on its
 own. `REV-002`'s review window is opened by the transition (DEC-035); bookings
 completed before that fix still carry a NULL deadline and are not backfilled.
 
+## Status reconciliation — the staff operations slice
+
+Verified by `tests/staff-operations.integration.test.ts` (39 tests) and
+`src/server/domain/dispute.test.ts` (22 tests), plus a browser walkthrough of
+the whole case lifecycle. Only rows those suites exercise are restated:
+
+| ID | Restated status | Evidence |
+|---|---|---|
+| ADMIN-002 | TESTED | four staff actions each produce an audit row with actor, ADMIN role, reason and before/after state; the log refuses UPDATE and DELETE |
+| CASE-001 | TESTED | an active-stay safety report sorts above a ten-day-old routine case; filtering and paging happen in SQL |
+| CASE-002 | TESTED | `priorityOf()` and `PRIORITY_SQL` agree across every category × booking state, and on the signal and age escalations |
+| CASE-003 | TESTED | a move the table does not define is 409, a consequential move with no reason is 422 |
+| CASE-004 | TESTED | SUPPORT and MODERATOR are refused both `RESOLVE` and the booking outcome; a posted `feeMinor` changes nothing |
+| CASE-005 | TESTED | an internal note is absent from both parties' booking payloads and cannot be edited or deleted |
+| CASE-006 | TESTED | SUPPORT sees finance and not messages, MODERATOR the reverse; an unavailable section is absent, not empty |
+| CASE-007 | TESTED | SUPPORT, MODERATOR, FINANCE and ADMIN are all refused a document; VERIFIER must state a purpose and the read is logged |
+| CASE-008 | TESTED | assign / reassign / unassign, refused for a user who does not work cases |
+| CASE-009 | TESTED | the request reaches the tenant's inbox; the internal note and the console path do not |
+| BOOK-014 | TESTED | `RESOLVE_DISPUTE_AS_*` moves a DISPUTED booking and accrues the fee from its frozen terms; refused from any other state |
+| FEE-004 | TESTED | a dispute outcome cannot fabricate an amount, and the ledger still refuses UPDATE and DELETE |
+
+Still not implemented, and deliberately not restated: payment processing,
+escrow, `PRICE-008` negotiation, stay photos, any scheduler that calls
+`lifecycle.run` on its own, and screens for the report, verification and user
+queues — those remain API-only behind their existing permissions, and the
+overview says so on the card rather than linking nowhere. There is no
+resolution-template or bulk-action support, and no SLA notification: overdue is
+computed and shown, and nothing chases it.
+
 The intended platform role is unchanged: a venue connecting the parties, with rent
 paid directly between them. No new legal claim is made here, and no legally gated
-feature was enabled.
+feature was enabled. Dispute handling is described throughout as «рассмотрение
+обращения» and «решение по обращению» — an internal review, not arbitration.

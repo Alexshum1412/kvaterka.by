@@ -119,5 +119,6 @@ Ledger entries are append-only, so if the answer is unfavourable, historical fee
 | LEGAL-012 | `rewards.lottery`, `rewards.points` | off, approval-gated | Any rewards feature |
 | LEGAL-016 | `fee.enforcement` | on (assumption) | Enforcing debt |
 | LEGAL-015 | per-user Telegram opt-in | off | Nothing — already conservative |
+| LEGAL-017 | none yet — dispute records are append-only and never purged | retained | Nothing today; a retention answer may require a purge path |
 
 **Development is not blocked.** Everything above is either built and gated, or is a configuration value. The two genuine blockers are the hosting decision (LEGAL-003) and enabling identity verification (LEGAL-004) — and both fail closed today rather than open.

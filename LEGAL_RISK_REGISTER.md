@@ -216,6 +216,20 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
+### LEGAL-017 — Handling complaints between users, and what to keep
+
+**Question.** Кватэрка.by now records complaints between users, staff notes about them, and decisions that change whether a fee is owed. Three things follow that a Belarusian lawyer has to answer. First: does running this process create any obligation the platform does not intend — a consumer-complaint duty, a mediation role, a reporting duty for what users allege about each other? Second: what may be retained, and for how long? Dispute cases, case events and audit rows are append-only and currently never deleted, which is right for accountability and is exactly the shape a data-protection regime tends to have opinions about. Third: a case necessarily contains one user's allegations about another, held indefinitely, which is a category of record that usually has rules of its own.
+
+**Product decision riding on it.** The console exists and is used internally. Nothing in it is described to users as arbitration: the wording is «рассмотрение обращения», «решение по обращению» and «внутренняя проверка» throughout, and the screen says in plain words that there is no automated resolution. The platform states an outcome for its own fee, not a determination of the parties' rights against each other.
+
+**If unfavourable.** Retention limits would mean purging or anonymising closed cases on a schedule. The append-only design makes that a deliberate, auditable operation rather than a silent one — but there is currently no purge path at all, which is the gap to close if the answer requires one. A finding that the process itself creates obligations would be a wording and workflow question, not a schema one.
+
+**Confidence.** Low. Not researched.
+
+**Lawyer:** yes — together with LEGAL-016, since the fee decision and the complaint process are the same act seen from two sides.
+
+---
+
 ## Summary
 
 | Item | Blocks |
