@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { currentUser, signInUrl } from '@/server/session.ts';
-import { ready } from '@/server/runtime.ts';
+import { ready, readyServices } from '@/server/runtime.ts';
 import { BookingList, type BookingListRow } from '@/ui/booking-list.tsx';
 import { Icon } from '@/ui/icons.tsx';
 import { plural } from '@/ui/primitives.tsx';
@@ -57,6 +57,11 @@ export default async function LandlordBookingsPage({
   const active = TABS.find((t) => t.key === requested) ?? TABS[0];
 
   const database = await ready();
+  // The same invitation the tenant sees, from the other side. `pending()`
+  // returns rows for whichever role the caller played, so this list is the
+  // landlord's own outstanding reviews and nobody else's.
+  const awaitingReview = await (await readyServices()).reviews.pending(user.userId, 3);
+
   const { rows } = await database.query<BookingListRow>(
     `SELECT b.id, b.reference, b.status,
             lower(b.stay_period)::text AS stay_from, upper(b.stay_period)::text AS stay_to,
@@ -114,6 +119,31 @@ export default async function LandlordBookingsPage({
         ))}
       </nav>
 
+      {awaitingReview.length > 0 && (
+        <section className="lb__invite" aria-label="Отзывы">
+          <h2 className="lb__inviteTitle">Можно оставить отзыв об арендаторе</h2>
+          <p className="lb__inviteText">
+            Отзывы обеих сторон публикуются одновременно — арендатор не увидит вашу оценку, пока не
+            напишет свою.
+          </p>
+          <ul className="lb__inviteList">
+            {awaitingReview.map((raw) => {
+              const item = raw as Record<string, any>;
+              return (
+                <li key={String(item.bookingId)} className="lb__inviteItem">
+                  <span className="truncate">
+                    {item.counterpartyName} · {item.propertyTitle}
+                  </span>
+                  <Link href={`/bookings/${item.bookingId}/review`} className="btn btn-soft btn-sm">
+                    Оставить отзыв
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       <BookingList
         rows={visible}
         viewerRole="LANDLORD"
@@ -146,6 +176,20 @@ export default async function LandlordBookingsPage({
           background: var(--surface-sunken); color: var(--text-secondary);
         }
         .lb__tab[aria-current='page'] .lb__tabCount { background: var(--primary-soft); color: var(--primary); }
+
+        .lb__invite {
+          display: grid; gap: var(--space-2);
+          padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4);
+          background: var(--primary-soft); border-radius: var(--radius-md);
+        }
+        .lb__inviteTitle { font-size: var(--text-base); font-weight: 650; }
+        .lb__inviteText { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5; max-width: 54ch; }
+        .lb__inviteList { display: grid; gap: var(--space-2); margin: var(--space-1) 0 0; padding: 0; list-style: none; }
+        .lb__inviteItem { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-width: 0; font-size: var(--text-sm); }
+        @media (max-width: 480px) {
+          .lb__inviteItem { flex-direction: column; align-items: stretch; }
+          .lb__inviteItem > .btn { width: 100%; }
+        }
       `}</style>
     </div>
   );

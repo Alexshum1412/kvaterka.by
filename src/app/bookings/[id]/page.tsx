@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { currentUser, signInUrl } from '@/server/session.ts';
 import { ready, readyServices } from '@/server/runtime.ts';
 import { BookingActions } from '@/ui/booking-actions.tsx';
+import { BookingStages } from '@/ui/booking-stages.tsx';
+import { CompletionPanel } from '@/ui/completion-panel.tsx';
 import { Icon, type IconName } from '@/ui/icons.tsx';
 import { Money, formatNights, plural } from '@/ui/primitives.tsx';
 import { BOOKING_STATUS_LABEL, bookingTone } from '@/ui/primitives.tsx';
@@ -37,17 +39,9 @@ const EXPLAIN: Record<string, { tenant: string; landlord: string }> = {
     tenant: 'Заселение подтверждено. Хорошего проживания.',
     landlord: 'Арендатор подтвердил заселение.',
   },
-  COMPLETION_PENDING: {
-    tenant: 'Проживание закончилось. Подтвердите, что аренда состоялась.',
-    landlord: 'Проживание закончилось. Подтвердите, что аренда состоялась.',
-  },
-  COMPLETED: {
-    tenant: 'Аренда завершена. Можно оставить отзыв.',
-    landlord: 'Аренда завершена. Можно оставить отзыв.',
-  },
   NOT_TAKEN_PLACE: {
-    tenant: 'Обе стороны подтвердили, что аренда не состоялась.',
-    landlord: 'Обе стороны подтвердили, что аренда не состоялась.',
+    tenant: 'Аренда не состоялась. Сервисный сбор не начислялся.',
+    landlord: 'Аренда не состоялась. Сервисный сбор не начислялся.',
   },
   CANCELLED_BY_TENANT: {
     tenant: 'Вы отменили бронирование.',
@@ -58,31 +52,59 @@ const EXPLAIN: Record<string, { tenant: string; landlord: string }> = {
     landlord: 'Вы отменили это бронирование.',
   },
   DISPUTED: {
-    tenant: 'Открыт спор. Решение принимает поддержка.',
-    landlord: 'Открыт спор. Решение принимает поддержка.',
+    tenant: 'Обращение передано в поддержку. Пока идёт разбор, сервисный сбор не начисляется.',
+    landlord: 'Обращение передано в поддержку. Пока идёт разбор, сервисный сбор не начисляется.',
   },
 };
 
+const MONTHS = [
+  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+];
+
 function formatDate(iso: string): string {
-  const MONTHS = [
-    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
-  ];
   const [y, m, d] = iso.split('-');
   return `${Number(d)} ${MONTHS[Number(m) - 1]} ${y}`;
 }
 
-export default async function BookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
+function formatDay(value: string | null): string | null {
+  if (!value) return null;
+  const iso = new Date(value).toISOString();
+  const [, m, d] = iso.slice(0, 10).split('-');
+  return `${Number(d)} ${MONTHS[Number(m) - 1]}`;
+}
+
+const DISPUTE_CATEGORY_LABEL: Record<string, string> = {
+  LISTING_MISMATCH: 'Несоответствие объявлению',
+  ACCESS_PROBLEM: 'Проблема с доступом',
+  CLEANLINESS: 'Чистота',
+  PROPERTY_DAMAGE: 'Повреждения имущества',
+  PAYMENT_DISAGREEMENT: 'Разногласия по оплате',
+  COMMUNICATION: 'Общение',
+  SUSPECTED_FRAUD: 'Подозрение на мошенничество',
+  CANCELLATION: 'Отмена',
+  NO_SHOW: 'Сторона не пришла',
+  OTHER: 'Другое',
+};
+
+export default async function BookingDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
+  const query = await searchParams;
   const user = await currentUser();
   if (!user) redirect(signInUrl(`/bookings/${id}`));
 
   const services = await readyServices();
   const database = await ready();
 
-  let booking: Record<string, any>;
+  let booking: Awaited<ReturnType<typeof services.bookings.get>>;
   try {
-    booking = (await services.bookings.get(id)) as unknown as Record<string, any>;
+    booking = await services.bookings.get(id);
   } catch {
     notFound();
   }
@@ -95,8 +117,9 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
   const role: 'TENANT' | 'LANDLORD' = isTenant ? 'TENANT' : 'LANDLORD';
   const counterpartyId = isTenant ? booking.landlord_id : booking.tenant_id;
+  const status = String(booking.status) as BookingState;
 
-  const [property, person, conversation] = await Promise.all([
+  const [property, person, conversation, fee, disputeCase, reviews, eligibility] = await Promise.all([
     database.query<Record<string, any>>(
       `SELECT p.id, p.title, p.city, p.district, p.price_unit,
               (SELECT storage_key FROM property_photo ph
@@ -118,15 +141,44 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
       `SELECT id FROM conversation WHERE property_id = $1 AND tenant_id = $2`,
       [booking.property_id, booking.tenant_id],
     ),
+    // The fee as the domain computed it. Never recomputed here: one arithmetic,
+    // in one place, on the server.
+    database.query<Record<string, any>>(
+      `SELECT base_minor::text AS base_minor, bps, fee_minor::text AS fee_minor,
+              status, due_at, accrued_at
+         FROM service_fee WHERE booking_id = $1`,
+      [id],
+    ),
+    database.query<Record<string, any>>(
+      `SELECT reference, category, status, created_at FROM dispute_case
+        WHERE booking_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      [id],
+    ),
+    database.query<{ author_role: string; status: string }>(
+      `SELECT author_role, status FROM review WHERE booking_id = $1`,
+      [id],
+    ),
+    services.reviews.eligibility(id, user.userId).catch(() => null),
   ]);
 
   const listing = property.rows[0];
   const other = person.rows[0];
   const chatId = conversation.rows[0]?.id ?? null;
-  const status = String(booking.status) as BookingState;
-  const actions = availableEvents(status, role);
-  const explain = EXPLAIN[status]?.[isTenant ? 'tenant' : 'landlord'] ?? null;
+  const serviceFee = fee.rows[0] ?? null;
+  const openCase = disputeCase.rows[0] ?? null;
   const nights = Number(booking.nights);
+
+  const myReview = reviews.rows.find((r) => r.author_role === role);
+  const bothReviewsIn = reviews.rows.length === 2;
+  const reviewsPublished = reviews.rows.some((r) => r.status === 'PUBLISHED');
+  const canReview = eligibility?.canReview === true;
+
+  // Actions the panel owns are removed here so the same decision is not
+  // offered twice in two different shapes.
+  const actions = availableEvents(status, role).filter(
+    (e) => e !== 'CONFIRM_COMPLETION' && e !== 'OPEN_DISPUTE' && e !== 'COUNTER_OFFER',
+  );
+  const explain = EXPLAIN[status]?.[isTenant ? 'tenant' : 'landlord'] ?? null;
 
   const facts: { icon: IconName; label: string; value: string }[] = [
     { icon: 'calendar', label: 'Заезд', value: formatDate(String(booking.stay_from)) },
@@ -134,6 +186,8 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
     { icon: 'clock', label: 'Длительность', value: formatNights(nights) },
     { icon: 'users', label: 'Гостей', value: String(booking.guests) },
   ];
+
+  const justReviewed = query.review === 'published' || query.review === 'saved';
 
   return (
     <div className="container bk">
@@ -165,6 +219,17 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
         )}
       </header>
 
+      <BookingStages status={status} />
+
+      {justReviewed && (
+        <p className="bk__flash">
+          <Icon name="checkCircle" size={17} />
+          {query.review === 'published'
+            ? 'Спасибо. Обе стороны написали отзывы — они опубликованы.'
+            : 'Спасибо. Отзыв сохранён и будет опубликован вместе с отзывом другой стороны.'}
+        </p>
+      )}
+
       {explain && (
         <p className="bk__explain">
           <Icon name="info" size={17} />
@@ -174,6 +239,77 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
       <div className="bk__layout">
         <div className="bk__main">
+          {/* NEXT ACTION FIRST.
+              On a phone the thing a person came here to do must not be below
+              a price breakdown they already agreed to. */}
+          {status === 'COMPLETION_PENDING' && (
+            <section className="bk__section bk__section--act">
+              <CompletionPanel
+                bookingId={id}
+                role={role}
+                myAnswer={
+                  (isTenant ? booking.tenant_completion_answer : booking.landlord_completion_answer) ?? null
+                }
+                theirAnswer={
+                  (isTenant ? booking.landlord_completion_answer : booking.tenant_completion_answer) ?? null
+                }
+                deadlineLabel={formatDay(booking.completion_deadline_at)}
+                stayLabel={`${formatDate(String(booking.stay_from))} — ${formatDate(String(booking.stay_to))}`}
+                propertyTitle={listing?.title ?? 'Объявление'}
+                counterpartyName={String(other?.display_name ?? 'другая сторона')}
+              />
+            </section>
+          )}
+
+          {status === 'COMPLETED' && (
+            <section className="bk__section bk__section--act">
+              {canReview ? (
+                <div className="bk__invite">
+                  <h2 className="bk__inviteTitle">
+                    {isTenant ? 'Как прошла аренда?' : 'Каким был арендатор?'}
+                  </h2>
+                  <p className="bk__inviteText">
+                    Ваша оценка помогает другим людям выбирать жильё и владельцев. Это займёт меньше
+                    минуты.
+                  </p>
+                  <div className="bk__inviteRow">
+                    <Link href={`/bookings/${id}/review`} className="btn btn-primary">
+                      Оставить отзыв
+                    </Link>
+                    <Link href={isTenant ? '/trips' : '/dashboard/bookings'} className="btn btn-ghost">
+                      Позже
+                    </Link>
+                  </div>
+                  {booking.review_deadline_at && (
+                    <p className="hint">
+                      Отзыв можно оставить до {formatDay(booking.review_deadline_at)}.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="bk__invite">
+                  <h2 className="bk__inviteTitle">Аренда завершена</h2>
+                  <p className="bk__inviteText">
+                    {myReview
+                      ? bothReviewsIn && reviewsPublished
+                        ? 'Отзывы обеих сторон опубликованы.'
+                        : 'Ваш отзыв сохранён. Он будет опубликован вместе с отзывом другой стороны или после окончания срока.'
+                      : eligibility?.reason === 'WINDOW_CLOSED'
+                        ? 'Срок для отзыва истёк.'
+                        : 'Отзыв недоступен.'}
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {actions.length > 0 && (
+            <section className="bk__section">
+              <h2 className="bk__h2">Что можно сделать</h2>
+              <BookingActions bookingId={id} actions={actions} />
+            </section>
+          )}
+
           <section className="bk__section">
             <h2 className="bk__h2">Условия</h2>
             <div className="bk__facts">
@@ -210,17 +346,61 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             </p>
           </section>
 
-          {actions.length > 0 && (
+          {/* The fee is the landlord's business only: a tenant has no debt here
+              and showing them somebody else's balance would be a leak. */}
+          {isLandlord && serviceFee && (
             <section className="bk__section">
-              <h2 className="bk__h2">Что можно сделать</h2>
-              <BookingActions bookingId={id} actions={actions} />
+              <h2 className="bk__h2">Сервисный сбор</h2>
+              <dl className="bk__rows">
+                <div className="bk__row">
+                  <dt>База для расчёта</dt>
+                  <dd>
+                    <Money minor={String(serviceFee.base_minor)} />
+                  </dd>
+                </div>
+                <div className="bk__row">
+                  <dt>Ставка</dt>
+                  <dd className="numeric">{Number(serviceFee.bps) / 100}%</dd>
+                </div>
+                <div className="bk__row bk__row--total">
+                  <dt>{serviceFee.status === 'PAYABLE' ? 'Задолженность' : 'Начислено'}</dt>
+                  <dd>
+                    <strong>
+                      <Money minor={String(serviceFee.fee_minor)} />
+                    </strong>
+                  </dd>
+                </div>
+              </dl>
+              <p className="hint">
+                {serviceFee.status === 'PAYABLE'
+                  ? `Учтено в балансе кабинета${formatDay(serviceFee.due_at) ? `, срок — до ${formatDay(serviceFee.due_at)}` : ''}. Платформа не списывает деньги автоматически.`
+                  : serviceFee.status === 'WAIVED'
+                    ? 'Сбор списан платформой.'
+                    : 'Сбор закрыт.'}
+              </p>
+              <Link href="/dashboard/finance" className="link bk__ledgerLink">
+                Баланс и все начисления
+                <Icon name="arrowRight" size={14} />
+              </Link>
             </section>
           )}
 
-          <section className="bk__section">
-            <h2 className="bk__h2">История</h2>
-            <Timeline bookingId={id} />
-          </section>
+          {openCase && (
+            <section className="bk__section">
+              <h2 className="bk__h2">Обращение в поддержку</h2>
+              <p className="bk__caseLine">
+                <span className="badge badge-warning">
+                  {openCase.status === 'RESOLVED' || openCase.status === 'CLOSED' ? 'Закрыто' : 'В работе'}
+                </span>
+                <span className="numeric">№ {openCase.reference}</span>
+              </p>
+              <p className="text-sm muted bk__caseText">
+                Тема: {DISPUTE_CATEGORY_LABEL[openCase.category] ?? openCase.category}. Поддержка
+                свяжется с обеими сторонами в переписке по этому бронированию. Автоматических решений
+                по обращениям нет — решение принимает человек.
+              </p>
+            </section>
+          )}
         </div>
 
         <aside className="bk__aside">
@@ -299,6 +479,13 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
         </aside>
       </div>
 
+      {/* Last, deliberately: the log is for checking what happened, not for
+          deciding what to do next. */}
+      <section className="bk__history">
+        <h2 className="bk__h2">История</h2>
+        <Timeline bookingId={id} />
+      </section>
+
       <style>{`
         .bk { padding-block: var(--space-4) var(--space-8); max-width: 62rem; }
         .bk__back { margin-bottom: var(--space-3); }
@@ -312,27 +499,38 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
         .bk__thumb { flex: 0 0 auto; width: 7rem; border-radius: var(--radius-md); overflow: hidden; background: var(--surface-sunken); }
         .bk__thumb img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block; }
 
-        .bk__explain {
+        .bk__explain, .bk__flash {
           display: flex; align-items: flex-start; gap: 0.5rem;
           padding: var(--space-3) var(--space-4);
-          background: var(--primary-soft); border-radius: var(--radius-md);
+          border-radius: var(--radius-md);
           font-size: var(--text-sm); margin-bottom: var(--space-5);
         }
+        .bk__explain { background: var(--primary-soft); }
         .bk__explain > svg { color: var(--primary); flex: 0 0 auto; margin-top: 0.1rem; }
+        .bk__flash { background: var(--success-soft); color: var(--success); font-weight: 500; }
+        .bk__flash > svg { flex: 0 0 auto; margin-top: 0.1rem; }
 
         .bk__layout { display: grid; gap: var(--space-6); }
         @media (min-width: 900px) {
           .bk__layout { grid-template-columns: minmax(0, 1fr) 19rem; align-items: start; }
           .bk__aside { position: sticky; top: calc(var(--header-height) + 0.75rem); }
         }
-        .bk__main { display: grid; min-width: 0; }
-        .bk__aside { display: grid; gap: var(--space-3); min-width: 0; }
+        .bk__main { display: grid; min-width: 0; align-content: start; }
+        .bk__aside { display: grid; gap: var(--space-3); min-width: 0; align-content: start; }
 
         .bk__section { padding-block: var(--space-5); }
         .bk__section:first-child { padding-top: 0; }
         .bk__section + .bk__section { border-top: 1px solid var(--border); }
+        /* The action block earns space rather than a box: it is the first thing
+           on the page and nothing competes with it. */
+        .bk__section--act { padding-bottom: var(--space-6); }
         .bk__h2 { font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--space-4); }
         .bk__asideH2 { font-size: var(--text-base); font-weight: 600; margin-bottom: var(--space-3); }
+
+        .bk__invite { display: grid; gap: var(--space-2); justify-items: start; }
+        .bk__inviteTitle { font-size: var(--text-lg); font-weight: 650; letter-spacing: -0.015em; }
+        .bk__inviteText { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.55; max-width: 52ch; }
+        .bk__inviteRow { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-1); }
 
         .bk__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: var(--space-4); margin-bottom: var(--space-5); }
         .bk__fact { display: grid; gap: 0.1rem; }
@@ -345,6 +543,10 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
         .bk__row dt { color: var(--text-secondary); }
         .bk__row dd { margin: 0; }
         .bk__row--total { border-top: 1px solid var(--border); padding-top: var(--space-3); margin-top: var(--space-2); font-size: var(--text-base); }
+        .bk__ledgerLink { display: inline-flex; align-items: center; gap: 0.3rem; font-size: var(--text-sm); }
+
+        .bk__caseLine { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); font-size: var(--text-sm); }
+        .bk__caseText { max-width: 60ch; line-height: 1.55; }
 
         .bk__person { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
         .bk__avatar {
@@ -356,6 +558,8 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
         .bk__trust li { display: flex; align-items: center; gap: 0.3rem; }
         .bk__ok { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--success); font-weight: 600; }
         .bk__chatNote { margin-bottom: var(--space-3); }
+
+        .bk__history { margin-top: var(--space-6); padding-top: var(--space-5); border-top: 1px solid var(--border); }
       `}</style>
     </div>
   );

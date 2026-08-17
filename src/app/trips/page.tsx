@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { currentUser, signInUrl } from '@/server/session.ts';
-import { ready } from '@/server/runtime.ts';
+import { ready, readyServices } from '@/server/runtime.ts';
 import { BookingList, type BookingListRow } from '@/ui/booking-list.tsx';
 import { Icon } from '@/ui/icons.tsx';
 import { plural } from '@/ui/primitives.tsx';
@@ -72,6 +72,12 @@ export default async function TripsPage() {
   if (!user) redirect(signInUrl('/trips'));
 
   const database = await ready();
+  const services = await readyServices();
+  // Completed rentals still open for a review. An invitation, not a form:
+  // «оставьте отзыв» belongs in front of the trip list, the seven-question
+  // screen belongs behind a tap.
+  const awaitingReview = await services.reviews.pending(user.userId, 3);
+
   const { rows } = await database.query<BookingListRow>(
     `SELECT b.id, b.reference, b.status,
             lower(b.stay_period)::text AS stay_from, upper(b.stay_period)::text AS stay_to,
@@ -126,6 +132,32 @@ export default async function TripsPage() {
         </Link>
       </nav>
 
+      {awaitingReview.length > 0 && (
+        <section className="tp__invite" aria-label="Отзывы">
+          <h2 className="tp__inviteTitle">Как прошла аренда?</h2>
+          <p className="tp__inviteText">
+            Ваша оценка помогает другим людям выбирать жильё и владельцев. Отзывы обеих сторон
+            публикуются одновременно.
+          </p>
+          <ul className="tp__inviteList">
+            {awaitingReview.map((raw) => {
+              const item = raw as Record<string, any>;
+              return (
+                <li key={String(item.bookingId)} className="tp__inviteItem">
+                  <span className="tp__inviteWhat truncate">{item.propertyTitle}</span>
+                  <Link
+                    href={`/bookings/${item.bookingId}/review`}
+                    className="btn btn-soft btn-sm"
+                  >
+                    Оставить отзыв
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {total === 0 ? (
         <div className="tp__empty">
           <Icon name="calendar" size={26} />
@@ -164,6 +196,22 @@ export default async function TripsPage() {
         }
         .tp__link:hover { color: var(--text-primary); box-shadow: var(--shadow-subtle); }
         .tp__link > svg { color: var(--primary); }
+
+        .tp__invite {
+          display: grid; gap: var(--space-2);
+          padding: var(--space-4) var(--space-5);
+          margin-bottom: var(--space-6);
+          background: var(--primary-soft); border-radius: var(--radius-md);
+        }
+        .tp__inviteTitle { font-size: var(--text-lg); font-weight: 650; letter-spacing: -0.015em; }
+        .tp__inviteText { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5; max-width: 52ch; }
+        .tp__inviteList { display: grid; gap: var(--space-2); margin: var(--space-1) 0 0; padding: 0; list-style: none; }
+        .tp__inviteItem { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-width: 0; }
+        .tp__inviteWhat { font-size: var(--text-sm); font-weight: 500; }
+        @media (max-width: 480px) {
+          .tp__inviteItem { align-items: stretch; flex-direction: column; }
+          .tp__inviteItem > .btn { width: 100%; }
+        }
 
         .tp__section { margin-bottom: var(--space-6); }
         .tp__h2 { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--space-3); }

@@ -80,9 +80,10 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
 
   const database = await ready();
   const reviewService = new ReviewService(database);
-  const [reviewData, confirmedFacts, amenityRows, calendar] = await Promise.all([
+  const [reviewData, confirmedFacts, reviewSummary, amenityRows, calendar] = await Promise.all([
     reviewService.listForProperty(id, 6),
     reviewService.confirmedFacts(id),
+    reviewService.dimensionSummary(id),
     database.query<AmenityRow>(
       `SELECT a.code, a.category, a.name_ru, a.icon FROM property_amenity pa
         JOIN amenity a ON a.code = pa.amenity_code
@@ -127,15 +128,14 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     { icon: 'users' as IconName, label: 'Максимум гостей', value: String(listing.maxGuests) },
   ].filter(Boolean) as { icon: IconName; label: string; value: string }[];
 
-  /* Sub-ratings are collected per review but never shown; averaging them
-     here is the difference between "4.9" and knowing what was good. */
+  /* Sub-ratings are the difference between "4.9" and knowing what was good.
+     The averages come from the database across EVERY published review — this
+     used to average the six reviews the page had just fetched and label the
+     result «Чистота 4.9», which is a different number as soon as a listing has
+     more than six. */
   const dimensionAverages = REVIEW_DIMENSIONS.map((d) => {
-    const values = reviewData
-      .map((r) => (r as Record<string, any>).ratings?.[d.key])
-      .filter((v): v is number => typeof v === 'number');
-    return values.length > 0
-      ? { ...d, value: values.reduce((a, b) => a + b, 0) / values.length, count: values.length }
-      : null;
+    const entry = reviewSummary.dimensions[d.key];
+    return entry ? { ...d, value: entry.average, count: entry.count } : null;
   }).filter(Boolean) as { key: string; label: string; value: number; count: number }[];
 
   return (
@@ -257,6 +257,18 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
               </p>
             ) : (
               <>
+                {/* Honest about a thin sample. An average over two stays is
+                    arithmetically fine and evidentially weak, and saying so is
+                    cheaper than having a guest discover it. */}
+                {reviewSummary.count > 0 && reviewSummary.count < 3 && (
+                  <p className="lst__thin">
+                    <Icon name="info" size={15} />
+                    Пока {reviewSummary.count}{' '}
+                    {plural(reviewSummary.count, 'отзыв', 'отзыва', 'отзывов')} — этого мало, чтобы
+                    судить об оценке. Смотрите на текст отзыва, а не на цифру.
+                  </p>
+                )}
+
                 {dimensionAverages.length > 0 && (
                   <dl className="lst__dims">
                     {dimensionAverages.map((d) => (
@@ -468,6 +480,14 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           background: var(--surface-sunken); overflow: hidden;
         }
         .lst__barFill { display: block; height: 100%; background: var(--primary); border-radius: inherit; }
+
+        .lst__thin {
+          display: flex; align-items: flex-start; gap: 0.45rem;
+          margin-bottom: var(--space-4); padding: var(--space-3);
+          background: var(--surface-sunken); border-radius: var(--radius-sm);
+          font-size: var(--text-xs); line-height: 1.5; color: var(--text-secondary);
+        }
+        .lst__thin > svg { color: var(--text-tertiary); flex: 0 0 auto; margin-top: 0.05rem; }
 
         .lst__reviews { display: grid; gap: var(--space-5); margin: 0; padding: 0; list-style: none; }
         .lst__review { display: grid; gap: 0.35rem; }
