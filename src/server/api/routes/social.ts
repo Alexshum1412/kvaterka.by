@@ -169,7 +169,57 @@ export const reviewRoutes: AnyRoute[] = [
     successStatus: 201,
     async handler({ params, body, ctx, caller }) {
       const result = await ctx.services.reviews.submit(params.id!, caller.userId, body);
+
+      const booking = await ctx.services.bookings.get(params.id!);
+      if (result.published) {
+        // Both sides are in, so both reviews went live at the same moment and
+        // both people can be told. Before publication nobody is notified —
+        // that notification would leak that the other side has written, which
+        // is the pressure the delay exists to remove.
+        for (const userId of [booking.tenant_id, booking.landlord_id]) {
+          await ctx.services.notifications.enqueue({
+            userId,
+            category: 'REVIEW_PUBLISHED',
+            dedupeKey: `reviews-published:${params.id}:${userId}`,
+            payload: { bookingId: params.id },
+          });
+        }
+      }
       return ok({ id: result.id, published: result.published }, 201);
+    },
+  }),
+
+  defineRoute({
+    method: 'GET',
+    path: '/me/reviews/pending',
+    summary: 'Completed rentals the caller may still review',
+    tags: ['reviews'],
+    auth: 'required',
+    async handler({ ctx, caller }) {
+      return ctx.services.reviews.pending(caller.userId);
+    },
+  }),
+
+  defineRoute({
+    method: 'POST',
+    path: '/reviews/:id/report',
+    summary: 'Report a published review',
+    tags: ['reviews'],
+    auth: 'required',
+    rateLimit: { limit: 20, windowSeconds: 3600, by: 'user', bucket: 'review:report' },
+    body: z.object({
+      category: z.enum(['FALSE_INFORMATION', 'ABUSE', 'PRIVATE_DATA', 'NOT_ABOUT_STAY', 'SPAM', 'OTHER']),
+      detail: z.string().trim().max(1000).optional(),
+    }),
+    successStatus: 201,
+    async handler({ params, body, ctx, caller }) {
+      const result = await ctx.services.reviews.report(
+        params.id!,
+        caller.userId,
+        body.category,
+        body.detail,
+      );
+      return ok({ id: result.id, status: 'OPEN' }, 201);
     },
   }),
 
@@ -184,12 +234,14 @@ export const reviewRoutes: AnyRoute[] = [
       offset: z.coerce.number().int().min(0).optional(),
     }),
     async handler({ params, query, ctx }) {
-      const [reviews, confirmedFacts] = await Promise.all([
+      const [reviews, confirmedFacts, summary] = await Promise.all([
         ctx.services.reviews.listForProperty(params.id!, query.limit, query.offset),
         ctx.services.reviews.confirmedFacts(params.id!),
+        ctx.services.reviews.dimensionSummary(params.id!),
       ]);
       // "Landlord says Wi-Fi" versus "16 of 17 guests confirmed Wi-Fi" (spec §35).
-      return { reviews, confirmedFacts };
+      // `summary` covers every published review, not just this page of them.
+      return { reviews, confirmedFacts, summary };
     },
   }),
 ];
