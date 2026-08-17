@@ -178,3 +178,19 @@ export function completionDeadline(stayEndsAt: Date, windowDays = COMPLETION_WIN
   d.setUTCDate(d.getUTCDate() + windowDays);
   return d;
 }
+
+/**
+ * How long a completed rental stays reviewable.
+ *
+ * It lives here, beside the completion window, because both are lifecycle
+ * clocks owned by the booking: the OPEN_REVIEW_WINDOW side effect fires on the
+ * transition into COMPLETED, so whatever computes the deadline has to be
+ * reachable from the booking service without importing a review service.
+ */
+export const REVIEW_WINDOW_DAYS = 14;
+
+export function reviewDeadline(completedAt: Date, windowDays = REVIEW_WINDOW_DAYS): Date {
+  const d = new Date(completedAt.getTime());
+  d.setUTCDate(d.getUTCDate() + windowDays);
+  return d;
+}

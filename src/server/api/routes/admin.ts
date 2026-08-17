@@ -556,4 +556,88 @@ export const adminRoutes: AnyRoute[] = [
       return { ok: true };
     },
   }),
+
+  defineRoute({
+    method: 'POST',
+    path: '/admin/lifecycle/run',
+    summary: 'Advance stay ends, completion deadlines and review publication',
+    tags: ['admin'],
+    auth: 'required',
+    permission: 'lifecycle.run',
+    idempotent: true,
+    async handler({ ctx }) {
+      /* The scheduled half of the rental lifecycle.
+       *
+       * Everything here delegates to a method that already existed and was
+       * already tested — openCompletionWindow, resolveExpiredCompletion,
+       * publishExpiredWindows. What was missing was anything that CALLS them:
+       * a stay whose last night had passed sat in CONFIRMED forever, so the
+       * completion window never opened and no fee could ever accrue.
+       *
+       * Each booking runs in its own transaction. One row that throws must not
+       * abandon the rest of the batch, and none of these steps depends on
+       * another having succeeded.
+       *
+       * It is a route rather than a background timer on purpose: a Next.js
+       * server may run as several short-lived instances, so a timer would
+       * either not run at all or run N times. A cron with a credential is
+       * honest about who is doing the work, and `lifecycle.run` is auditable. */
+      const now = ctx.now;
+      const result = {
+        staysEnded: [] as string[],
+        completionsResolved: [] as { id: string; status: string; feeAccrued: boolean }[],
+        reviewsPublished: 0,
+        failures: [] as { id: string; step: string }[],
+      };
+
+      for (const id of await ctx.services.bookings.dueForStayEnd(now)) {
+        try {
+          const booking = await ctx.services.bookings.openCompletionWindow(id);
+          result.staysEnded.push(id);
+          for (const userId of [booking.tenant_id, booking.landlord_id]) {
+            await ctx.services.notifications.enqueue({
+              userId,
+              category: 'COMPLETION_REQUEST',
+              dedupeKey: `completion-window:${id}:${userId}`,
+              payload: { bookingId: id, deadlineAt: booking.completion_deadline_at },
+            });
+          }
+        } catch {
+          result.failures.push({ id, step: 'STAY_END' });
+        }
+      }
+
+      for (const id of await ctx.services.bookings.dueForCompletionResolution(now)) {
+        try {
+          const before = await ctx.services.bookings.get(id);
+          const after = await ctx.services.bookings.resolveExpiredCompletion(id, now);
+          if (after.status === before.status) continue;
+
+          const { rows } = await ctx.db.query<{ c: string }>(
+            `SELECT count(*)::text AS c FROM service_fee WHERE booking_id=$1`,
+            [id],
+          );
+          result.completionsResolved.push({
+            id,
+            status: after.status,
+            feeAccrued: Number(rows[0]!.c) > 0,
+          });
+          for (const userId of [after.tenant_id, after.landlord_id]) {
+            await ctx.services.notifications.enqueue({
+              userId,
+              category: after.status === 'COMPLETED' ? 'REVIEW_REQUEST' : 'BOOKING_REMINDER',
+              dedupeKey: `completion-resolved:${id}:${userId}`,
+              payload: { bookingId: id, status: after.status },
+            });
+          }
+        } catch {
+          result.failures.push({ id, step: 'COMPLETION' });
+        }
+      }
+
+      result.reviewsPublished = await ctx.services.reviews.publishExpiredWindows(now);
+
+      return result;
+    },
+  }),
 ];

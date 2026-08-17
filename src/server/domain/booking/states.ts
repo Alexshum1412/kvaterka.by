@@ -89,6 +89,7 @@ export const BOOKING_EVENTS = [
   'CANCEL_BY_TENANT',
   'CANCEL_BY_LANDLORD',
   'CHECK_IN',
+  'CHECK_OUT',
   'REACH_STAY_END',
   'CONFIRM_COMPLETION',
   'RESOLVE_COMPLETION',
@@ -182,6 +183,14 @@ export const TRANSITIONS: readonly TransitionRule[] = [
   { from: 'CONFIRMED', event: 'OPEN_DISPUTE', to: 'DISPUTED', actors: ['TENANT', 'LANDLORD'], effects: ['NOTIFY_ADMIN'] },
 
   { from: 'CHECKED_IN', event: 'REACH_STAY_END', to: 'COMPLETION_PENDING', actors: ['SYSTEM'], effects: ['NOTIFY_TENANT', 'NOTIFY_LANDLORD'] },
+  {
+    from: 'CHECKED_IN',
+    event: 'CHECK_OUT',
+    to: 'COMPLETION_PENDING',
+    actors: ['TENANT'],
+    effects: ['NOTIFY_LANDLORD'],
+    note: 'The tenant says the stay is over. Deliberately NOT a completion: it only opens the confirmation window, and resolveCompletion() still decides on the evidence. Tenant-only, because a landlord ending someone else’s stay from the outside is not evidence of anything.',
+  },
   { from: 'CHECKED_IN', event: 'CANCEL_BY_TENANT', to: 'CANCELLED_BY_TENANT', actors: ['TENANT'], effects: ['RELEASE_CALENDAR', 'NOTIFY_LANDLORD'], note: 'Early departure. Fee consequences are decided at completion, not here.' },
   { from: 'CHECKED_IN', event: 'OPEN_DISPUTE', to: 'DISPUTED', actors: ['TENANT', 'LANDLORD'], effects: ['NOTIFY_ADMIN'] },
 

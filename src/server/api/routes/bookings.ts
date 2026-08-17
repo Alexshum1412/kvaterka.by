@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineRoute, ok, type AnyRoute } from '../http.ts';
 import { availableEvents, type BookingState } from '../../domain/booking/states.ts';
+import { DISPUTE_CATEGORIES } from '../../services/booking-service.ts';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Дата в формате ГГГГ-ММ-ДД');
 
@@ -269,8 +270,96 @@ export const bookingRoutes: AnyRoute[] = [
     tags: ['bookings'],
     auth: 'required',
     idempotent: true,
-    async handler({ params, ctx, caller }) {
-      return present(await ctx.services.bookings.checkIn(params.id!, caller.userId), caller.userId);
+    body: z.object({ note: z.string().trim().max(1000).optional() }),
+    async handler({ params, body, ctx, caller }) {
+      const booking = await ctx.services.bookings.checkIn(params.id!, caller.userId, body.note);
+      await ctx.services.notifications.enqueue({
+        userId: booking.landlord_id,
+        category: 'CHECK_IN',
+        dedupeKey: `check-in:${booking.id}`,
+        payload: { bookingId: booking.id, reference: booking.reference },
+      });
+      return present(booking, caller.userId);
+    },
+  }),
+
+  defineRoute({
+    method: 'POST',
+    path: '/bookings/:id/check-out',
+    summary: 'Tenant reports the stay is over, opening the confirmation window',
+    tags: ['bookings'],
+    auth: 'required',
+    idempotent: true,
+    body: z.object({ note: z.string().trim().max(1000).optional() }),
+    async handler({ params, body, ctx, caller }) {
+      const booking = await ctx.services.bookings.checkOut(params.id!, caller.userId, body.note);
+
+      // Both sides, because both now have something to answer.
+      for (const userId of [booking.tenant_id, booking.landlord_id]) {
+        await ctx.services.notifications.enqueue({
+          userId,
+          category: 'COMPLETION_REQUEST',
+          dedupeKey: `completion-window:${booking.id}:${userId}`,
+          payload: {
+            bookingId: booking.id,
+            reference: booking.reference,
+            deadlineAt: booking.completion_deadline_at,
+          },
+        });
+      }
+      return present(booking, caller.userId);
+    },
+  }),
+
+  defineRoute({
+    method: 'POST',
+    path: '/bookings/:id/dispute',
+    summary: 'Report a problem instead of confirming completion',
+    tags: ['bookings'],
+    auth: 'required',
+    idempotent: true,
+    rateLimit: { limit: 10, windowSeconds: 3600, by: 'user', bucket: 'booking:dispute' },
+    body: z.object({
+      category: z.enum(DISPUTE_CATEGORIES),
+      summary: z.string().trim().min(10, 'Опишите, что произошло').max(2000),
+    }),
+    successStatus: 201,
+    async handler({ params, body, ctx, caller }) {
+      const result = await ctx.services.bookings.openDispute(params.id!, caller.userId, {
+        category: body.category,
+        summary: body.summary,
+      });
+
+      // NOTIFY_ADMIN: staff hold `case.view`, so the queue is addressed by
+      // permission rather than by a hardcoded list of people.
+      const { rows: staff } = await ctx.db.query<{ user_id: string }>(
+        `SELECT DISTINCT user_id FROM user_role WHERE role IN ('ADMIN','SUPPORT','MODERATOR')`,
+      );
+      for (const row of staff) {
+        await ctx.services.notifications.enqueue({
+          userId: row.user_id,
+          category: 'MODERATION',
+          dedupeKey: `dispute-opened:${result.caseId}:${row.user_id}`,
+          payload: { bookingId: params.id, caseId: result.caseId, reference: result.caseReference },
+        });
+      }
+      await ctx.services.notifications.enqueue({
+        userId:
+          result.booking.tenant_id === caller.userId
+            ? result.booking.landlord_id
+            : result.booking.tenant_id,
+        category: 'BOOKING_REMINDER',
+        dedupeKey: `dispute-counterparty:${result.caseId}`,
+        payload: { bookingId: params.id, caseReference: result.caseReference },
+      });
+
+      return ok(
+        {
+          ...present(result.booking, caller.userId),
+          case: { id: result.caseId, reference: result.caseReference, status: 'OPEN' },
+        },
+        201,
+      );
     },
   }),
 
@@ -288,13 +377,36 @@ export const bookingRoutes: AnyRoute[] = [
         correlationId: ctx.correlationId,
       });
 
+      const counterpartyId =
+        result.booking.tenant_id === caller.userId
+          ? result.booking.landlord_id
+          : result.booking.tenant_id;
+
+      if (result.booking.status === 'COMPLETION_PENDING') {
+        // Still waiting on the other side. Telling them costs nothing and is
+        // the difference between a stay that closes and one that drifts to the
+        // deadline and gets decided without them.
+        await ctx.services.notifications.enqueue({
+          userId: counterpartyId,
+          category: 'COMPLETION_REQUEST',
+          dedupeKey: `completion-answered:${result.booking.id}:${caller.userId}`,
+          payload: {
+            bookingId: result.booking.id,
+            deadlineAt: result.booking.completion_deadline_at,
+          },
+        });
+      }
+
       if (result.booking.status === 'COMPLETED') {
         for (const userId of [result.booking.tenant_id, result.booking.landlord_id]) {
           await ctx.services.notifications.enqueue({
             userId,
             category: 'REVIEW_REQUEST',
             dedupeKey: `review-request:${result.booking.id}:${userId}`,
-            payload: { bookingId: result.booking.id },
+            payload: {
+              bookingId: result.booking.id,
+              reviewDeadlineAt: result.booking.review_deadline_at,
+            },
           });
         }
         if (result.feeAccrued) {
@@ -305,6 +417,15 @@ export const bookingRoutes: AnyRoute[] = [
             payload: { bookingId: result.booking.id },
           });
         }
+      }
+
+      if (result.booking.status === 'NOT_TAKEN_PLACE' || result.booking.status === 'DISPUTED') {
+        await ctx.services.notifications.enqueue({
+          userId: counterpartyId,
+          category: 'BOOKING_REMINDER',
+          dedupeKey: `completion-resolved:${result.booking.id}:${result.booking.status}`,
+          payload: { bookingId: result.booking.id, status: result.booking.status },
+        });
       }
 
       return {
@@ -401,7 +522,9 @@ function present(source: unknown, viewerId: string): Record<string, unknown> {
       tenantAnswer: booking.tenant_completion_answer,
       landlordAnswer: booking.landlord_completion_answer,
       deadlineAt: booking.completion_deadline_at,
+      reason: booking.completion_reason,
     },
+    reviewDeadlineAt: booking.review_deadline_at,
     createdAt: booking.created_at,
     confirmedAt: booking.confirmed_at,
     expiresAt: booking.expires_at,

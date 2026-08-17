@@ -12,7 +12,7 @@
  */
 
 import { applyEvent, blocksCalendar, type Actor, type BookingEventType, type BookingState } from '../domain/booking/states.ts';
-import { completionDeadline, resolveCompletion, type CompletionAnswer } from '../domain/booking/completion.ts';
+import { completionDeadline, resolveCompletion, reviewDeadline, type CompletionAnswer } from '../domain/booking/completion.ts';
 import { quote, type PricingRule } from '../domain/pricing.ts';
 import { money, serviceFee, toStorage, type Money } from '../domain/money.ts';
 import { humanReference, uuidv7 } from '../../lib/id.ts';
@@ -35,6 +35,10 @@ export interface BookingRow {
   landlord_completion_answer: CompletionAnswer | null;
   completion_deadline_at: string | null;
   checked_in_at: string | null;
+  review_deadline_at: string | null;
+  completion_reason: string | null;
+  nights: number;
+  guests: number;
   stay_from: string;
   stay_to: string;
 }
@@ -44,7 +48,27 @@ const BOOKING_COLUMNS = `
   rent_minor::text AS rent_minor, fee_base_minor::text AS fee_base_minor,
   total_expected_minor::text AS total_expected_minor, service_fee_bps,
   tenant_completion_answer, landlord_completion_answer, completion_deadline_at, checked_in_at,
+  review_deadline_at, completion_reason, nights, guests,
   lower(stay_period)::text AS stay_from, upper(stay_period)::text AS stay_to`;
+
+/**
+ * Problem categories a party can pick. Mirrors the `dispute_case.category`
+ * CHECK constraint, minus the two only staff ever assign.
+ */
+export const DISPUTE_CATEGORIES = [
+  'LISTING_MISMATCH',
+  'ACCESS_PROBLEM',
+  'CLEANLINESS',
+  'PROPERTY_DAMAGE',
+  'COMMUNICATION',
+  'NO_SHOW',
+  'CANCELLATION',
+  'PAYMENT_DISAGREEMENT',
+  'SUSPECTED_FRAUD',
+  'OTHER',
+] as const;
+
+export type DisputeCategory = (typeof DISPUTE_CATEGORIES)[number];
 
 export interface RequestBookingInput {
   readonly propertyId: string;
@@ -247,7 +271,9 @@ export class BookingService {
   async acceptRequest(bookingId: string, landlordId: string, correlationId?: string): Promise<BookingRow> {
     return this.db.transaction(async (tx) => {
       const booking = await lockBooking(tx, bookingId);
-      if (booking.landlord_id !== landlordId) throw forbidden('Вы не владелец этого объекта');
+      if (participantRole(booking, landlordId) !== 'LANDLORD') {
+        throw forbidden('Вы не владелец этого объекта');
+      }
 
       const transition = applyEvent(booking.status, 'ACCEPT_REQUEST', 'LANDLORD');
 
@@ -342,8 +368,61 @@ export class BookingService {
     return this.simpleTransition(bookingId, 'CANCEL_BY_LANDLORD', 'LANDLORD', landlordId, { reason });
   }
 
-  async checkIn(bookingId: string, tenantId: string): Promise<BookingRow> {
-    return this.simpleTransition(bookingId, 'CHECK_IN', 'TENANT', tenantId, { stampCheckIn: true });
+  async checkIn(bookingId: string, tenantId: string, note?: string): Promise<BookingRow> {
+    return this.simpleTransition(bookingId, 'CHECK_IN', 'TENANT', tenantId, {
+      stampCheckIn: true,
+      stayEvent: 'CHECK_IN',
+      note,
+    });
+  }
+
+  /**
+   * Tenant reports the stay is over.
+   *
+   * This opens the confirmation window; it does NOT complete the booking and it
+   * does not accrue anything. `resolveCompletion()` still decides the outcome on
+   * the evidence, so a tenant pressing this is offering evidence, not a verdict.
+   */
+  async checkOut(bookingId: string, tenantId: string, note?: string): Promise<BookingRow> {
+    return this.db.transaction(async (tx) => {
+      const booking = await lockBooking(tx, bookingId);
+      // 404 for a stranger, 403 for the landlord: only the tenant can say the
+      // stay is over, but the landlord already knows the booking exists.
+      if (participantRole(booking, tenantId) !== 'TENANT') {
+        throw forbidden('Отметить окончание проживания может только арендатор');
+      }
+
+      const transition = applyEvent(booking.status, 'CHECK_OUT', 'TENANT');
+      const deadline = completionDeadline(new Date(`${booking.stay_to}T00:00:00Z`));
+
+      await tx.query(
+        `UPDATE booking SET status = $2, completion_deadline_at = COALESCE(completion_deadline_at, $3)
+          WHERE id = $1`,
+        [bookingId, transition.to, deadline.toISOString()],
+      );
+      await recordStayEvent(tx, bookingId, 'CHECK_OUT', 'TENANT', tenantId, note);
+
+      await recordEvent(tx, {
+        bookingId,
+        eventType: 'CHECK_OUT',
+        actor: 'TENANT',
+        actorUserId: tenantId,
+        from: booking.status,
+        to: transition.to,
+        effects: transition.effects,
+      });
+      await writeAudit(tx, {
+        actorUserId: tenantId,
+        actorRole: 'TENANT',
+        action: 'booking.check_out',
+        targetType: 'booking',
+        targetId: bookingId,
+        changes: { status: { from: booking.status, to: transition.to } },
+      });
+
+      const { rows } = await tx.query<BookingRow>(`SELECT ${BOOKING_COLUMNS} FROM booking WHERE id=$1`, [bookingId]);
+      return rows[0]!;
+    });
   }
 
   /** SYSTEM job: the stay window closed, so the completion clock starts. */
@@ -393,10 +472,7 @@ export class BookingService {
     return this.db.transaction(async (tx) => {
       const booking = await lockBooking(tx, bookingId);
 
-      const actor: Actor =
-        booking.tenant_id === userId ? 'TENANT' : booking.landlord_id === userId ? 'LANDLORD' : (() => {
-          throw forbidden('Вы не участник этого бронирования');
-        })();
+      const actor: Actor = participantRole(booking, userId);
 
       if (booking.status !== 'COMPLETION_PENDING') {
         throw new DomainError(
@@ -481,13 +557,28 @@ export class BookingService {
   ): Promise<boolean> {
     const transition = applyEvent(booking.status, 'RESOLVE_COMPLETION', 'SYSTEM', outcome.state);
 
+    /* OPEN_REVIEW_WINDOW.
+     *
+     * The transition table has declared this side effect since the state
+     * machine was written, and nothing executed it: `review_deadline_at`
+     * stayed NULL on every completed booking. Two things silently did not
+     * work as a result — the landlord's "можно оставить отзыв" prompt counts
+     * only bookings with a live deadline, so it was always zero; and
+     * `publishExpiredWindows()` only publishes where the deadline is set, so
+     * a one-sided review could never publish. That second one matters: the
+     * whole point of the deadline is that a party cannot suppress criticism
+     * forever by declining to write their own review. */
+    const reviewWindowEndsAt =
+      outcome.state === 'COMPLETED' ? reviewDeadline(new Date()).toISOString() : null;
+
     await tx.query(
       `UPDATE booking
           SET status = $2,
               completed_at = CASE WHEN $2 = 'COMPLETED' THEN now() ELSE completed_at END,
+              review_deadline_at = COALESCE($4::timestamptz, review_deadline_at),
               completion_reason = $3
         WHERE id = $1`,
-      [bookingId, outcome.state, outcome.reason],
+      [bookingId, outcome.state, outcome.reason, reviewWindowEndsAt],
     );
 
     let feeAccrued = false;
@@ -544,6 +635,146 @@ export class BookingService {
     return feeAccrued;
   }
 
+  /* ---------------------------------------------------------------- *
+   * Problems
+   * ---------------------------------------------------------------- */
+
+  /**
+   * «Возникла проблема» — either side escalates instead of answering.
+   *
+   * Why this exists at all: without it the only way out of COMPLETION_PENDING
+   * is to state that the rental did or did not happen, so a tenant with a real
+   * complaint has to either lie or abandon the booking. DISPUTED freezes the
+   * financial consequences — no fee accrues while a case is open — which is
+   * also what stops the escalation path from being a fee-avoidance route: the
+   * booking does not become NOT_TAKEN_PLACE, it becomes "a human must look".
+   *
+   * The case rows are the existing `dispute_case` / `case_event` tables. There
+   * is deliberately no automated resolution: an admin fires
+   * RESOLVE_DISPUTE_AS_* through the FSM. See DEC-036.
+   */
+  async openDispute(
+    bookingId: string,
+    userId: string,
+    input: { category: DisputeCategory; summary: string },
+  ): Promise<{ booking: BookingRow; caseId: string; caseReference: string }> {
+    return this.db.transaction(async (tx) => {
+      const booking = await lockBooking(tx, bookingId);
+
+      const actor: Actor = participantRole(booking, userId);
+
+      /* A booking already in DISPUTED has no OPEN_DISPUTE transition, and it
+       * should not: the case is open. The second party adding their side of the
+       * story is a case event, not a state change, so the FSM is only consulted
+       * when there is actually a transition to make. */
+      const alreadyDisputed = booking.status === 'DISPUTED';
+      const transition = alreadyDisputed
+        ? { to: 'DISPUTED' as BookingState, effects: [] as const }
+        : applyEvent(booking.status, 'OPEN_DISPUTE', actor);
+
+      // One open case per booking: a second "report a problem" tap joins the
+      // existing case rather than fragmenting the same complaint into two.
+      const open = await tx.query<{ id: string; reference: string }>(
+        `SELECT id, reference FROM dispute_case
+          WHERE booking_id = $1 AND status IN ('OPEN','UNDER_REVIEW','WAITING_FOR_PARTY','ESCALATED')
+          ORDER BY created_at LIMIT 1`,
+        [bookingId],
+      );
+
+      let caseId = open.rows[0]?.id ?? '';
+      let caseReference = open.rows[0]?.reference ?? '';
+
+      if (!caseId) {
+        caseId = uuidv7();
+        caseReference = humanReference('SP');
+        await tx.query(
+          `INSERT INTO dispute_case (id, reference, booking_id, opened_by, against_user_id,
+              category, summary, status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'OPEN')`,
+          [
+            caseId,
+            caseReference,
+            bookingId,
+            userId,
+            actor === 'TENANT' ? booking.landlord_id : booking.tenant_id,
+            input.category,
+            input.summary,
+          ],
+        );
+      }
+
+      await tx.query(
+        `INSERT INTO case_event (case_id, actor_user_id, actor_role, event_type, note)
+         VALUES ($1,$2,$3,'OPENED_BY_PARTY',$4)`,
+        [caseId, userId, actor, input.summary],
+      );
+
+      if (booking.status !== transition.to) {
+        await tx.query(`UPDATE booking SET status = $2 WHERE id = $1`, [bookingId, transition.to]);
+        await recordEvent(tx, {
+          bookingId,
+          eventType: 'OPEN_DISPUTE',
+          actor,
+          actorUserId: userId,
+          from: booking.status,
+          to: transition.to,
+          effects: transition.effects,
+          payload: { caseId, category: input.category },
+        });
+      }
+
+      await writeAudit(tx, {
+        actorUserId: userId,
+        actorRole: actor,
+        action: 'booking.open_dispute',
+        targetType: 'booking',
+        targetId: bookingId,
+        changes: { status: { from: booking.status, to: transition.to }, caseId },
+        reason: input.category,
+      });
+
+      const { rows } = await tx.query<BookingRow>(`SELECT ${BOOKING_COLUMNS} FROM booking WHERE id=$1`, [bookingId]);
+      return { booking: rows[0]!, caseId, caseReference };
+    });
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Scheduled maintenance
+   * ---------------------------------------------------------------- *
+   *
+   * These two only find the work and hand each item to the existing
+   * single-booking methods, one transaction per booking. They contain no
+   * completion rules of their own, deliberately: a sweep that decided outcomes
+   * would be a second completion system with its own bugs.
+   */
+
+  /** Stays whose last night has passed but which nobody closed. */
+  async dueForStayEnd(now: Date = new Date(), limit = 200): Promise<string[]> {
+    const { rows } = await this.db.query<{ id: string }>(
+      `SELECT id FROM booking
+        WHERE status IN ('CONFIRMED','CHECKED_IN')
+          AND upper(stay_period) <= $1::date
+        ORDER BY upper(stay_period)
+        LIMIT $2`,
+      [now.toISOString().slice(0, 10), limit],
+    );
+    return rows.map((r) => r.id);
+  }
+
+  /** Confirmation windows that have run out. */
+  async dueForCompletionResolution(now: Date = new Date(), limit = 200): Promise<string[]> {
+    const { rows } = await this.db.query<{ id: string }>(
+      `SELECT id FROM booking
+        WHERE status = 'COMPLETION_PENDING'
+          AND completion_deadline_at IS NOT NULL
+          AND completion_deadline_at <= $1
+        ORDER BY completion_deadline_at
+        LIMIT $2`,
+      [now.toISOString(), limit],
+    );
+    return rows.map((r) => r.id);
+  }
+
   /* ---------------------------------------------------------------- */
 
   private async simpleTransition(
@@ -551,13 +782,20 @@ export class BookingService {
     event: BookingEventType,
     actor: Actor,
     userId: string,
-    opts: { reason?: string; stampCheckIn?: boolean } = {},
+    opts: {
+      reason?: string;
+      stampCheckIn?: boolean;
+      stayEvent?: 'CHECK_IN' | 'CHECK_OUT';
+      note?: string | undefined;
+    } = {},
   ): Promise<BookingRow> {
     return this.db.transaction(async (tx) => {
       const booking = await lockBooking(tx, bookingId);
 
-      const expectedUser = actor === 'TENANT' ? booking.tenant_id : booking.landlord_id;
-      if (expectedUser !== userId) throw forbidden('Вы не участник этого бронирования');
+      // Neither party → 404; the wrong party → 403.
+      if (participantRole(booking, userId) !== actor) {
+        throw forbidden('Это действие доступно только другой стороне бронирования');
+      }
 
       const transition = applyEvent(booking.status, event, actor);
 
@@ -571,6 +809,10 @@ export class BookingService {
           WHERE id = $1`,
         [bookingId, transition.to, opts.reason ?? null, opts.stampCheckIn === true],
       );
+
+      if (opts.stayEvent) {
+        await recordStayEvent(tx, bookingId, opts.stayEvent, actor as 'TENANT' | 'LANDLORD', userId, opts.note);
+      }
 
       await recordEvent(tx, {
         bookingId,
@@ -602,6 +844,24 @@ export class BookingService {
 /* ================================================================== *
  * helpers
  * ================================================================== */
+
+/**
+ * Which side of this booking the caller is on, or 404 if neither.
+ *
+ * The status code is the point. Every read path already answers 404 to a
+ * stranger, because whether a booking exists is itself information — but the
+ * mutation paths answered 403, which confirms existence to anyone who guesses
+ * an id. One helper so the two can no longer disagree.
+ *
+ * A caller who IS a party but the wrong one still gets 403 from the caller:
+ * they already know the booking exists, and telling them "not found" would be
+ * a lie that makes the product feel broken.
+ */
+function participantRole(booking: BookingRow, userId: string): 'TENANT' | 'LANDLORD' {
+  if (booking.tenant_id === userId) return 'TENANT';
+  if (booking.landlord_id === userId) return 'LANDLORD';
+  throw notFound('Бронирование');
+}
 
 async function lockBooking(tx: Sql, bookingId: string): Promise<BookingRow> {
   // FOR UPDATE serialises concurrent transitions on the same booking, so two
@@ -732,6 +992,31 @@ interface EventInput {
   effects: readonly string[];
   payload?: Record<string, unknown> | undefined;
   correlationId?: string | undefined;
+}
+
+/**
+ * A side's own record of arriving or leaving.
+ *
+ * `stay_event` is UNIQUE (booking_id, kind, reported_by), so each party files
+ * at most one of each and a retried request is a no-op rather than a second
+ * piece of "evidence". This is the audit trail behind the completion decision;
+ * the authoritative flag `resolveCompletion()` reads is still
+ * `booking.checked_in_at`, which is set in the same transaction.
+ */
+async function recordStayEvent(
+  tx: Sql,
+  bookingId: string,
+  kind: 'CHECK_IN' | 'CHECK_OUT',
+  reportedBy: 'TENANT' | 'LANDLORD',
+  userId: string,
+  note?: string,
+): Promise<void> {
+  await tx.query(
+    `INSERT INTO stay_event (id, booking_id, kind, reported_by, reported_by_user_id, note)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     ON CONFLICT (booking_id, kind, reported_by) DO NOTHING`,
+    [uuidv7(), bookingId, kind, reportedBy, userId, note ?? null],
+  );
 }
 
 async function recordEvent(tx: Sql, e: EventInput): Promise<void> {

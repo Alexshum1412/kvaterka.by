@@ -46,6 +46,13 @@ export const PERMISSIONS = [
   'audit.read',
   'feature_flag.write',
   'role.grant',
+  /**
+   * Running the scheduled lifecycle sweep (stay ends, completion deadlines,
+   * review publication). Separate from the rest because it is a machine
+   * credential in practice: a cron calls it, and it can move money-bearing
+   * state, so it must not ride along on a human support permission.
+   */
+  'lifecycle.run',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -88,6 +95,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'audit.read',
     'feature_flag.write',
     'role.grant',
+    'lifecycle.run',
   ],
 };
 
