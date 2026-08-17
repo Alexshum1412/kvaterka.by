@@ -218,8 +218,9 @@ export class MessagingService {
       kind: r.kind,
       body: r.body,
       moderationState: r.moderation_state,
-      createdAt: r.created_at,
-      readAt: r.read_at,
+      // timestamptz arrives as a Date; the interface promises a string.
+      createdAt: new Date(r.created_at).toISOString(),
+      readAt: r.read_at === null ? null : new Date(r.read_at).toISOString(),
       mine: r.sender_id === viewerId,
     }));
   }

@@ -20,6 +20,9 @@ import { isValidLatLng, isWithinBelarus, publicLocationFor } from '../domain/geo
 import { hasErrorCode, PG_ERROR, type Db, type Sql } from '../db/sql.ts';
 import { DomainError, forbidden, invalid, notFound } from './errors.ts';
 import { writeAudit } from './audit.ts';
+
+/** timestamptz arrives as a Date; every interface here promises a string. */
+const iso = (value: unknown): string => new Date(value as string).toISOString();
 import {
   MODERATION_REASON_CODES,
   reasonSentence,
@@ -677,16 +680,16 @@ export class ListingService {
       },
       bookingMode: row.booking_mode,
       negotiationEnabled: row.negotiation_enabled,
-      createdAt: String(row.created_at),
-      submittedAt: row.submitted_at === null ? null : String(row.submitted_at),
-      publishedAt: row.published_at === null ? null : String(row.published_at),
+      createdAt: iso(row.created_at),
+      submittedAt: row.submitted_at === null ? null : iso(row.submitted_at),
+      publishedAt: row.published_at === null ? null : iso(row.published_at),
       propertyVerified: row.property_verified_at !== null,
       owner: {
         id: row.owner_id,
         displayName: row.owner_name,
         accountKind: row.account_kind,
         verificationLevel: row.verification_level,
-        memberSince: String(row.owner_since),
+        memberSince: iso(row.owner_since),
         completedRentals: row.completed_rentals,
         listingCount: row.listing_count,
         rating: row.owner_rating === null ? null : Number(row.owner_rating),
@@ -725,7 +728,7 @@ export class ListingService {
       reasonCodes: r.reason_codes ?? [],
       comment: r.comment,
       fromStatus: r.from_status,
-      createdAt: String(r.created_at),
+      createdAt: iso(r.created_at),
       moderatorName: r.moderator_name,
     }));
   }

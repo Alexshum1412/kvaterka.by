@@ -170,7 +170,8 @@ export class TrustService {
       accountKind: u.account_kind,
       verificationLevel: Number(u.verification_level),
       identityVerified: Number(u.verification_level) >= 1,
-      memberSince: u.created_at,
+      // timestamptz arrives as a Date; the interface promises a string.
+      memberSince: new Date(u.created_at).toISOString(),
       completedRentalsAsTenant: Number(u.completed_rentals_as_tenant),
       completedRentalsAsLandlord: Number(u.completed_rentals_as_landlord),
       activeListings: Number(u.active_listings),
