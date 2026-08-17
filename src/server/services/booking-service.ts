@@ -19,6 +19,8 @@ import { humanReference, uuidv7 } from '../../lib/id.ts';
 import { hasErrorCode, PG_ERROR, type Db, type Sql } from '../db/sql.ts';
 import { DomainError, forbidden, invalid, notFound } from './errors.ts';
 import { writeAudit } from './audit.ts';
+import { recordCaseEvent } from './dispute-service.ts';
+import type { DisputeCategory } from '../domain/dispute.ts';
 
 export interface BookingRow {
   id: string;
@@ -51,24 +53,11 @@ const BOOKING_COLUMNS = `
   review_deadline_at, completion_reason, nights, guests,
   lower(stay_period)::text AS stay_from, upper(stay_period)::text AS stay_to`;
 
-/**
- * Problem categories a party can pick. Mirrors the `dispute_case.category`
- * CHECK constraint, minus the two only staff ever assign.
- */
-export const DISPUTE_CATEGORIES = [
-  'LISTING_MISMATCH',
-  'ACCESS_PROBLEM',
-  'CLEANLINESS',
-  'PROPERTY_DAMAGE',
-  'COMMUNICATION',
-  'NO_SHOW',
-  'CANCELLATION',
-  'PAYMENT_DISAGREEMENT',
-  'SUSPECTED_FRAUD',
-  'OTHER',
-] as const;
-
-export type DisputeCategory = (typeof DISPUTE_CATEGORIES)[number];
+/* The category vocabulary lives in the domain, beside the transition table and
+   the priority rule that read it. Re-exported so existing importers — the
+   booking routes' zod enum — keep working against one list rather than two
+   that can drift. */
+export { DISPUTE_CATEGORIES, type DisputeCategory } from '../domain/dispute.ts';
 
 export interface RequestBookingInput {
   readonly propertyId: string;
@@ -703,11 +692,17 @@ export class BookingService {
         );
       }
 
-      await tx.query(
-        `INSERT INTO case_event (case_id, actor_user_id, actor_role, event_type, note)
-         VALUES ($1,$2,$3,'OPENED_BY_PARTY',$4)`,
-        [caseId, userId, actor, input.summary],
-      );
+      // Visible to the parties: this is their own account of their own case,
+      // and hiding somebody's submission from them would be perverse.
+      // Everything staff writes later defaults to INTERNAL.
+      await recordCaseEvent(tx, {
+        caseId,
+        actorUserId: userId,
+        actorRole: actor,
+        eventType: 'OPENED_BY_PARTY',
+        note: input.summary,
+        visibility: 'PARTIES',
+      });
 
       if (booking.status !== transition.to) {
         await tx.query(`UPDATE booking SET status = $2 WHERE id = $1`, [bookingId, transition.to]);
@@ -735,6 +730,112 @@ export class BookingService {
 
       const { rows } = await tx.query<BookingRow>(`SELECT ${BOOKING_COLUMNS} FROM booking WHERE id=$1`, [bookingId]);
       return { booking: rows[0]!, caseId, caseReference };
+    });
+  }
+
+  /**
+   * An administrator decides a disputed booking.
+   *
+   * This is the only exit from DISPUTED, and until now it did not exist: the
+   * transition table has carried RESOLVE_DISPUTE_AS_COMPLETED,
+   * _AS_NOT_TAKEN_PLACE and _AS_CANCELLED with ADMIN as the actor since the
+   * state machine was written, and nothing called them. A disputed booking was
+   * therefore frozen for good — its calendar held, its fee never accrued, its
+   * reviews never opened.
+   *
+   * FINANCIAL SAFETY (spec §9). There is deliberately no "remove the fee" or
+   * "create a debt" here. An administrator chooses an OUTCOME — the rental
+   * happened, it did not, or it was cancelled — and the consequences follow
+   * from the same transition table and the same `accrueServiceFee` that the
+   * ordinary completion path uses. The fee is derived from the booking's own
+   * frozen terms; no amount crosses this boundary from the caller. Waiving a
+   * fee that has already accrued remains a separate, `fee.waive`-gated act in
+   * FinanceService, which writes a compensating ledger entry rather than
+   * deleting anything.
+   *
+   * The written reason is mandatory and lands in both the booking event and
+   * the audit row: a decision about somebody's money with no recorded
+   * justification is not a decision anybody can review later.
+   */
+  async resolveDispute(
+    bookingId: string,
+    adminId: string,
+    outcome: 'COMPLETED' | 'NOT_TAKEN_PLACE' | 'CANCELLED',
+    reason: string,
+    correlationId?: string,
+  ): Promise<{ booking: BookingRow; feeAccrued: boolean }> {
+    if (!reason?.trim()) throw invalid('Решение по спору требует обоснования');
+
+    const event =
+      outcome === 'COMPLETED'
+        ? 'RESOLVE_DISPUTE_AS_COMPLETED'
+        : outcome === 'NOT_TAKEN_PLACE'
+          ? 'RESOLVE_DISPUTE_AS_NOT_TAKEN_PLACE'
+          : 'RESOLVE_DISPUTE_AS_CANCELLED';
+
+    return this.db.transaction(async (tx) => {
+      const booking = await lockBooking(tx, bookingId);
+
+      // The state machine refuses this from anywhere but DISPUTED, which is
+      // what stops the console being a way to move a booking arbitrarily.
+      const transition = applyEvent(booking.status, event, 'ADMIN');
+
+      const reviewWindowEndsAt =
+        transition.to === 'COMPLETED' ? reviewDeadline(new Date()).toISOString() : null;
+
+      await tx.query(
+        `UPDATE booking
+            SET status = $2,
+                completed_at = CASE WHEN $2 = 'COMPLETED' THEN now() ELSE completed_at END,
+                cancelled_at = CASE WHEN $2 LIKE 'CANCELLED%' THEN now() ELSE cancelled_at END,
+                review_deadline_at = COALESCE($4::timestamptz, review_deadline_at),
+                completion_reason = $3
+          WHERE id = $1`,
+        [bookingId, transition.to, `Решение по обращению: ${reason}`, reviewWindowEndsAt],
+      );
+
+      let feeAccrued = false;
+      if (transition.effects.includes('ACCRUE_SERVICE_FEE')) {
+        feeAccrued = await accrueServiceFee(tx, booking);
+      }
+
+      if (transition.to === 'COMPLETED') {
+        await tx.query(
+          `UPDATE app_user SET completed_rentals_as_tenant = completed_rentals_as_tenant + 1 WHERE id = $1`,
+          [booking.tenant_id],
+        );
+        await tx.query(
+          `UPDATE app_user SET completed_rentals_as_landlord = completed_rentals_as_landlord + 1 WHERE id = $1`,
+          [booking.landlord_id],
+        );
+      }
+
+      await recordEvent(tx, {
+        bookingId,
+        eventType: event,
+        actor: 'ADMIN',
+        actorUserId: adminId,
+        from: booking.status,
+        to: transition.to,
+        effects: transition.effects,
+        payload: { reason, feeAccrued },
+        correlationId,
+      });
+
+      await writeAudit(tx, {
+        actorUserId: adminId,
+        actorRole: 'ADMIN',
+        action: 'booking.resolve_dispute',
+        targetType: 'booking',
+        targetId: bookingId,
+        changes: { status: { from: booking.status, to: transition.to }, feeAccrued },
+        reason,
+        source: 'admin',
+        correlationId: correlationId ?? null,
+      });
+
+      const { rows } = await tx.query<BookingRow>(`SELECT ${BOOKING_COLUMNS} FROM booking WHERE id=$1`, [bookingId]);
+      return { booking: rows[0]!, feeAccrued };
     });
   }
 
