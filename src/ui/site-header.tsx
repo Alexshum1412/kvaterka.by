@@ -52,14 +52,23 @@ export async function SiteHeader() {
               <Link href="/dashboard/chat" className="sh__link">
                 Сообщения
               </Link>
-              {/* Staff only. An ordinary account gets a 404 from the page
-                  itself, so this link is the only thing that reveals the
-                  console exists — and only to someone who holds the
-                  permission. */}
-              {can(user.roles, 'listing.moderate') && (
-                <Link href="/moderation" className="sh__link sh__link--staff">
-                  Модерация
+              {/* Staff only, and one entry rather than one per console. An
+                  ordinary account gets a 404 from the page itself, so this
+                  link is the only thing that reveals the console exists — and
+                  only to someone holding a permission that opens it.
+
+                  `case.view` lands on the operations overview; a moderator
+                  without it still reaches their own queue. */}
+              {can(user.roles, 'case.view') ? (
+                <Link href="/staff" className="sh__link sh__link--staff">
+                  Операции
                 </Link>
+              ) : (
+                can(user.roles, 'listing.moderate') && (
+                  <Link href="/moderation" className="sh__link sh__link--staff">
+                    Модерация
+                  </Link>
+                )
               )}
             </>
           ) : (
@@ -216,14 +225,27 @@ export async function SiteHeader() {
         }
         @media (min-width: 768px) {
           .sh__bar { min-height: var(--header-height); gap: var(--space-4); }
+        }
+
+        /* The text nav appears at 900, not 768.
+         *
+         * Measured rather than chosen: the nav is flex 0 0 auto over nowrap
+         * links, so it cannot give width back. A staff account carries six
+         * links — 489px of text plus gaps, 571px in all — and with the brand
+         * (142) and the identity chip there is no arrangement that fits inside
+         * 768. It was set to 768 when the widest account had five links, and
+         * adding the operations entry put every staff user's page into
+         * sideways scroll.
+         *
+         * Between 768 and 900 the compact icon bar carries the same
+         * destinations, which is the behaviour phones already had.
+         *
+         * (No backticks in this block: it lives inside a template literal.) */
+        @media (min-width: 900px) {
           .sh__nav {
             display: flex;
             align-items: center;
             flex: 0 0 auto;
-            /* Tighter than the desktop rhythm on purpose. The nav cannot shrink
-               — five nowrap links — so between 768 and 900 it is the widest
-               fixed thing in the bar, and at exactly 768 the row used to be a
-               pixel too wide and scrolled the whole page sideways. */
             gap: var(--space-4);
             margin-inline-start: var(--space-4);
           }
@@ -232,7 +254,7 @@ export async function SiteHeader() {
              by squeezing it to a clipped stub next to the monogram. */
           .sh__name { display: none; }
         }
-        @media (min-width: 900px) {
+        @media (min-width: 1080px) {
           .sh__nav { gap: var(--space-5); }
           .sh__name { display: block; }
         }
