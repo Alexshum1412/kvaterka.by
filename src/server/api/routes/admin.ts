@@ -604,7 +604,28 @@ export const adminRoutes: AnyRoute[] = [
         completionsResolved: [] as { id: string; status: string; feeAccrued: boolean }[],
         reviewsPublished: 0,
         failures: [] as { id: string; step: string }[],
+        /** Null when another run already holds the job; nothing was done. */
+        runId: null as string | null,
+        note: undefined as string | undefined,
       };
+
+      /* Claim the job before doing any of it.
+       *
+       * This route predates the job_run table and had neither a record that it
+       * ran nor any protection against running twice. Two crons on overlapping
+       * schedules would both walk the same booking list; the FSM would refuse
+       * the duplicate transitions, so nothing corrupt could happen, but the
+       * second runner would spend a transaction per booking discovering that,
+       * and nobody could answer "did last night's job fire?".
+       *
+       * Same mechanism as the retention sweep, so there is one way to run a
+       * scheduled job here rather than two. */
+      const runId = await ctx.services.retention.beginRun('lifecycle.sweep', ctx.caller?.userId ?? null);
+      if (!runId) {
+        result.note = 'Задание уже выполняется — этот запуск ничего не делал.';
+        return result;
+      }
+      result.runId = runId;
 
       for (const id of await ctx.services.bookings.dueForStayEnd(now)) {
         try {
@@ -651,7 +672,20 @@ export const adminRoutes: AnyRoute[] = [
         }
       }
 
-      result.reviewsPublished = await ctx.services.reviews.publishExpiredWindows(now);
+      /* The one step the original handler did not wrap. A throw here abandoned
+         the whole response after the work above had already committed. */
+      try {
+        result.reviewsPublished = await ctx.services.reviews.publishExpiredWindows(now);
+      } catch {
+        result.failures.push({ id: 'reviews', step: 'PUBLISH_REVIEWS' });
+      }
+
+      await ctx.services.retention.finishRun(runId, {
+        processed: result.staysEnded.length + result.completionsResolved.length + result.reviewsPublished,
+        skipped: 0,
+        failed: result.failures.length,
+        detail: { staysEnded: result.staysEnded.length, completionsResolved: result.completionsResolved.length },
+      });
 
       return result;
     },

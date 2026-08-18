@@ -837,3 +837,45 @@ describe('genuine concurrency', () => {
     },
   );
 });
+
+/* ================================================================== *
+ * The pre-existing lifecycle sweep, now on the same footing
+ * ================================================================== */
+
+describe('the lifecycle sweep shares the job machinery', () => {
+  it('records a run', async () => {
+    const admin = await staff('ADMIN');
+    const res = await api.post('/admin/lifecycle/run', {}, { token: admin.token });
+    expect(res.status).toBe(200);
+    expect(res.body.runId).toBeTruthy();
+
+    const { rows } = await db.query<{ status: string }>(
+      `SELECT status FROM job_run WHERE job_name='lifecycle.sweep'`,
+    );
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.status).not.toBe('RUNNING');
+  });
+
+  /* Two crons on overlapping schedules would both walk the same booking list.
+     The FSM would refuse the duplicate transitions, so nothing corrupt could
+     result — but the second runner would spend a transaction per booking
+     discovering that, and nothing recorded which run was real. */
+  it('a second concurrent run does nothing and says so', async () => {
+    const admin = await staff('ADMIN');
+    const service = svc();
+    expect(await service.beginRun('lifecycle.sweep', null)).toBeTruthy();
+
+    const res = await api.post('/admin/lifecycle/run', {}, { token: admin.token });
+    expect(res.status).toBe(200);
+    expect(res.body.runId).toBeNull();
+    expect(res.body.note).toContain('уже выполняется');
+  });
+
+  it('the two jobs do not block each other', async () => {
+    const service = svc();
+    expect(await service.beginRun('lifecycle.sweep', null)).toBeTruthy();
+    // A different job name is a different mutex — the partial unique index is
+    // per job_name, not global.
+    expect(await service.beginRun('retention.purge', null)).toBeTruthy();
+  });
+});

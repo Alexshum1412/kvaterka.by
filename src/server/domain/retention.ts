@@ -653,50 +653,55 @@ export function purgeEligibility(
  * Declared here rather than living as the shape of a function body, so that the
  * steps that are NOT built are as visible as the ones that are. Everything
  * below `REVOKE_ACCESS` requires LEGAL-003, and the service refuses to run any
- * of it. That refusal is the feature: a half-built erasure that removes a name
+ * of it.
+ *
+ * `what` is shown to the person closing their account, so it is written for
+ * them and not for us: no column names, no status values. A screen that told a
+ * tenant «status=DELETED, deleted_at проставлен» would be describing our schema
+ * at somebody who wants to know whether their photographs are gone. That refusal is the feature: a half-built erasure that removes a name
  * but leaves the chat history is worse than one that has not started, because
  * it looks finished.
  */
 export const ERASURE_STEPS = [
   {
     step: 'REVOKE_SESSIONS',
-    what: 'Все активные сессии и одноразовые токены аннулируются',
+    what: 'Все активные сессии завершаются, на всех устройствах',
     built: true,
     blockedBy: null,
   },
   {
     step: 'CLOSE_ACCOUNT',
-    what: 'status=DELETED, deleted_at проставлен: вход невозможен, профиль скрыт',
+    what: 'Вход становится невозможен, профиль исчезает с площадки',
     built: true,
     blockedBy: null,
   },
   {
     step: 'STOP_ACTIVITY',
-    what: 'Объявления снимаются с публикации; новые брони невозможны',
+    what: 'Объявления снимаются с публикации, новые бронирования невозможны',
     built: true,
     blockedBy: null,
   },
   {
     step: 'PRESERVE_REQUIRED',
-    what: 'Финансовые и аудиторские записи сохраняются нетронутыми',
+    what: 'Финансовые записи и журналы аудита сохраняются нетронутыми',
     built: true,
     blockedBy: null,
   },
   {
     step: 'ANONYMISE_PROFILE',
-    what: 'Имя, почта, телефон заменяются на обезличенные значения',
+    what: 'Имя, почта и телефон заменяются на обезличенные',
     built: false,
     blockedBy: LEGAL_003,
   },
   {
     step: 'REDACT_CONTENT',
-    what: 'Сообщения и оригиналы текстов до фильтрации',
+    what: 'Переписка и сохранённые оригиналы сообщений',
     built: false,
     blockedBy: LEGAL_010,
   },
   {
     step: 'PURGE_MEDIA',
-    what: 'Фотографии объявлений и заездов',
+    what: 'Фотографии объявлений и фото при заезде',
     built: false,
     blockedBy: LEGAL_003,
   },

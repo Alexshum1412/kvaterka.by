@@ -37,6 +37,9 @@ const SECTIONS: Section[] = [
   // at all: they hold neither `case.view` nor `listing.moderate`, so every
   // existing entry was invisible to them and the header link showed nothing.
   { href: '/staff/verification', label: 'Верификация', icon: 'shieldCheck', permission: 'verification.review', match: ['/staff/verification'] },
+  // Held by SUPPORT, MODERATOR and ADMIN, and deliberately not by VERIFIER:
+  // whoever can open a passport must not also decide whether it is kept.
+  { href: '/staff/retention', label: 'Хранение', icon: 'clock', permission: 'retention.hold', match: ['/staff/retention'] },
 ];
 
 export function StaffShell({
