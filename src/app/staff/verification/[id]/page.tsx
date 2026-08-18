@@ -128,6 +128,7 @@ export default async function VerificationCasePage({ params }: { params: Promise
   return (
     <StaffShell
       roles={user.roles}
+      withheldRoles={user.withheldRoles}
       current="/staff/verification"
       title={`${applicant.displayName} — уровень ${detail.targetLevel}`}
       subtitle={detail.kind === 'IDENTITY' ? 'Подтверждение личности' : 'Подтверждение права сдавать жильё'}

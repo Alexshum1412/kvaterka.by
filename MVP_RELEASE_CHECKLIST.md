@@ -52,6 +52,9 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 
 - [x] Data minimisation applied (hashed IPs, diff-only audit, hashed session tokens)
 - [x] Exact location withheld until confirmation
+- [x] Staff two-factor authentication — TOTP, enforced by withholding roles, with recovery codes, escalating lockout and step-up on the sensitive permissions. Limitation: the secret is stored in plaintext (DEC-055).
+- [~] Notification delivery — the worker, the retry ladder and the console exist and run. **Only IN_APP reaches anybody**: EMAIL needs `SMTP_URL` plus a client, TELEGRAM needs a bot token plus the webhook that makes account linking reachable. Both refuse rather than reporting false success.
+- [x] Booking request expiry — on the existing FSM, in the hourly lifecycle sweep, idempotent and race-safe against a landlord accepting.
 - [~] Retention job implemented — the job, the holds and the console exist and run. It destroys expired credentials and **no personal data**: no retention window has been chosen (LEGAL-004) and no private object storage exists. Both refuse independently, so this is not "done" and is not a stub either.
 - [~] Export/erasure workflow — **closure** ships (access ends, sessions revoked, listings paused, nothing destroyed). **Erasure** is not built and is gated on LEGAL-003; `ERASURE_STEPS` in `domain/retention.ts` is the work list and each entry names its blocker. Export is not started.
 - [ ] Legal hold reviewed on a cadence — the mechanism and the overdue surface exist; the operational habit does not

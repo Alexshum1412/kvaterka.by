@@ -1052,3 +1052,79 @@ So the screen never says «удалить» for what it does. It says «закр
 **Confirmation is a typed word, not a checkbox.** `true` is what a mis-sent request contains by accident; ЗАКРЫТЬ is not. And the typing is the moment a person actually reads what they are agreeing to.
 
 **Revisit when.** LEGAL-003 is answered. `ERASURE_STEPS` is the work list, and each entry already names its blocker.
+
+---
+
+## DEC-054 — Two-factor is enforced by withholding roles, not by adding a check
+
+**Question.** `requiresTwoFactor()` had existed in `rbac.ts` since the auth slice and was called from nowhere. Where does the check belong?
+
+**Options.** (a) In the router's authorize block, beside `can()`. (b) In each service method that does something sensitive. (c) Nowhere — remove the roles instead.
+
+**Chosen.** (c).
+
+**Why.** (a) is the obvious answer and it is theatre in this codebase. `dispatch()` is called from exactly one place, and the staff console does not go through it: `src/app/staff/**` resolve the session themselves, call `can()` inline, and hand a hand-built capability object to a service. `moderation/page.tsx` bypasses the service layer entirely and runs its own SQL. A check in the router would have protected `GET /admin/verification/documents/:id` and left the moderation queue, the dispute case files, the verification console and the retention console reachable on a password alone.
+
+(b) protects everything only if every method remembers, which is the property that fails the first time somebody adds a method in a hurry.
+
+Both paths do share one thing: they build their caller from `AuthService.resolveSession`, and they authorise with `can(roles, permission)`. So the roles are withheld there. A session that has not satisfied its second factor is handed a role array with the staff grants removed, and every `can()` in the product answers false without knowing 2FA exists. **There is no call site that can forget the check, because no call site performs one.**
+
+This is the same shape as ADMIN not holding `document.read`: a capability that is absent rather than guarded. The ordinary-user half is untouched — a moderator who is also a landlord still manages their own flats — because only the staff roles are filtered.
+
+**The flag-day cost is real and deliberate.** `auth_level` defaults to `PASSWORD`, so the migration drops every existing staff session to consumer access immediately. `/staff/security` is therefore the one staff page with no permission on it; gating it would lock a staff member out of the only page that resolves the state they are in.
+
+**Trade-offs.** `SessionContext.roles` now means "may exercise" rather than "was granted", and code that needed the latter has to ask for it — `grantedRoles()` exists for that. It is a subtle rename of a widely-read field, and the test suite's 21 immediate failures were the proof that it is load-bearing.
+
+---
+
+## DEC-055 — TOTP is written here, and the secret is stored in plaintext
+
+**Question.** How is the second factor implemented, and how is its secret protected?
+
+**Options.** (a) A library. (b) node:crypto. And for storage: (c) plaintext, (d) encrypted at rest, (e) hashed.
+
+**Chosen.** (b) and (c), with the limitation of (c) written down rather than implied.
+
+**Why (b).** TOTP is HMAC-SHA1, a counter, and dynamic truncation — about forty lines against RFC 6238. This project's dependency list is five packages long on purpose, and a dependency that sits on the authentication path is one whose every future version is a supply-chain decision. `node:crypto` supplies the only primitive needed.
+
+The risk of hand-rolling is interoperability, so the test asserts all six RFC 6238 vectors and all seven RFC 4648 base32 vectors rather than round-tripping against itself. It was then cross-checked in the browser: a code computed by WebCrypto — an implementation with nothing in common with this one — was accepted by the server.
+
+**Why (c), and what it does not buy.** (e) is impossible: verification needs the secret, so it cannot be hashed. (d) is right and this project has no encryption-at-rest layer — nothing encrypts any column today, and a key held in the same database is decoration. Inventing one for this alone would be the largest piece of the slice and the least examined.
+
+So: **the second factor defends against a stolen or guessed password. It does not defend against an attacker who already has the database.** That is a genuine limitation, and it is the difference between what 2FA usually means and what this one currently means. It belongs in the security documentation as a fact, not in a comment as an aspiration.
+
+**Revisit when.** An encryption-at-rest layer exists for any reason — this column should be its first customer.
+
+---
+
+## DEC-056 — A code is spent, a lockout escalates, and a failure survives its own rejection
+
+**Question.** Three details of the challenge that each looked settled and were not.
+
+**Replay.** A TOTP code is valid for its whole 30-second step. Verifying only correctness lets the same code be used twice, so anyone reading it over a shoulder — or capturing it on a phishing page — has up to a minute. `verifyTotp` therefore returns *which step* matched, the service records it, and anything at or below it is refused. Every code is single-use.
+
+**Lockout.** The first parameters were five attempts per fixed fifteen-minute window, which sounds strict. It allows about 175 000 guesses a year against a 10⁶ keyspace — roughly a one-in-six chance of success per year of patient attacking, for an account that can open somebody's passport. A test computed it and failed. The lockout now doubles per block of failures and the counter is cleared only by a success, never by waiting, which brings it to about 1850 a year. It is capped at a day, because refusing a colleague for a week because somebody attacked them is itself a denial of service — so the residual is ~0.2% a year against an attacker who must also hold the password, and that residual is stated rather than rounded to "hopeless".
+
+**The rollback.** The failure counter was incremented inside the transaction that then threw, so the rollback erased it. The lockout never engaged, every individual response looked correctly rejected, and an attacker could guess for ever. Nothing about the code read as wrong. The transaction now decides, and the rejection is recorded by a statement of its own afterwards.
+
+**What is never distinguished.** Not enrolled, wrong code, replayed code, spent recovery code — all produce one message. Telling somebody which half of their attack was working is the whole value of a generic error.
+
+---
+
+## DEC-057 — Delivery claims, sends, then records; and refuses to record what it did not send
+
+**Question.** `claimPending`, `markSent` and `markFailed` had existed since the notification slice and were called from nowhere. Twenty-five places enqueue; nothing drained. What does the worker look like?
+
+**Two defects in what was there.** `claimPending` claimed nothing — a bare SELECT with no lock and no status change, so two workers would read the same rows and both send them. And `markFailed` returned rows straight to PENDING, so the next run re-sent immediately: against a provider outage that is a retry storm by construction, hammering a dead endpoint as fast as cron allows.
+
+**The ordering is claim → send → settle**, the same shape as the retention purge and for the same reason: an external effect and a database write cannot be one transaction, so the order is decided by which failure is recoverable. A crash between send and settle leaves the row claimed; the lease reclaims it and it goes again.
+
+That is **at-least-once, said plainly**. No provider this will ever talk to can confirm receipt atomically with our commit, so exactly-once would be a claim about somebody else's infrastructure. Delivering twice is a nuisance; never delivering a security notice is not.
+
+**Three outcomes, not two.** DELIVERED, TRANSIENT, PERMANENT. Collapsing them into a boolean means either retrying what can never succeed — which at scale is an accidental attack on a provider that has already said no — or discarding what a five-second outage would have delivered. Transient retries with exponential backoff and jitter; without the jitter, an outage synchronises every failed row onto one instant and the recovery is a stampede.
+
+**An unconfigured provider returns PERMANENT rather than pretending.** There is no path to SENT except a provider reporting DELIVERED, and a test asserts it. A channel with no transport is never claimed at all, so the backlog stays the honest measure of what is undelivered and goes out when a provider is finally configured.
+
+**The address is resolved at send time**, from the user's current record, never from the payload. A payload written last week would carry an address the person has since corrected and would keep sending to a Telegram chat they have unlinked. Late resolution is also what makes withdrawal of consent take effect on everything still queued.
+
+**Today IN_APP is the only real channel**, and it is genuinely real — the row *is* the message. EMAIL and TELEGRAM refuse, differently depending on whether the address is missing or the client is unimplemented, because an operator who has set `SMTP_URL` and still sees failures needs to know the configuration arrived and the code did not.

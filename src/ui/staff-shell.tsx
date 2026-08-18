@@ -42,8 +42,23 @@ const SECTIONS: Section[] = [
   { href: '/staff/retention', label: 'Хранение', icon: 'clock', permission: 'retention.hold', match: ['/staff/retention'] },
 ];
 
+/**
+ * The one entry that is NOT permission-gated.
+ *
+ * A staff member whose roles are withheld can reach no other section, and this
+ * is the page that resolves that state — gating it on a permission they cannot
+ * currently exercise would lock them out of the only way back in.
+ */
+const SECURITY_SECTION = {
+  href: '/staff/security',
+  label: 'Безопасность',
+  icon: 'shield' as const,
+  match: ['/staff/security'],
+};
+
 export function StaffShell({
   roles,
+  withheldRoles,
   current,
   title,
   subtitle,
@@ -51,6 +66,8 @@ export function StaffShell({
   children,
 }: {
   roles: readonly Role[];
+  /** Held but not exercisable until a second factor is confirmed. */
+  withheldRoles?: readonly Role[];
   /** Pathname of the page being rendered, for the active state. */
   current: string;
   title: string;
@@ -59,6 +76,10 @@ export function StaffShell({
   children: React.ReactNode;
 }) {
   const visible = SECTIONS.filter((s) => can(roles, s.permission));
+  /* A staff member whose roles are withheld sees an empty nav and would
+     reasonably conclude the product is broken. One line saying what happened
+     and where to go is the difference between a control and a dead end. */
+  const withheld = withheldRoles ?? [];
 
   // Longest match wins, so /staff/disputes does not also light up /staff.
   const activeHref = visible
@@ -80,10 +101,30 @@ export function StaffShell({
             {s.label}
           </Link>
         ))}
+        <Link
+          href={SECURITY_SECTION.href}
+          className="stf__navLink"
+          aria-current={current.startsWith(SECURITY_SECTION.href) ? 'page' : undefined}
+        >
+          <Icon name={SECURITY_SECTION.icon} size={16} />
+          {SECURITY_SECTION.label}
+        </Link>
         <span className="stf__roles" title="Ваши роли">
           {roles.filter((r) => r !== 'TENANT' && r !== 'LANDLORD').join(' · ') || '—'}
         </span>
       </nav>
+
+      {withheld.length > 0 && (
+        <div className="stf__withheld" role="status">
+          <Icon name="shield" size={16} />
+          <span>
+            Служебный доступ ({withheld.join(' · ')}) закрыт до подтверждения второго фактора.
+          </span>
+          <Link href="/staff/security" className="btn btn--secondary btn--sm">
+            Подтвердить
+          </Link>
+        </div>
+      )}
 
       <header className="stf__head">
         <div className="stf__headMain">
@@ -104,6 +145,15 @@ export function StaffShell({
       {children}
 
       <style>{`
+        .stf__withheld {
+          display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
+          padding: var(--space-3); margin-bottom: var(--space-4);
+          background: var(--warning-soft); border-radius: var(--radius-sm);
+          font-size: var(--text-sm); line-height: 1.5;
+        }
+        .stf__withheld > svg { color: var(--warning); flex: 0 0 auto; }
+        .stf__withheld > span { min-width: 0; }
+
         .stf { padding-block: var(--space-4) var(--space-8); max-width: 76rem; }
 
         .stf__nav {

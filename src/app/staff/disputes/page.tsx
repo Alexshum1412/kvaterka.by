@@ -123,6 +123,7 @@ export default async function DisputeQueuePage({ searchParams }: { searchParams:
   return (
     <StaffShell
       roles={user.roles}
+      withheldRoles={user.withheldRoles}
       current="/staff/disputes"
       title="Обращения"
       subtitle="Сверху — то, где кто-то сейчас без жилья или в опасности."

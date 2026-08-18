@@ -139,6 +139,7 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
   return (
     <StaffShell
       roles={user.roles}
+      withheldRoles={user.withheldRoles}
       current="/staff/disputes"
       title={`Обращение ${detail.reference}`}
       subtitle={DISPUTE_CATEGORY_LABEL[detail.category as DisputeCategory] ?? detail.category}

@@ -163,6 +163,7 @@ export default async function StaffOverviewPage() {
   return (
     <StaffShell
       roles={user.roles}
+      withheldRoles={user.withheldRoles}
       current="/staff"
       title="Операции"
       subtitle="Только то, по чему нужно принять решение."

@@ -147,8 +147,8 @@ There is no worker process. Both jobs below are permission-gated POST routes cal
 | Publish review windows | `/admin/lifecycle/run` | daily | one-sided reviews published once the window closes | **built** |
 | Expired credential sweep | `/admin/retention/run` | daily | expired sessions, consumed tokens, idempotency records, rate-limit counters | **built** |
 | Document retention | `/admin/retention/run` | daily | destroy documents past `purge_after` | **built, destroys nothing** — no window is ever set (LEGAL-004) and no object store exists. Both refuse independently. |
-| Expire stale requests | — | frequent | `REQUESTED`/`OFFER_PENDING` past `expires_at` → `EXPIRED` | **not built** |
-| Notification outbox | — | frequent | `notification.status = PENDING` → deliver | **not built**; nothing delivers a notification today |
+| Expire stale requests | `/admin/lifecycle/run` | hourly | `INQUIRY`/`REQUESTED`/`OFFER_PENDING` past `expires_at` → `EXPIRED`, both sides notified | **built** |
+| Notification outbox | `/admin/notifications/run` | frequent | claim → send → settle, with an escalating retry | **built**; delivers IN_APP only, because no external provider is configured |
 | Calendar staleness | — | daily | freshness signals, landlord reminders | **not built** |
 
 Every job is idempotent, and two guards make that true rather than hoped for. Per item, the guards are the same database constraints the interactive paths rely on. Per run, `job_run` carries a partial unique index on `(job_name) WHERE status='RUNNING'`, so a second concurrent runner is turned away by the database rather than doing the work twice — and a run abandoned by a dead process is reclaimed after a lease. The table is also the answer to "did last night's job fire?", which nothing could answer before.
@@ -158,6 +158,12 @@ Every job is idempotent, and two guards make that true rather than hoped for. Pe
 Domain services never call an email or Telegram API directly. They write a `notification` row with a `dedupe_key`; the outbox worker delivers it. The unique index on `(user_id, channel, dedupe_key)` means a retried job cannot send the same message twice — required by spec §55, and the same discipline as the fee guard.
 
 Telegram is a notification channel only. The canonical conversation always stays in `message`, per spec §27.
+
+**Delivery, precisely.** A domain service writes a `notification` row and returns; the worker claims it (moving it to `SENDING`, exclusively), calls a provider with no transaction open, then settles it. That ordering is forced: a crash between the send and the settle leaves the row claimed, the lease reclaims it, and it is sent again — **at-least-once**, which is the strongest thing that can honestly be said when no provider can confirm receipt atomically with our commit.
+
+A provider returns one of three outcomes. `DELIVERED` is the only route to `SENT`. `TRANSIENT` retries with exponential backoff and jitter. `PERMANENT` does not retry at all, because retrying an address a provider has rejected is, at scale, an accidental attack on somebody who has already said no.
+
+**Today only `IN_APP` can reach anybody**, and it is genuinely real — the row *is* the message the inbox reads. `EMAIL` needs `SMTP_URL` and a client; `TELEGRAM` needs `TELEGRAM_BOT_TOKEN` and the bot webhook that would make `completeTelegramLink` reachable, so there are currently zero linked chats. Both refuse rather than reporting success, and a row for an unconfigured channel is never claimed — so the backlog is the honest measure of what is undelivered, and it goes out when a provider is configured.
 
 ## 9. Search and map
 

@@ -271,6 +271,52 @@ feature was enabled. Dispute handling is described throughout as «рассмо�
 обращения» and «решение по обращению» — an internal review, not arbitration.
 
 
+
+## Notification delivery, staff 2FA and booking expiry
+
+| ID | Requirement | Status |
+|---|---|---|
+| NOTIF-001 | A queued notification is actually delivered | TESTED — for IN_APP, the only channel with a transport |
+| NOTIF-002 | The same notification is never delivered twice by two runs | TESTED — the claim moves the row to SENDING inside the claiming statement |
+| NOTIF-003 | Two concurrent workers do the work once | TESTED — the job_run mutex turns the second away |
+| NOTIF-004 | A transient failure retries later, not immediately | TESTED — `next_attempt_at`, and the row is not re-claimed before it |
+| NOTIF-005 | The backoff escalates rather than repeating at a fixed interval | TESTED |
+| NOTIF-006 | A permanent failure is never retried | TESTED |
+| NOTIF-007 | SENT is unreachable except through a provider reporting DELIVERED | TESTED |
+| NOTIF-008 | A channel with no transport is never claimed, so the backlog stays honest | TESTED |
+| NOTIF-009 | The recipient address is resolved at send time from the user record | TESTED — and never from the payload |
+| NOTIF-010 | A notification never reaches the wrong person | TESTED |
+| NOTIF-011 | An account with no address for a channel is suppressed, not failed | TESTED — a phone-only account has no email |
+| NOTIF-012 | A row a dead worker never settled is reclaimed | TESTED |
+| NOTIF-013 | The backlog view carries no address and no message body | TESTED |
+| NOTIF-014 | Real EMAIL delivery | **NOT POSSIBLE** — needs `SMTP_URL` and a client |
+| NOTIF-015 | Real TELEGRAM delivery | **NOT POSSIBLE** — needs a bot token *and* the webhook that makes linking reachable |
+| 2FA-001 | Staff roles are unusable without a second factor | TESTED — at the route AND in the roles a console page reads |
+| 2FA-002 | An ordinary account is unaffected | TESTED |
+| 2FA-003 | A landlord who is also staff keeps the landlord half | TESTED |
+| 2FA-004 | TOTP interoperates with real authenticator apps | TESTED — RFC 6238 vectors, plus a WebCrypto cross-check in a browser |
+| 2FA-005 | A code cannot be replayed within its window | TESTED |
+| 2FA-006 | Repeated failures lock out, escalating, cleared only by success | TESTED — including that the counter survives its own rejection |
+| 2FA-007 | Recovery codes work once each | TESTED |
+| 2FA-008 | Recovery codes are stored only as hashes | TESTED |
+| 2FA-009 | A valid authenticator code never burns a recovery code | TESTED |
+| 2FA-010 | Every failure says the same thing | TESTED |
+| 2FA-011 | A submitted code never reaches the audit log | TESTED |
+| 2FA-012 | A rotated session keeps its authentication level | TESTED |
+| 2FA-013 | Disabling requires a current code | TESTED — a stolen session cannot remove the factor |
+| 2FA-014 | SUPPORT cannot reset a colleague's 2FA; ADMIN can, with a reason | TESTED |
+| 2FA-015 | Sensitive permissions require a recent confirmation | TESTED — and ordinary queue work does not |
+| 2FA-016 | The enrolment page is reachable while roles are withheld | TESTED |
+| 2FA-017 | The TOTP secret is protected at rest | **NOT MET** — plaintext; no encryption-at-rest layer exists (DEC-055) |
+| EXPIRE-001 | An unanswered request expires | TESTED |
+| EXPIRE-002 | A request within its window does not | TESTED |
+| EXPIRE-003 | Expiry writes an event and an audit row attributed to the job | TESTED |
+| EXPIRE-004 | Running twice expires once and notifies once | TESTED |
+| EXPIRE-005 | A landlord accepting first makes expiry a no-op, not a failure | TESTED |
+| EXPIRE-006 | Accepting an expired request is refused with a usable error | TESTED — 409 |
+
+**Deliberately not built.** No SMS as a factor. No "remember this device" — it would need a threat-model analysis this slice did not do, and an unanalysed trusted-device cookie is a second factor that quietly stops being one. No 2FA for ordinary tenants and landlords. Noself-service recovery that bypasses the authenticator.
+
 ## Data lifecycle and retention
 
 | ID | Requirement | Status |

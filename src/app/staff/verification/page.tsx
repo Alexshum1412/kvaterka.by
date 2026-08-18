@@ -129,6 +129,7 @@ export default async function VerificationQueuePage({ searchParams }: { searchPa
   return (
     <StaffShell
       roles={user.roles}
+      withheldRoles={user.withheldRoles}
       current="/staff/verification"
       title="Заявки на проверку"
       subtitle="Сверху — те, у кого объявление уже сдаётся, а профиль ещё не подтверждён."

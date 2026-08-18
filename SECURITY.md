@@ -39,7 +39,19 @@ The platform is financial-adjacent even though rent never flows through it. The 
 | CSRF | `SameSite=Lax` cookies + token on state-changing requests | NOT STARTED |
 | Rate limiting | per-account and per-IP on auth, messaging, booking | NOT STARTED |
 | Brute force | attempt counters on `auth_token`, progressive delay, lockout | schema present |
-| Admin 2FA | required for staff roles | NOT STARTED |
+| Staff 2FA | TOTP, required for every staff role | **ENFORCED** — see below |
+
+### How staff 2FA is enforced, and what it does not protect
+
+The control is not a check. A session that has not satisfied its second factor is handed a role array with the staff grants **removed**, so every `can()` in the product — in the router, in a console page, in a service — answers false without knowing 2FA exists. This is deliberate: `dispatch()` is reached from one place, and the staff console does not go through it (`src/app/staff/**` resolve the session themselves; `moderation/page.tsx` runs its own SQL), so a check in the router would have protected one endpoint and left four consoles open. DEC-054.
+
+- **TOTP** per RFC 6238, implemented on `node:crypto`, verified against the published test vectors and cross-checked against a WebCrypto implementation in a browser.
+- **Codes are single-use.** The matched step is recorded and anything at or below it is refused, so a code read over a shoulder cannot be replayed within its window.
+- **Lockout escalates** and its counter is cleared only by a success, never by waiting. A fixed 15-minute lockout would allow ~175 000 guesses a year against a 10⁶ keyspace; this allows ~1850.
+- **Step-up**: `document.read`, `verification.decide`, `ledger.adjust`, `fee.waive`, `user.suspend`, `role.grant`, `feature_flag.write` and `retention.hold` additionally require a confirmation within the last 15 minutes.
+- **Resetting somebody else's authenticator** requires `role.grant`, which only ADMIN holds — so SUPPORT cannot strip a colleague's second factor.
+
+**What it does not protect against, stated plainly.** The TOTP secret is stored in **plaintext**. It cannot be hashed, because verification needs it, and this project has no encryption-at-rest layer — nothing encrypts any column today. So the second factor defends against a stolen or guessed **password**; it does **not** defend against an attacker who already has the database. That is a smaller guarantee than "2FA" usually implies, and it is recorded in DEC-055 rather than left to be assumed.
 | Document access control | `VERIFIER` role only; `SUPPORT` has no path at all; every read logged | schema TESTED, enforcement NOT STARTED |
 | Upload safety | type/size validation, image re-encoding to strip payloads and EXIF, content hashing, no execution from the media bucket | NOT STARTED |
 | Secure headers / CSP | strict CSP, HSTS, `X-Content-Type-Options`, frame denial | NOT STARTED |

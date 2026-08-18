@@ -274,20 +274,41 @@ export function verifyTotp(
 }
 
 /**
+ * The issuer an authenticator app displays.
+ *
+ * LATIN, not «Кватэрка.by», for two independent reasons. Percent-encoded
+ * Cyrillic is six characters per letter, and the issuer appears twice in the
+ * URI — which pushed it to 229 bytes against a QR capacity of 134, so no code
+ * rendered at all. And an authenticator shows this string in a list beside
+ * codes from other services, where many apps render non-Latin poorly or not at
+ * all. The product is «Кватэрка.by» everywhere a person reads Russian; this is
+ * a machine-readable label in somebody else's app.
+ */
+export const TOTP_ISSUER = 'Kvaterka.by';
+
+/**
+ * The maximum URI length that still fits the QR encoder the enrolment screen
+ * draws (version 6, error correction L).
+ *
+ * Asserted by a test, because exceeding it fails SILENTLY — the encoder returns
+ * nothing and the screen shows no QR, which is exactly what happened the first
+ * time and which no unit test noticed.
+ */
+export const OTPAUTH_MAX_BYTES = 134;
+
+/**
  * The URI an authenticator app reads from a QR code.
  *
- * The label carries the account so a person with several work accounts can tell
- * them apart in a list of six-digit codes that otherwise look identical.
+ * `algorithm`, `digits` and `period` are omitted deliberately. The Key Uri
+ * Format defines their defaults as SHA1, 6 and 30 — exactly the values this
+ * module uses — and spelling them out costs 34 bytes of a budget that has
+ * already proved tight. A test asserts the constants still equal those
+ * defaults, so changing one forces this decision to be reconsidered rather
+ * than silently producing codes that verify against nothing.
  */
-export function otpauthUri(secretBase32: string, account: string, issuer = 'Кватэрка.by'): string {
+export function otpauthUri(secretBase32: string, account: string, issuer = TOTP_ISSUER): string {
   const label = encodeURIComponent(`${issuer}:${account}`);
-  const params = new URLSearchParams({
-    secret: secretBase32,
-    issuer,
-    algorithm: 'SHA1',
-    digits: String(TOTP_DIGITS),
-    period: String(TOTP_STEP_SECONDS),
-  });
+  const params = new URLSearchParams({ secret: secretBase32, issuer });
   return `otpauth://totp/${label}?${params.toString()}`;
 }
 

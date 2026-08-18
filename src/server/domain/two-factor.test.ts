@@ -15,6 +15,9 @@ import {
   needsStepUp,
   normaliseRecoveryCode,
   otpauthUri,
+  OTPAUTH_MAX_BYTES,
+  TOTP_DIGITS,
+  TOTP_ISSUER,
   RECOVERY_CODE_COUNT,
   requiresTwoFactor,
   STEP_UP_PERMISSIONS,
@@ -150,17 +153,42 @@ describe('verifyTotp', () => {
 });
 
 describe('the otpauth URI', () => {
-  it('carries everything an authenticator needs', () => {
+  it('carries what an authenticator needs', () => {
     const uri = otpauthUri('JBSWY3DPEHPK3PXP', 'verifier@demo.kvaterka.by');
     expect(uri.startsWith('otpauth://totp/')).toBe(true);
     expect(uri).toContain('secret=JBSWY3DPEHPK3PXP');
-    expect(uri).toContain('digits=6');
-    expect(uri).toContain('period=30');
-    expect(uri).toContain('algorithm=SHA1');
+    expect(uri).toContain(`issuer=${TOTP_ISSUER}`);
   });
 
   it('escapes the label so an address cannot break the URI', () => {
     expect(otpauthUri('AAAA', 'a b@c.by')).not.toContain(' ');
+  });
+
+  /* The assertion that would have caught a silent failure. The first version
+     used the Cyrillic product name, which percent-encodes to six characters per
+     letter and appears twice — 229 bytes against a 134-byte QR capacity. The
+     encoder returned nothing, the screen showed no QR, and every unit test
+     still passed. Only opening the page revealed it. */
+  it('fits inside the QR encoder the enrolment screen draws', () => {
+    const longAccount = 'a-rather-long-staff-address@demo.kvaterka.by';
+    const bytes = new TextEncoder().encode(otpauthUri(generateTotpSecret(), longAccount)).length;
+    expect(bytes).toBeLessThanOrEqual(OTPAUTH_MAX_BYTES);
+  });
+
+  it('uses a Latin issuer, which many authenticator apps require to render', () => {
+    expect(TOTP_ISSUER).toMatch(/^[ -~]+$/);
+  });
+
+  /* The omitted parameters are the Key Uri Format defaults. If either constant
+     ever changes, the URI must start spelling them out again — and this fails
+     rather than letting an authenticator compute codes that verify against
+     nothing. */
+  it('omits only parameters whose defaults match this implementation', () => {
+    expect(TOTP_DIGITS).toBe(6);
+    expect(TOTP_STEP_SECONDS).toBe(30);
+    const uri = otpauthUri('AAAA', 'x@y.by');
+    expect(uri).not.toContain('digits=');
+    expect(uri).not.toContain('period=');
   });
 });
 

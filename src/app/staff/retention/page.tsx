@@ -116,6 +116,7 @@ export default async function RetentionPage() {
   return (
     <StaffShell
       roles={user.roles}
+      withheldRoles={user.withheldRoles}
       current="/staff/retention"
       title="Хранение данных"
       subtitle="Что площадка хранит, что уничтожает и что этому мешает"
