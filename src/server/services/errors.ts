@@ -33,7 +33,15 @@ export type ErrorCode =
    * separate from FEATURE_DISABLED so "not allowed yet" and "not built yet"
    * cannot be confused when reading a log.
    */
-  | 'NOT_IMPLEMENTED';
+  | 'NOT_IMPLEMENTED'
+  /**
+   * The caller is authenticated, holds the permission, and still needs to
+   * confirm their second factor for THIS action. Distinct from FORBIDDEN,
+   * which says the answer would be no whatever they did, and from
+   * UNAUTHENTICATED, which would send them back to a password prompt they
+   * have already passed.
+   */
+  | 'STEP_UP_REQUIRED';
 
 const STATUS: Record<ErrorCode, number> = {
   NOT_FOUND: 404,
@@ -51,6 +59,7 @@ const STATUS: Record<ErrorCode, number> = {
   CONFLICT: 409,
   FEATURE_DISABLED: 409,
   NOT_IMPLEMENTED: 501,
+  STEP_UP_REQUIRED: 403,
 };
 
 export class DomainError extends Error {

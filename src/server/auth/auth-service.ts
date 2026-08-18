@@ -14,10 +14,24 @@ import { createHash } from 'node:crypto';
 import type { Db, Sql } from '../db/sql.ts';
 import { hasErrorCode, PG_ERROR } from '../db/sql.ts';
 import { uuidv7 } from '../../lib/id.ts';
-import { DomainError, invalid } from '../services/errors.ts';
+import { DomainError, invalid, notFound as notFoundError } from '../services/errors.ts';
 import { writeAudit } from '../services/audit.ts';
 import { generateToken, hashPassword, hashToken, verifyPassword } from './credentials.ts';
 import type { Role } from './rbac.ts';
+import {
+  effectiveRoles,
+  generateRecoveryCodes,
+  generateTotpSecret,
+  isLockedOut,
+  lockedUntil,
+  normaliseRecoveryCode,
+  otpauthUri,
+  requiresTwoFactor,
+  verifyTotp,
+  withheldRoles,
+  GENERIC_CHALLENGE_ERROR,
+  type AuthLevel,
+} from '../domain/two-factor.ts';
 
 /** A hash of a real argon2id output, used to burn time on the account-miss path. */
 const DUMMY_HASH =
@@ -40,10 +54,23 @@ export interface RegisterInput {
 export interface SessionContext {
   readonly userId: string;
   readonly sessionId: string;
+  /**
+   * The roles this session may actually exercise — NOT necessarily the roles
+   * the user was granted. A staff member who has not satisfied their second
+   * factor is handed the ordinary-user subset, which is what makes every
+   * `can()` in the codebase enforce 2FA without knowing it exists.
+   */
   readonly roles: readonly Role[];
   readonly displayName: string;
   readonly status: string;
   readonly emailVerified: boolean;
+  readonly authLevel: AuthLevel;
+  /** Staff roles held but not currently usable, so the UI can explain. */
+  readonly withheldRoles: readonly Role[];
+  /** When a second factor was last confirmed for a sensitive action. */
+  readonly stepUpAt: Date | null;
+  /** Whether an authenticator is set up at all. False means enrolment is due. */
+  readonly twoFactorEnrolled: boolean;
 }
 
 export interface IssuedSession {
@@ -195,11 +222,16 @@ export class AuthService {
       email_verified_at: string | null;
       revoked_at: string | null;
       expired: boolean;
+      auth_level: AuthLevel;
+      step_up_at: Date | null;
+      totp_confirmed_at: Date | null;
     }>(
       `SELECT s.id AS session_id, u.id AS user_id, u.display_name, u.status,
-              u.email_verified_at, s.revoked_at, (s.expires_at <= now()) AS expired
+              u.email_verified_at, s.revoked_at, (s.expires_at <= now()) AS expired,
+              s.auth_level, s.step_up_at, t.confirmed_at AS totp_confirmed_at
          FROM user_session s
          JOIN app_user u ON u.id = s.user_id
+         LEFT JOIN user_totp t ON t.user_id = u.id
         WHERE s.token_hash = $1 AND u.deleted_at IS NULL`,
       [hashToken(token)],
     );
@@ -210,18 +242,44 @@ export class AuthService {
 
     await this.db.query(`UPDATE user_session SET last_seen_at = now() WHERE id = $1`, [row.session_id]);
 
-    const roles = await this.db.query<{ role: Role }>(`SELECT role FROM user_role WHERE user_id = $1`, [
-      row.user_id,
-    ]);
+    const granted = (
+      await this.db.query<{ role: Role }>(`SELECT role FROM user_role WHERE user_id = $1`, [row.user_id])
+    ).rows.map((r) => r.role);
+
+    /* THE ENFORCEMENT POINT.
+     *
+     * Everything that authorises anything in this codebase reads `roles` from
+     * here: the router's permission gate, every staff page's own `can()` call,
+     * and every capability object a page hands to a service. Withholding the
+     * staff roles from a session that has not passed its second factor is
+     * therefore not one check among many — it is the only one, and it cannot be
+     * forgotten at a call site because no call site performs it.
+     *
+     * A check added to router.ts instead would have protected exactly one
+     * endpoint and left the moderation queue, the dispute files, the
+     * verification console and the retention console reachable on a password. */
+    const effective = effectiveRoles(granted, row.auth_level);
 
     return {
       userId: row.user_id,
       sessionId: row.session_id,
-      roles: roles.rows.map((r) => r.role),
+      roles: effective,
       displayName: row.display_name,
       status: row.status,
       emailVerified: row.email_verified_at !== null,
+      authLevel: row.auth_level,
+      withheldRoles: withheldRoles(granted, row.auth_level),
+      stepUpAt: row.step_up_at,
+      twoFactorEnrolled: row.totp_confirmed_at !== null,
     };
+  }
+
+  /** The roles a user actually holds, ignoring what this session may exercise. */
+  async grantedRoles(userId: string): Promise<readonly Role[]> {
+    const { rows } = await this.db.query<{ role: Role }>(`SELECT role FROM user_role WHERE user_id=$1`, [
+      userId,
+    ]);
+    return rows.map((r) => r.role);
   }
 
   /**
@@ -233,15 +291,23 @@ export class AuthService {
    */
   async rotateSession(currentToken: string, meta: RequestMeta = {}): Promise<IssuedSession> {
     return this.db.transaction(async (tx) => {
-      const { rows } = await tx.query<{ id: string; user_id: string }>(
-        `SELECT id, user_id FROM user_session
+      const { rows } = await tx.query<{
+        id: string;
+        user_id: string;
+        auth_level: AuthLevel;
+        step_up_at: Date | null;
+      }>(
+        `SELECT id, user_id, auth_level, step_up_at FROM user_session
           WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > now() FOR UPDATE`,
         [hashToken(currentToken)],
       );
       const current = rows[0];
       if (!current) throw new DomainError('UNAUTHENTICATED', 'Сессия недействительна');
 
-      const issued = await this.createSession(tx, current.user_id, meta, current.id);
+      const issued = await this.createSession(tx, current.user_id, meta, current.id, {
+        authLevel: current.auth_level,
+        stepUpAt: current.step_up_at,
+      });
       await tx.query(
         `UPDATE user_session SET revoked_at = now(), revoked_reason = 'ROTATED' WHERE id = $1`,
         [current.id],
@@ -432,19 +498,306 @@ export class AuthService {
 
   /* ---------------------------------------------------------------- */
 
+  /* ================================================================ *
+   * Two-factor authentication
+   * ================================================================ */
+
+  /**
+   * Start enrolment: mint a secret and hand back the URI for a QR code.
+   *
+   * Deliberately re-mintable. An unconfirmed secret is worthless — nothing
+   * trusts it until a code proves the person actually scanned it — so a second
+   * visit to the enrolment page after a failed scan replaces it rather than
+   * resuming something half-done. Once confirmed, this refuses: replacing a
+   * working authenticator is a reset, which is a different and audited act.
+   */
+  async beginTotpEnrolment(userId: string, account: string): Promise<{ secret: string; uri: string }> {
+    const existing = await this.db.query<{ confirmed_at: Date | null }>(
+      `SELECT confirmed_at FROM user_totp WHERE user_id=$1`,
+      [userId],
+    );
+    if (existing.rows[0]?.confirmed_at) {
+      throw new DomainError('CONFLICT', 'Двухфакторная проверка уже настроена');
+    }
+
+    const secret = generateTotpSecret();
+    await this.db.query(
+      `INSERT INTO user_totp (user_id, secret_base32) VALUES ($1,$2)
+       ON CONFLICT (user_id) DO UPDATE
+         SET secret_base32 = EXCLUDED.secret_base32,
+             confirmed_at = NULL, last_used_step = NULL,
+             failed_attempts = 0, last_failure_at = NULL`,
+      [userId, secret],
+    );
+    return { secret, uri: otpauthUri(secret, account) };
+  }
+
+  /**
+   * Finish enrolment: prove the authenticator works, and get the codes.
+   *
+   * The current session is promoted here. Requiring a fresh login immediately
+   * after enrolling would be a confusing dead end — the person has just proved
+   * possession, which is exactly what a challenge asks for.
+   *
+   * Recovery codes are returned once, in this response, and never again. They
+   * are stored only as hashes, so the platform genuinely cannot show them
+   * later; that is the property that makes them worth having.
+   */
+  async confirmTotpEnrolment(
+    userId: string,
+    sessionId: string,
+    code: string,
+    now: Date = new Date(),
+  ): Promise<{ recoveryCodes: string[] }> {
+    return this.db.transaction(async (tx) => {
+      const { rows } = await tx.query<{ secret_base32: string; confirmed_at: Date | null }>(
+        `SELECT secret_base32, confirmed_at FROM user_totp WHERE user_id=$1 FOR UPDATE`,
+        [userId],
+      );
+      const totp = rows[0];
+      if (!totp) throw new DomainError('CONFLICT', 'Сначала начните настройку');
+      if (totp.confirmed_at) throw new DomainError('CONFLICT', 'Двухфакторная проверка уже настроена');
+
+      const result = verifyTotp(totp.secret_base32, code, now);
+      if (!result.valid) throw new DomainError('VALIDATION_FAILED', GENERIC_CHALLENGE_ERROR);
+
+      await tx.query(
+        `UPDATE user_totp SET confirmed_at = now(), last_used_step = $2, failed_attempts = 0 WHERE user_id=$1`,
+        [userId, result.step],
+      );
+
+      const codes = generateRecoveryCodes();
+      for (const plain of codes) {
+        await tx.query(
+          `INSERT INTO two_factor_recovery_code (id, user_id, code_hash) VALUES ($1,$2,$3)`,
+          [uuidv7(), userId, hashToken(normaliseRecoveryCode(plain))],
+        );
+      }
+
+      await tx.query(
+        `UPDATE user_session SET auth_level='TWO_FACTOR', step_up_at=now() WHERE id=$1`,
+        [sessionId],
+      );
+
+      await writeAudit(tx, {
+        actorUserId: userId,
+        action: 'auth.2fa.enrolled',
+        targetType: 'user',
+        targetId: userId,
+      });
+
+      return { recoveryCodes: codes };
+    });
+  }
+
+  /**
+   * Answer a challenge with a TOTP code or a recovery code.
+   *
+   * Both paths share one attempt counter, which is what makes the arithmetic
+   * work: a recovery code is 40 bits, and 40 bits behind an escalating lockout
+   * is unguessable, but 40 bits with its own generous counter would not be.
+   *
+   * Every failure produces the same message. Distinguishing "not enrolled" from
+   * "wrong code" from "already used" would tell somebody holding a stolen code
+   * exactly which part of their attack was working.
+   */
+  async answerChallenge(
+    userId: string,
+    sessionId: string,
+    code: string,
+    now: Date = new Date(),
+  ): Promise<{ ok: true }> {
+    return this.db.transaction(async (tx) => {
+      const { rows } = await tx.query<{
+        secret_base32: string;
+        confirmed_at: Date | null;
+        last_used_step: string | null;
+        failed_attempts: number;
+        last_failure_at: Date | null;
+      }>(
+        `SELECT secret_base32, confirmed_at, last_used_step, failed_attempts, last_failure_at
+           FROM user_totp WHERE user_id=$1 FOR UPDATE`,
+        [userId],
+      );
+      const totp = rows[0];
+      if (!totp?.confirmed_at) throw new DomainError('VALIDATION_FAILED', GENERIC_CHALLENGE_ERROR);
+
+      if (isLockedOut(totp.failed_attempts) && totp.last_failure_at) {
+        const until = lockedUntil(totp.failed_attempts, totp.last_failure_at);
+        if (now < until) {
+          throw new DomainError('RATE_LIMITED', 'Слишком много попыток. Попробуйте позже.');
+        }
+      }
+
+      const lastStep = totp.last_used_step === null ? null : Number(totp.last_used_step);
+      const totpResult = verifyTotp(totp.secret_base32, code, now, { lastUsedStep: lastStep });
+
+      let matchedRecoveryId: string | null = null;
+      if (!totpResult.valid) {
+        // Only consult recovery codes when the authenticator did not match, so
+        // a valid TOTP code never burns one.
+        const recovery = await tx.query<{ id: string }>(
+          `SELECT id FROM two_factor_recovery_code
+            WHERE user_id=$1 AND code_hash=$2 AND used_at IS NULL`,
+          [userId, hashToken(normaliseRecoveryCode(code))],
+        );
+        matchedRecoveryId = recovery.rows[0]?.id ?? null;
+      }
+
+      if (!totpResult.valid && !matchedRecoveryId) {
+        await tx.query(
+          `UPDATE user_totp SET failed_attempts = failed_attempts + 1, last_failure_at = now()
+            WHERE user_id=$1`,
+          [userId],
+        );
+        await writeAudit(tx, {
+          actorUserId: userId,
+          action: 'auth.2fa.failed',
+          targetType: 'user',
+          targetId: userId,
+          // The reason is recorded; the submitted code never is.
+          reason: 'invalid code',
+        });
+        throw new DomainError('VALIDATION_FAILED', GENERIC_CHALLENGE_ERROR);
+      }
+
+      if (matchedRecoveryId) {
+        // Single use, enforced by the update's own predicate rather than by
+        // having read it a moment ago.
+        const spent = await tx.query(
+          `UPDATE two_factor_recovery_code SET used_at=now() WHERE id=$1 AND used_at IS NULL`,
+          [matchedRecoveryId],
+        );
+        if (spent.rowCount === 0) throw new DomainError('VALIDATION_FAILED', GENERIC_CHALLENGE_ERROR);
+      }
+
+      await tx.query(
+        `UPDATE user_totp
+            SET failed_attempts = 0, last_failure_at = NULL,
+                last_used_step = COALESCE($2, last_used_step)
+          WHERE user_id=$1`,
+        [userId, totpResult.step],
+      );
+      await tx.query(
+        `UPDATE user_session SET auth_level='TWO_FACTOR', step_up_at=now() WHERE id=$1`,
+        [sessionId],
+      );
+      await writeAudit(tx, {
+        actorUserId: userId,
+        action: matchedRecoveryId ? 'auth.2fa.recovery_used' : 'auth.2fa.passed',
+        targetType: 'user',
+        targetId: userId,
+      });
+
+      return { ok: true as const };
+    });
+  }
+
+  /** How many recovery codes remain, for the reminder on the security page. */
+  async recoveryCodesRemaining(userId: string): Promise<number> {
+    const { rows } = await this.db.query<{ c: string }>(
+      `SELECT count(*)::text c FROM two_factor_recovery_code WHERE user_id=$1 AND used_at IS NULL`,
+      [userId],
+    );
+    return Number(rows[0]!.c);
+  }
+
+  /**
+   * Turn 2FA off for oneself.
+   *
+   * Requires a current code: otherwise a stolen session — which is the thing
+   * the second factor exists to survive — could simply remove it.
+   */
+  async disableTotp(userId: string, code: string, now: Date = new Date()): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const { rows } = await tx.query<{ secret_base32: string; confirmed_at: Date | null }>(
+        `SELECT secret_base32, confirmed_at FROM user_totp WHERE user_id=$1 FOR UPDATE`,
+        [userId],
+      );
+      const totp = rows[0];
+      if (!totp?.confirmed_at) throw notFoundError('Двухфакторная проверка');
+      if (!verifyTotp(totp.secret_base32, code, now).valid) {
+        throw new DomainError('VALIDATION_FAILED', GENERIC_CHALLENGE_ERROR);
+      }
+
+      await tx.query(`DELETE FROM two_factor_recovery_code WHERE user_id=$1`, [userId]);
+      await tx.query(`DELETE FROM user_totp WHERE user_id=$1`, [userId]);
+      // Every session drops back to PASSWORD, so staff roles are withheld until
+      // the person enrols again.
+      await tx.query(
+        `UPDATE user_session SET auth_level='PASSWORD', step_up_at=NULL WHERE user_id=$1 AND revoked_at IS NULL`,
+        [userId],
+      );
+      await writeAudit(tx, {
+        actorUserId: userId,
+        action: 'auth.2fa.disabled',
+        targetType: 'user',
+        targetId: userId,
+      });
+    });
+  }
+
+  /**
+   * Clear somebody else's authenticator — the lost-phone path.
+   *
+   * Gated on `role.grant` at the route, which only ADMIN holds, so SUPPORT
+   * cannot strip a colleague's second factor. That is permission selection
+   * rather than new enforcement code, and it is deliberate: the ability to
+   * remove another person's 2FA is the ability to become them.
+   *
+   * It does not enrol a replacement. The person re-enrols themselves, so the
+   * administrator never sees a secret.
+   */
+  async resetTotpFor(targetUserId: string, actor: { userId: string; role: string }, reason: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx.query(`DELETE FROM two_factor_recovery_code WHERE user_id=$1`, [targetUserId]);
+      await tx.query(`DELETE FROM user_totp WHERE user_id=$1`, [targetUserId]);
+      await tx.query(
+        `UPDATE user_session SET revoked_at=now(), revoked_reason='2FA_RESET'
+          WHERE user_id=$1 AND revoked_at IS NULL`,
+        [targetUserId],
+      );
+      await writeAudit(tx, {
+        actorUserId: actor.userId,
+        actorRole: actor.role,
+        action: 'auth.2fa.reset',
+        targetType: 'user',
+        targetId: targetUserId,
+        reason,
+        source: 'admin',
+      });
+    });
+  }
+
+  /** Refresh the step-up stamp after a fresh challenge. */
+  async recordStepUp(sessionId: string): Promise<void> {
+    await this.db.query(`UPDATE user_session SET step_up_at=now() WHERE id=$1`, [sessionId]);
+  }
+
+  /** Whether this account must enrol before it can use its staff roles. */
+  async twoFactorRequired(userId: string): Promise<boolean> {
+    return requiresTwoFactor(await this.grantedRoles(userId));
+  }
+
   private async createSession(
     tx: Sql,
     userId: string,
     meta: RequestMeta,
     previousId: string | null,
+    /* Carried across a rotation. A session that had satisfied its second factor
+       must not be silently demoted by refreshing its token — that would present
+       as the console 404ing at random, and the fix people would reach for is to
+       weaken the check. */
+    inherit: { authLevel: AuthLevel; stepUpAt: Date | null } = { authLevel: 'PASSWORD', stepUpAt: null },
   ): Promise<IssuedSession> {
     const token = generateToken();
     const sessionId = uuidv7();
     const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 86_400_000);
 
     await tx.query(
-      `INSERT INTO user_session (id, user_id, token_hash, previous_id, user_agent, ip_hash, expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      `INSERT INTO user_session
+         (id, user_id, token_hash, previous_id, user_agent, ip_hash, expires_at, auth_level, step_up_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
       [
         sessionId,
         userId,
@@ -453,6 +806,8 @@ export class AuthService {
         meta.userAgent ?? null,
         hashIp(meta.ip),
         expiresAt.toISOString(),
+        inherit.authLevel,
+        inherit.stepUpAt,
       ],
     );
 

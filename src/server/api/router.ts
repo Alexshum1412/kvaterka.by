@@ -15,6 +15,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Db } from '../db/sql.ts';
 import { can } from '../auth/rbac.ts';
+import { needsStepUp, stepUpSatisfied } from '../domain/two-factor.ts';
 import { DomainError } from '../services/errors.ts';
 import type { Services } from '../services/container.ts';
 import {
@@ -185,6 +186,9 @@ export async function dispatch(
             roles: session.roles,
             displayName: session.displayName,
             emailVerified: session.emailVerified,
+            withheldRoles: session.withheldRoles,
+            stepUpAt: session.stepUpAt,
+            twoFactorEnrolled: session.twoFactorEnrolled,
           };
         }
       }
@@ -199,7 +203,29 @@ export async function dispatch(
       if (!can(caller.roles, route.permission)) {
         // Deliberately identical to any other permission failure: the response
         // must not tell a prober which permission would have worked.
+        //
+        // NOTE that `caller.roles` are the EFFECTIVE roles: a staff member who
+        // has not satisfied their second factor does not carry staff roles at
+        // all (see AuthService.resolveSession), so 2FA is already enforced here
+        // and on every page and service that reads the same roles. Nothing was
+        // added to this block for that — which is the point, since a check
+        // added here would have protected only the routed half of the product.
         throw new DomainError('FORBIDDEN', 'Недостаточно прав');
+      }
+
+      /* Step-up is the one thing this block does add. Some actions are too
+         consequential to ride on a challenge passed hours ago — opening a
+         passport, granting a badge, writing the ledger, taking an account
+         away. Those need a confirmation within the last few minutes.
+
+         It is safe for this to live in the router because step-up guards
+         ACTIONS, and every action is a route. The console pages that bypass
+         the router are reads. */
+      if (needsStepUp(route.permission) && !stepUpSatisfied(caller.stepUpAt, now)) {
+        throw new DomainError(
+          'STEP_UP_REQUIRED',
+          'Подтвердите вход кодом из приложения — это действие требует свежего подтверждения',
+        );
       }
     }
 

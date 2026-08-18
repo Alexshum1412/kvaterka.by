@@ -15,9 +15,17 @@ import type { Role } from './auth/rbac.ts';
 export interface PageCaller {
   readonly userId: string;
   readonly sessionId: string;
+  /**
+   * EFFECTIVE roles. A staff member who has not satisfied their second factor
+   * carries none of their staff grants here, so every `can()` on every page
+   * denies without the page needing to know that 2FA exists.
+   */
   readonly roles: readonly Role[];
   readonly displayName: string;
   readonly emailVerified: boolean;
+  /** Held but withheld — the page shows a prompt instead of a bare 404. */
+  readonly withheldRoles: readonly Role[];
+  readonly twoFactorEnrolled: boolean;
 }
 
 /**
@@ -40,6 +48,8 @@ export const currentUser = cache(async (): Promise<PageCaller | null> => {
     roles: session.roles,
     displayName: session.displayName,
     emailVerified: session.emailVerified,
+    withheldRoles: session.withheldRoles,
+    twoFactorEnrolled: session.twoFactorEnrolled,
   };
 });
 

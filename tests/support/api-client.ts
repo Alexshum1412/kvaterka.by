@@ -111,12 +111,49 @@ export class ApiTestClient {
     };
   }
 
-  /** Grant a staff role directly; role granting itself is covered by its own tests. */
+  /**
+   * Make somebody a working staff member.
+   *
+   * Grants the role AND satisfies the second factor on their open sessions,
+   * because since the 2FA slice those are two different things: a session that
+   * has only presented a password carries none of its staff roles, so a bare
+   * `INSERT INTO user_role` would produce an account that looks like staff in
+   * the database and behaves like an ordinary user everywhere else.
+   *
+   * That is the enforcement working, and it is what almost every suite here
+   * wants to skip past — these tests are about what a moderator may do, not
+   * about how they logged in. The suites that DO test the withholding use
+   * `grantRoleWithoutTwoFactor` below.
+   */
   async grantRole(userId: string, role: string): Promise<void> {
+    await this.grantRoleWithoutTwoFactor(userId, role);
+    await this.satisfyTwoFactor(userId);
+  }
+
+  /** Grant a staff role and leave the session at password level. */
+  async grantRoleWithoutTwoFactor(userId: string, role: string): Promise<void> {
     await this.db.query(`INSERT INTO user_role (user_id, role) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [
       userId,
       role,
     ]);
+  }
+
+  /** Mark every live session for this user as having passed a second factor. */
+  async satisfyTwoFactor(userId: string): Promise<void> {
+    await this.db.query(
+      `UPDATE user_session SET auth_level='TWO_FACTOR', step_up_at=now()
+        WHERE user_id=$1 AND revoked_at IS NULL`,
+      [userId],
+    );
+  }
+
+  /** Let a step-up confirmation go stale without touching the session level. */
+  async expireStepUp(userId: string): Promise<void> {
+    await this.db.query(
+      `UPDATE user_session SET step_up_at = now() - interval '1 day'
+        WHERE user_id=$1 AND revoked_at IS NULL`,
+      [userId],
+    );
   }
 
   /** Clear rate-limit state between tests that would otherwise trip each other. */

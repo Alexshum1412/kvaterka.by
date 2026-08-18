@@ -37,9 +37,15 @@ export interface ApiResponse<T = unknown> {
 export interface Caller {
   readonly userId: string;
   readonly sessionId: string;
+  /** EFFECTIVE roles. Staff grants are absent until 2FA is satisfied. */
   readonly roles: readonly Role[];
   readonly displayName: string;
   readonly emailVerified: boolean;
+  /** Staff roles held but withheld from this session, so a handler can explain. */
+  readonly withheldRoles: readonly Role[];
+  /** When a second factor was last confirmed, for step-up. */
+  readonly stepUpAt: Date | null;
+  readonly twoFactorEnrolled: boolean;
 }
 
 export interface RequestContext {
