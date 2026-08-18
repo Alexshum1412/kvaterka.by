@@ -7,6 +7,7 @@ import { CornflowerMark } from '@/ui/brand.tsx';
 import { Icon } from '@/ui/icons.tsx';
 import type { IconName } from '@/ui/icons.tsx';
 import { Money, cx, formatNights, plural } from '@/ui/primitives.tsx';
+import { LEVEL_LABEL } from '@/server/domain/verification.ts';
 import type {
   AttentionItem,
   AttentionKind,
@@ -194,6 +195,15 @@ export default async function DashboardPage() {
           emphasis={stats.pendingRequests > 0}
         />
         <Figure label="Ближайшие заезды" value={String(stats.upcomingCheckIns)} href="/dashboard/bookings" />
+        {/* The verification level, and the way in to raise it. Without this the
+            applicant side of verification would exist and be unreachable. */}
+        <Figure
+          label="Профиль"
+          value={LEVEL_LABEL[Math.min(summary.verificationLevel, 2) as 0 | 1 | 2]}
+          sub={summary.verificationLevel >= 2 ? 'всё подтверждено' : 'можно подтвердить'}
+          href="/dashboard/verification"
+          emphasis={summary.verificationLevel === 0}
+        />
         <Figure
           label="Рейтинг"
           value={stats.rating === null ? '—' : decimal(stats.rating)}

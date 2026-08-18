@@ -63,10 +63,17 @@ export async function SiteHeader() {
                 <Link href="/staff" className="sh__link sh__link--staff">
                   Операции
                 </Link>
+              ) : can(user.roles, 'listing.moderate') ? (
+                <Link href="/moderation" className="sh__link sh__link--staff">
+                  Модерация
+                </Link>
               ) : (
-                can(user.roles, 'listing.moderate') && (
-                  <Link href="/moderation" className="sh__link sh__link--staff">
-                    Модерация
+                /* VERIFIER holds neither `case.view` nor `listing.moderate`, so
+                   before this they had no way into the console at all — the one
+                   role whose entire job is a staff screen could not reach one. */
+                can(user.roles, 'verification.review') && (
+                  <Link href="/staff/verification" className="sh__link sh__link--staff">
+                    Верификация
                   </Link>
                 )
               )}

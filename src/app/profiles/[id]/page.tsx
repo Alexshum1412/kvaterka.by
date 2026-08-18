@@ -5,6 +5,7 @@ import { ready, readyServices } from '@/server/runtime.ts';
 import { ListingCard, type ListingCardData } from '@/ui/listing-card.tsx';
 import { Icon } from '@/ui/icons.tsx';
 import { plural } from '@/ui/primitives.tsx';
+import { LEVEL_CLAIM, LEVEL_LABEL } from '@/server/domain/verification.ts';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,16 +104,28 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
             {isCompany ? 'Компания' : 'Частное лицо'} · на Кватэрке с {memberSince(profile.memberSince)}
           </p>
           <div className="pf__marks">
-            {profile.identityVerified ? (
-              <span className="badge badge-verified">
-                <Icon name="checkCircle" size={13} />
-                Личность подтверждена
+            {/* The verification level, worded as what the platform actually did.
+                Never «юридически подтверждено»: Кватэрка.by looked at documents
+                somebody supplied, it did not perform a title search, and it
+                guarantees nothing. LEVEL_LABEL / LEVEL_CLAIM are the single
+                source of that wording, shared with the console so the badge a
+                verifier grants and the badge a tenant reads cannot diverge. */}
+            {profile.verificationLevel >= 1 ? (
+              <span
+                className={profile.verificationLevel >= 2 ? 'badge badge-verified' : 'badge badge-info'}
+                title={LEVEL_CLAIM[profile.verificationLevel as 1 | 2]}
+              >
+                <Icon name={profile.verificationLevel >= 2 ? 'shieldCheck' : 'checkCircle'} size={13} />
+                {LEVEL_LABEL[profile.verificationLevel as 1 | 2]}
               </span>
             ) : (
-              <span className="badge badge-solid-neutral">Личность не подтверждена</span>
+              <span className="badge badge-solid-neutral">{LEVEL_LABEL[0]}</span>
             )}
             <span className="badge badge-primary">{BAND_LABEL[profile.trustBand] ?? ''}</span>
           </div>
+          {/* The claim in words, under the badge, so a tenant reads what the
+              badge means rather than inferring it. */}
+          <p className="pf__claim">{LEVEL_CLAIM[profile.verificationLevel as 0 | 1 | 2]}</p>
         </div>
       </header>
 
@@ -230,6 +243,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
         .pf__name { font-size: var(--text-2xl); font-weight: 650; letter-spacing: -0.022em; }
         .pf__kind { font-size: var(--text-sm); color: var(--text-secondary); }
         .pf__marks { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: 0.15rem; }
+        .pf__claim { font-size: var(--text-xs); color: var(--text-tertiary); margin-top: 0.2rem; }
 
         .pf__stats {
           display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));

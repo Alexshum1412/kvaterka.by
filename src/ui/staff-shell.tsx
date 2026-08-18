@@ -33,6 +33,10 @@ const SECTIONS: Section[] = [
   { href: '/staff', label: 'Обзор', icon: 'home', permission: 'case.view', match: ['/staff'] },
   { href: '/staff/disputes', label: 'Обращения', icon: 'alert', permission: 'case.view', match: ['/staff/disputes'] },
   { href: '/moderation', label: 'Модерация', icon: 'checkCircle', permission: 'listing.moderate', match: ['/moderation'] },
+  // VERIFIER's only section. Until now a verifier had no way into the console
+  // at all: they hold neither `case.view` nor `listing.moderate`, so every
+  // existing entry was invisible to them and the header link showed nothing.
+  { href: '/staff/verification', label: 'Верификация', icon: 'shieldCheck', permission: 'verification.review', match: ['/staff/verification'] },
 ];
 
 export function StaffShell({
