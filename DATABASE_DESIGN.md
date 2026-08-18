@@ -129,9 +129,25 @@ That slice added **no migration**. Everything it needed already existed, which i
 
 **No priority column** — deliberately. Priority is derived from category, booking state, fraud signals and age, in `priorityOf()` and in `PRIORITY_SQL`, and a test asserts the two agree across the whole matrix (DEC-041).
 
+### Verification operations — `0012_verification_operations.sql`
+
+The three verification tables existed and were well designed. What they had no room for was the operational half — and, more to the point, nothing in the product could create a row in them: `verification_request` was written only by tests, so the queue was permanently empty in production and always would have been.
+
+**`verification_request`** gains `assigned_to`, structured `reason_codes` (CHECK-constrained against the same vocabulary as `domain/verification.ts`), `applicant_message`, `declared` for the structured ownership basis, `supersedes_id` for the resubmission chain, `submitted_at`, and the `NEEDS_INFO` status. `decision_note` is now explicitly the INTERNAL note; `applicant_message` is what the person is told (DEC-047).
+
+**Two CHECKs the table did not have.** A decided request must carry `decided_by` and `decided_at` — for the one table whose output is a public claim about a person, "who granted this" cannot be optional. A rejection must additionally carry at least one reason code, because an unexplained refusal is a dead end for whoever receives it.
+
+**`verification_request_one_live_idx`** is a partial unique index: one live request per user per kind per property. A double-tapped submit is not two applications for a verifier to duplicate work on, and it is scoped to the open statuses so resubmission after a refusal still works — the same shape as the booking duplicate guard (DEC-034).
+
+**`verification_event`** is new: append-only, with the same `visibility` split and the same INTERNAL default as `case_event` (DEC-043), so an event type added later is invisible to applicants until somebody deliberately says otherwise.
+
+**`verification_document_is_private`** requires `storage_key LIKE 'private/%'`. The media route already refuses to serve anything under `private/`; this closes the loop from the other end, so a document row cannot exist outside the namespace that route declines. Note that no document row can be created at all today — see LEGAL-004.
+
+**No priority column**, for the same reasons as disputes (DEC-041): it is derived from the kind, whether the applicant has a listing already taking bookings, fraud signals and age, in both `verificationPriorityOf()` and `VERIFICATION_PRIORITY_SQL`.
+
 ## Append-only tables
 
-`audit_log`, `ledger_entry`, `booking_event`, `listing_snapshot`, `case_event`, `document_access_log`, `message_moderation_event`.
+`audit_log`, `ledger_entry`, `booking_event`, `listing_snapshot`, `case_event`, `verification_event`, `document_access_log`, `message_moderation_event`.
 
 Each carries a `BEFORE UPDATE OR DELETE` trigger raising `restrict_violation`. This holds against the application, against an admin tool, and against a manual `UPDATE` at a psql prompt. `TRUNCATE` is not blocked by row triggers, which is what makes the test reset fast.
 

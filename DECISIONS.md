@@ -851,3 +851,105 @@ A section the caller cannot have is ABSENT from the payload and NAMED on the scr
 **Trade-offs.** A support agent working a case that hinges on what was said in chat has to hand it to a moderator. That is the intended shape: the escalation is visible and recorded, where a blanket read would not be.
 
 **Revisit when.** Support genuinely cannot resolve common cases without message access — and then the answer is a scoped, per-case, logged grant, not adding `message.review` to the role.
+
+---
+
+## DEC-045 — A verification level is never granted on nothing
+
+**Question.** The decision endpoint could move a request to APPROVED and raise `app_user.verification_level`. What has to be true before it does?
+
+**Options.** (a) Whatever the verifier judges — they are the human in the loop. (b) A domain rule that refuses approval unless specific evidence exists.
+
+**Chosen.** (b), in `evidenceSufficiency()`.
+
+**Why.** The badge is not a note-to-self. «Личность подтверждена» is a claim the platform makes to a tenant deciding whether to trust a stranger with a deposit, and to a landlord deciding whether to hand over keys. If there is nothing behind it, it is worse than absent, because absent is honest and a badge is an assurance.
+
+What made this urgent rather than theoretical: before this slice there was no submission path anywhere in the product — `verification_request` rows existed only inside tests — and identity-document collection is switched off pending LEGAL-004. So the one thing the endpoint could actually do was grant a trust badge to somebody who had submitted nothing at all, and nothing in the code prevented it.
+
+The rule has two gates and both fail closed. The platform must be permitted to hold identity documents at all, and the specific evidence for the kind must be present: a document and a selfie for identity, and additionally a property document plus a declared basis for a right to let. Today the first gate is shut, so every approval is refused and the console says why — in the same words in the queue, on the case page and on the disabled button.
+
+The declared ownership basis is deliberately not evidence. It tells a verifier what to look for before they open anything, and it tells the applicant which document is expected; it can never satisfy the rule on its own.
+
+**Trade-offs.** Nobody can be verified today. That is the correct state of the product, not a gap in it — the alternative is issuing assurances backed by nothing while a legal question about collecting the backing data is open.
+
+**Revisit when.** LEGAL-004 is answered AND private storage exists. Both, not either: the flag alone would mean collecting passports with nowhere lawful to put them.
+
+---
+
+## DEC-046 — Approving requires having been able to look
+
+**Question.** ADMIN holds `verification.decide`. ADMIN deliberately does not hold `document.read` (DEC on rbac: reading somebody's passport is a different act from administering the platform). Can an administrator approve an identity verification?
+
+**Options.** (a) Yes — `verification.decide` is the decision permission. (b) No — approving requires `document.read` as well. (c) Give ADMIN `document.read`.
+
+**Chosen.** (b).
+
+**Why.** (a) is the state I found, and it is incoherent. An approval asserts that somebody examined the evidence and was satisfied. A role that is structurally forbidden from opening the evidence cannot honestly make that assertion, so the permission split was declaring one thing and the endpoint permitting another.
+
+(c) is the tempting fix and the wrong one: it would dissolve the narrowest and most carefully drawn permission in the system to resolve a contradiction that can be resolved the other way.
+
+So APPROVE — and only APPROVE — additionally requires `document.read`. Rejecting does not: an application can be refused for being incomplete, inconsistent, or stale without opening anything, which is exactly the work an administrator can legitimately do to keep a queue moving. The console reflects it rather than hiding it: an administrator is shown no approve button and told, in the queue, that they lack the permission and what that means.
+
+**Trade-offs.** An organisation with one administrator and no verifier cannot verify anybody. That is the intended reading: it means "appoint a verifier", not "let the administrator do it".
+
+**Revisit when.** Never for the direction of the rule. If approvals need to scale, the answer is more VERIFIER grants — each of which is itself an audited event.
+
+---
+
+## DEC-047 — The applicant and the verifier read different text
+
+**Question.** A refusal has three audiences: a machine that routes it, a person who must fix it, and a colleague who may pick the case up next. `decision_note` was one free-text column serving all three, and nothing in the product displayed it.
+
+**Options.** (a) One note, shown to the applicant. (b) One note, internal, plus a separate structured refusal. (c) Reason codes, an applicant message, and an internal note as three separate things.
+
+**Chosen.** (c).
+
+**Why.** They genuinely are three different things and collapsing them loses something each time.
+
+The codes are what a machine can act on: each maps to a plain explanation and to the place that fixes it, so «Данные не совпадают» links to the profile name field and «Селфи не совпадает» links to the selfie step. That is the listing-moderation lesson (DEC-030) applied again — a refusal that does not say where to go is a dead end, and re-entering an application from the top is how people give up.
+
+The applicant message is what a person is told in the verifier's own words. The internal note is what a verifier writes to colleagues, and it needs to be able to say "third attempt from this device, photo looks edited" — a sentence that must have no path to the applicant, because telling somebody which signal fired is telling them what to avoid next time.
+
+`SUSPICIOUS_ACTIVITY` is the sharp edge of this and is handled deliberately: its applicant-facing text says only that the request could not be confirmed automatically and points at support. The fraud signals behind it appear on the case page for staff and nowhere else.
+
+`verification_event.visibility` carries the same split through the history, defaulting to INTERNAL so an event type added later is invisible to applicants until somebody deliberately says otherwise — the same shape and the same default as `case_event` (DEC-043).
+
+**Trade-offs.** Three fields where there was one, and a verifier has to think about which is which. The form labels each one with who reads it, which is the cheapest place to spend that attention.
+
+---
+
+## DEC-048 — A refused request is superseded, never edited
+
+**Question.** Somebody was refused because a photo was unreadable. How do they try again?
+
+**Options.** (a) Reopen the request and let them replace the document. (b) A new request that points at the old one.
+
+**Chosen.** (b).
+
+**Why.** (a) destroys the record. What was refused and why is the most useful thing a verifier has when the same person applies for the third time, and editing the row in place erases exactly that. A pattern of attempts is evidence; a single mutable row cannot express one.
+
+So resubmission writes a new request carrying `supersedes_id`, and the refused one keeps its status, its codes and its decision author permanently. The case page shows a verifier the applicant's earlier decisions for that reason, with a note that repeated refusals for one reason are a signal and a single refusal usually is not.
+
+The applicant does not pay for this. Their declared answers are carried onto the new request, so nobody retypes an application because one photo was blurred, and a partial unique index keeps exactly one live request per person per kind per property so the queue never shows a verifier the same case twice.
+
+**Trade-offs.** More rows, and a NEEDS_INFO request has to be closed as the applicant answers it so the uniqueness rule sees only the new one. That transition is explicit in the service rather than implied.
+
+---
+
+## DEC-049 — Verification levels are described as platform checks, never as legal conclusions
+
+**Question.** What exactly does the platform claim when it shows «Verified» next to somebody's name?
+
+**Options.** (a) Strong, marketable wording — "документы юридически подтверждены". (b) Wording that describes precisely what was done.
+
+**Chosen.** (b), with the exact strings in the domain so the badge a verifier grants and the badge a tenant reads cannot diverge.
+
+**Why.** Кватэрка.by looks at documents a person supplied and forms a view. It does not perform a title search, it has no access to the property register, it does not confirm that a document is genuine beyond what a person can see, and it cannot promise anybody's safety. «Юридически подтверждено» would claim all four.
+
+So Level 1 reads «Личность подтверждена платформой» and Level 2 «Личность и право сдавать жильё проверены платформой», with a longer form that says in plain words that this is not a legal expertise and not a guarantee. The applicant-facing page repeats it under the ladder and again at the foot of the page.
+
+A test asserts that the forbidden phrasings appear nowhere in any of the level labels, claims, explanations or refusal texts. Wording drifts as marketing copy gets edited; a test does not.
+
+**Trade-offs.** Weaker-sounding than a competitor willing to say more. That is the correct trade for the one number a tenant uses to decide whether to trust a stranger.
+
+**Revisit when.** A licensed provider or a state identity mechanism is integrated, at which point a stronger claim may be *true* — and would need its own legal sign-off before being written down.

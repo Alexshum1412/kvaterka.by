@@ -127,7 +127,14 @@ Traceability from the master specification to implementation. Status vocabulary 
 | ID | Requirement | Acceptance criteria | Status |
 |---|---|---|---|
 | VERIFY-001 | Levels 0/1/2 | Phone+email → identity → identity + property | IMPLEMENTED (schema) |
-| VERIFY-002 | Property verification separate from identity | Distinct fields and badges | TESTED (schema) |
+| VERIFY-002 | Property verification separate from identity | Distinct fields and badges | TESTED |
+| VERIFY-003 | An applicant can actually ask to be verified | Submission, resubmission preserving answers, one live request per kind | TESTED |
+| VERIFY-004 | A level is never granted with no evidence | `evidenceSufficiency()` gates every approval (DEC-045) | TESTED |
+| VERIFY-005 | Approving requires being able to open the documents | APPROVE needs `document.read`; ADMIN is refused (DEC-046) | TESTED |
+| VERIFY-006 | Structured refusal codes with a fix target | Ten codes, each with applicant text and a destination (DEC-047) | TESTED |
+| VERIFY-007 | Internal note never reaches the applicant | Separate column, separate event visibility | TESTED |
+| VERIFY-008 | Documents fail closed twice over | Legal flag AND private storage, independently (LEGAL-004) | TESTED |
+| VERIFY-009 | Level wording claims a platform check, not a legal conclusion | Asserted against a forbidden-phrase list (DEC-049) | TESTED |
 | VERIFY-003 | Documents encrypted and access-controlled | Private bucket, `VERIFIER` role only | NOT STARTED (schema TESTED) |
 | VERIFY-004 | Every document read logged | Append-only access log | TESTED (schema) |
 | VERIFY-005 | Retention and purge | `purge_after` per document, job-enforced | NOT STARTED |
@@ -262,3 +269,28 @@ The intended platform role is unchanged: a venue connecting the parties, with re
 paid directly between them. No new legal claim is made here, and no legally gated
 feature was enabled. Dispute handling is described throughout as «рассмотрение
 обращения» and «решение по обращению» — an internal review, not arbitration.
+
+## Status reconciliation — the verification slice
+
+Verified by `tests/verification.integration.test.ts` (42 tests) and
+`src/server/domain/verification.test.ts` (29 tests), plus a browser walkthrough
+of both sides. Only rows those suites exercise are restated:
+
+| ID | Restated status | Evidence |
+|---|---|---|
+| VERIFY-001 | TESTED | levels 0/1/2 with level 2 reachable only via a property request by somebody already holding level 1 |
+| VERIFY-003 | TESTED | a submitted request appears in the verifier queue; a second submit returns the first rather than duplicating it |
+| VERIFY-004 | TESTED | approval refused with the flag off, with no documents, and with a document but no selfie — the level stays 0 in every case |
+| VERIFY-005 | TESTED | ADMIN is offered no approve action and refused 403 on both the new and the legacy endpoint; VERIFIER succeeds on both |
+| VERIFY-006 | TESTED | an empty rejection is 422; codes reach the applicant with explanations and a fix target |
+| VERIFY-007 | TESTED | the internal note is absent from the applicant's view, their timeline and their notifications |
+| VERIFY-008 | TESTED | `FEATURE_DISABLED` with the flag off, `NOT_IMPLEMENTED` with the flag on and no bucket |
+| VERIFY-009 | TESTED | no forbidden legal phrasing in any level label, claim, explanation or refusal text |
+| ADMIN-002 | TESTED | submit, take, assign and reject each produce an audit row with actor, role and reason |
+
+**Deliberately not built, and not claimed.** There is no document upload path that
+works — collection is gated on LEGAL-004 and on private object storage that does
+not exist, and both refuse independently. There is no purge job, so
+`purge_after` is a stored intention rather than an enforced policy. There is no
+selfie-matching, liveness check or third-party KYC integration. Approving is
+impossible today by design, and the console says so rather than looking broken.

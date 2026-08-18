@@ -70,7 +70,20 @@ What this register *is* good for: it names the questions precisely, records the 
 
 **If unfavourable.** Retention windows change (a data change), or verification moves to a licensed provider (the schema already isolates documents behind a request abstraction).
 
-**Lawyer:** yes. Highest sensitivity item in the product.
+**Where this now lives in code (added by the verification slice).** The question was previously abstract because nothing collected anything. It is now the gate on a built pipeline, and these are the exact places that change if the answer changes:
+
+| Place | What it does today |
+|---|---|
+| `feature_flag.verification.identity_documents` | Off. Every path below reads it. |
+| `VerificationService.attachDocument` | Refuses with `FEATURE_DISABLED` while the flag is off, and with `NOT_IMPLEMENTED` when no private bucket is configured. Two independent gates, both failing closed. |
+| `evidenceSufficiency()` in `domain/verification.ts` | Refuses EVERY approval while the flag is off, so no trust badge can be granted with nothing behind it. |
+| `GET /admin/verification/documents/:id` | Pre-existing. `document.read` (VERIFIER alone), a stated purpose, and an append-only `document_access_log` row written before the key is returned. |
+| `verification_document_is_private` CHECK (0012) | A document row cannot exist outside the `private/` namespace, which the public media route refuses to serve. |
+| `verification_document.purge_after` | Written as now + 1 year at attach time. **No purge job exists** — the column is a stored intention, not an enforced policy. |
+
+**Two things a favourable answer still would not give us.** There is no private object storage configured anywhere (`VERIFICATION_DOCUMENT_BUCKET_URL` is unset and nothing implements it), and there is no retention/purge job. Turning the flag on without both would mean collecting passports with nowhere lawful to put them and no deletion path — so the flag alone must not be treated as the green light.
+
+**Lawyer:** yes. Highest sensitivity item in the product, and now the one with a built pipeline waiting behind it.
 
 ---
 
