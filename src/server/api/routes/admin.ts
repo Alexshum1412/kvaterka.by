@@ -600,6 +600,7 @@ export const adminRoutes: AnyRoute[] = [
        * honest about who is doing the work, and `lifecycle.run` is auditable. */
       const now = ctx.now;
       const result = {
+        requestsExpired: [] as string[],
         staysEnded: [] as string[],
         completionsResolved: [] as { id: string; status: string; feeAccrued: boolean }[],
         reviewsPublished: 0,
@@ -626,6 +627,30 @@ export const adminRoutes: AnyRoute[] = [
         return result;
       }
       result.runId = runId;
+
+      /* Requests nobody answered. First, because an expired request should not
+         be sitting in a queue while later steps run, and because it is the
+         cheapest step — an indexed finder that usually returns nothing. */
+      for (const id of await ctx.services.bookings.dueForExpiry(now)) {
+        try {
+          const before = await ctx.services.bookings.get(id);
+          const after = await ctx.services.bookings.expireStale(id);
+          // A no-op means the landlord answered a moment before the sweep
+          // reached the row. That is a lost race, not a failure.
+          if (after.status === before.status) continue;
+          result.requestsExpired.push(id);
+          for (const userId of [after.tenant_id, after.landlord_id]) {
+            await ctx.services.notifications.enqueue({
+              userId,
+              category: 'BOOKING_DECISION',
+              dedupeKey: `booking-expired:${id}:${userId}`,
+              payload: { bookingId: id, status: after.status },
+            });
+          }
+        } catch {
+          result.failures.push({ id, step: 'EXPIRE_REQUEST' });
+        }
+      }
 
       for (const id of await ctx.services.bookings.dueForStayEnd(now)) {
         try {
@@ -681,7 +706,11 @@ export const adminRoutes: AnyRoute[] = [
       }
 
       await ctx.services.retention.finishRun(runId, {
-        processed: result.staysEnded.length + result.completionsResolved.length + result.reviewsPublished,
+        processed:
+          result.requestsExpired.length +
+          result.staysEnded.length +
+          result.completionsResolved.length +
+          result.reviewsPublished,
         skipped: 0,
         failed: result.failures.length,
         detail: { staysEnded: result.staysEnded.length, completionsResolved: result.completionsResolved.length },

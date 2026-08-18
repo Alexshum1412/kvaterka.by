@@ -876,6 +876,94 @@ export class BookingService {
     return rows.map((r) => r.id);
   }
 
+  /**
+   * Requests whose response window has run out.
+   *
+   * The predicate matches `booking_expiry_idx` (0003) exactly, so this is an
+   * index scan rather than a table scan that happens to be small today.
+   */
+  async dueForExpiry(now: Date = new Date(), limit = 200): Promise<string[]> {
+    const { rows } = await this.db.query<{ id: string }>(
+      `SELECT id FROM booking
+        WHERE status IN ('INQUIRY','REQUESTED','OFFER_PENDING')
+          AND expires_at IS NOT NULL
+          AND expires_at <= $1
+        ORDER BY expires_at
+        LIMIT $2`,
+      [now.toISOString(), limit],
+    );
+    return rows.map((r) => r.id);
+  }
+
+  /**
+   * Close a request nobody answered.
+   *
+   * The FSM already declared this — `EXPIRE` from INQUIRY, REQUESTED and
+   * OFFER_PENDING, with actor SYSTEM — and nothing ever called it, so a request
+   * the tenant had given up on stayed open for ever and the landlord could
+   * still accept it weeks later.
+   *
+   * THE GUARD ON LINE ONE IS THE RACE.
+   *
+   * A landlord accepting at the same moment as the sweep is the interesting
+   * case. `lockBooking` serialises them, so one commits first and the other
+   * re-reads the committed row. If the landlord won, this returns the booking
+   * untouched: a lost race is a NO-OP, not a failure. Without that early
+   * return, `applyEvent('CONFIRMED', 'EXPIRE')` would throw, the sweep would
+   * record a failure, and `finishRun` marks any run with failures FAILED — so
+   * an ordinary, expected, correct outcome would turn the nightly job red and
+   * train whoever reads it to ignore the colour.
+   *
+   * The other direction needs nothing: a landlord accepting an already-EXPIRED
+   * booking gets `IllegalTransitionError`, which the API already maps to 409
+   * «Это действие сейчас недоступно» — the right answer for clicking Accept a
+   * moment too late.
+   */
+  async expireStale(bookingId: string): Promise<BookingRow> {
+    return this.db.transaction(async (tx) => {
+      const booking = await lockBooking(tx, bookingId);
+      if (!['INQUIRY', 'REQUESTED', 'OFFER_PENDING'].includes(booking.status)) return booking;
+
+      const transition = applyEvent(booking.status, 'EXPIRE', 'SYSTEM');
+
+      await tx.query(
+        `UPDATE booking SET status=$2, expires_at=NULL WHERE id=$1`,
+        [bookingId, transition.to],
+      );
+
+      await recordEvent(tx, {
+        bookingId,
+        eventType: 'EXPIRE',
+        actor: 'SYSTEM',
+        // No key at all rather than null: a scheduled sweep has no actor, and
+        // recordEvent already stores NULL when it is absent.
+        from: booking.status,
+        to: transition.to,
+        effects: transition.effects,
+      });
+
+      await writeAudit(tx, {
+        actorUserId: null,
+        actorRole: 'job',
+        action: 'booking.expire',
+        targetType: 'booking',
+        targetId: bookingId,
+        changes: { status: { from: booking.status, to: transition.to } },
+        source: 'job',
+      });
+
+      /* No calendar to release. INQUIRY, REQUESTED and OFFER_PENDING are
+         absent from CALENDAR_BLOCKING_STATES by design (DEC-007) and the
+         `booking_no_overlap` EXCLUDE constraint carries the same predicate, so
+         an unanswered request never held any dates in the first place. */
+
+      const { rows } = await tx.query<BookingRow>(`SELECT ${BOOKING_COLUMNS} FROM booking WHERE id=$1`, [
+        bookingId,
+      ]);
+      return rows[0]!;
+    });
+  }
+
   /* ---------------------------------------------------------------- */
 
   private async simpleTransition(

@@ -459,14 +459,22 @@ export class RetentionService {
    * Returns null when another run holds the job. That is a normal outcome —
    * two crons firing on overlapping schedules is the case this exists for.
    */
-  async beginRun(jobName: string, triggeredBy: string | null): Promise<string | null> {
+  async beginRun(
+    jobName: string,
+    triggeredBy: string | null,
+    /* How long this job's runs may be presumed alive. Sixty minutes suits a
+       purge; a delivery run is short, and an hour of silence on security
+       notifications because one worker died is far worse than the small
+       chance of two runs overlapping. */
+    leaseMinutes: number = RUN_LEASE_MINUTES,
+  ): Promise<string | null> {
     // A process that died mid-run leaves RUNNING for ever. Reclaim it after the
     // lease rather than requiring somebody to notice.
     await this.db.query(
       `UPDATE job_run SET status='ABANDONED', finished_at=now()
         WHERE job_name=$1 AND status='RUNNING'
           AND started_at < now() - ($2 || ' minutes')::interval`,
-      [jobName, String(RUN_LEASE_MINUTES)],
+      [jobName, String(leaseMinutes)],
     );
 
     const id = uuidv7();

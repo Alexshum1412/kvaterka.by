@@ -41,6 +41,49 @@ export const NOTIFICATION_CATEGORIES = [
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
 
 /**
+ * The one line that leaves the platform.
+ *
+ * These land with a third party — an SMTP relay, Telegram's servers — so each
+ * says that something happened and nothing about who, which flat, or how much.
+ * The detail stays behind a login.
+ */
+export const NOTIFICATION_CATEGORY_TITLE: Record<string, string> = {
+  BOOKING_REQUEST: 'Новый запрос на бронирование',
+  BOOKING_DECISION: 'Решение по бронированию',
+  BOOKING_REMINDER: 'Напоминание о бронировании',
+  BOOKING_CANCELLED: 'Бронирование отменено',
+  MESSAGE: 'Новое сообщение',
+  CHECK_IN: 'Заезд',
+  CHECK_OUT: 'Выезд',
+  COMPLETION_REQUEST: 'Подтвердите, что аренда состоялась',
+  REVIEW_REQUEST: 'Можно оставить отзыв',
+  REVIEW_PUBLISHED: 'Отзыв опубликован',
+  DEBT: 'Есть задолженность по комиссии',
+  VERIFICATION: 'Решение по проверке',
+  SECURITY: 'Безопасность аккаунта',
+  MODERATION: 'Решение модерации',
+};
+
+/**
+ * Categories a person is never asked to consent to, and cannot switch off.
+ *
+ * SECURITY is the account itself — somebody signed in, a factor changed.
+ * DEBT is money owed. MODERATION is a decision taken about their content.
+ * Silencing any of these leaves a person unaware of something that is
+ * happening to them, which is a different thing from sparing them a marketing
+ * message. Everything else is a product notification and is theirs to turn off.
+ *
+ * This is a product judgement, not a legal one: no Belarusian requirement is
+ * asserted here, and if one turns out to apply the list is the place to change.
+ */
+export const TRANSACTIONAL_CATEGORIES: readonly NotificationCategory[] = [
+  'SECURITY',
+  'DEBT',
+  'MODERATION',
+  'VERIFICATION',
+];
+
+/**
  * Categories a user cannot switch off in-app. Security notices and money owed
  * are not marketing; suppressing them would leave someone unaware their account
  * was accessed or that they have a debt.
@@ -257,32 +300,204 @@ export class NotificationService {
     });
   }
 
-  /* ---------------------------------------------------------------- */
+  /* ================================================================ *
+   * The outbox
+   * ================================================================ */
 
-  /** Outbox batch for the delivery worker. */
-  async claimPending(limit = 50): Promise<Record<string, unknown>[]> {
-    const { rows } = await this.db.query<Record<string, any>>(
-      `SELECT id, user_id, category, channel, payload, attempts
-         FROM notification
-        WHERE status='PENDING' AND attempts < 5
-        ORDER BY created_at LIMIT $1`,
-      [limit],
+  /**
+   * Take work, exclusively.
+   *
+   * The previous version of this method was named `claimPending` and claimed
+   * nothing: a bare SELECT, no lock, no status change. Two workers running at
+   * once would both read the same rows and both send them, which for a
+   * notification means a person is told the same thing twice. Nothing called
+   * it, so the defect had never fired.
+   *
+   * Now a row moves to SENDING inside the claiming statement itself. A second
+   * worker's UPDATE finds nothing left matching `status='PENDING'`, so the
+   * exclusivity is the database's rather than a convention between workers.
+   * `FOR UPDATE SKIP LOCKED` means the second worker moves on to other rows
+   * instead of blocking behind the first.
+   *
+   * Only channels with a live provider are claimed. A row for a channel that
+   * cannot send is left PENDING rather than claimed and failed — so when a
+   * provider is eventually configured, the backlog goes out, and until then
+   * the queue depth is the honest measure of what is undelivered.
+   */
+  async claimForDelivery(
+    channels: readonly Channel[],
+    limit = 50,
+    now: Date = new Date(),
+  ): Promise<ClaimedNotification[]> {
+    if (channels.length === 0) return [];
+    const { rows } = await this.db.query<ClaimedNotification>(
+      `UPDATE notification n
+          SET status='SENDING', claimed_at=$3, attempts = attempts + 1
+        WHERE n.id IN (
+          SELECT id FROM notification
+           WHERE status='PENDING'
+             AND channel = ANY($1)
+             AND (next_attempt_at IS NULL OR next_attempt_at <= $3)
+             AND attempts < $4
+           ORDER BY next_attempt_at NULLS FIRST, created_at
+           LIMIT $2
+           FOR UPDATE SKIP LOCKED)
+        RETURNING n.id, n.user_id, n.category, n.channel, n.payload, n.attempts`,
+      [channels as unknown as string[], limit, now.toISOString(), MAX_DELIVERY_ATTEMPTS],
     );
     return rows;
   }
 
-  async markSent(notificationId: string): Promise<void> {
-    await this.db.query(`UPDATE notification SET status='SENT', sent_at=now() WHERE id=$1`, [notificationId]);
+  /**
+   * Rows a worker took and never settled, because it crashed.
+   *
+   * Returned to PENDING rather than failed: the send may or may not have
+   * happened, and this system is at-least-once. Delivering twice is a nuisance;
+   * never delivering a security notice is not.
+   */
+  async reclaimAbandoned(leaseMinutes = 5): Promise<number> {
+    const { rowCount } = await this.db.query(
+      `UPDATE notification
+          SET status='PENDING', claimed_at=NULL
+        WHERE status='SENDING'
+          AND claimed_at < now() - ($1 || ' minutes')::interval`,
+      [String(leaseMinutes)],
+    );
+    return rowCount;
   }
 
-  async markFailed(notificationId: string, error: string): Promise<void> {
+  /**
+   * Confirm a delivery.
+   *
+   * `AND status='SENDING'` is the important half: only a row THIS worker
+   * claimed can be marked sent. A stale worker returning after its lease
+   * expired cannot overwrite a row another worker has since re-sent.
+   */
+  async markSent(notificationId: string, detail = 'ok'): Promise<void> {
+    await this.db.query(
+      `UPDATE notification SET status='SENT', sent_at=now(), last_error=NULL, claimed_at=NULL
+        WHERE id=$1 AND status='SENDING'`,
+      [notificationId],
+    );
+    void detail;
+  }
+
+  /**
+   * A delivery that failed, and whether it is worth trying again.
+   *
+   * The distinction is the whole point. A timeout is worth retrying; an
+   * address the provider rejected is not, and retrying it forever is how a
+   * queue turns one bad row into a permanent load on somebody else's service.
+   *
+   * The backoff is exponential with jitter. Without jitter, a provider outage
+   * synchronises every failed row onto the same retry instant, and the
+   * recovery is a thundering herd against a service that has only just come
+   * back — which is how an outage becomes a longer outage.
+   */
+  async markFailed(
+    notificationId: string,
+    error: string,
+    kind: 'TRANSIENT' | 'PERMANENT' = 'TRANSIENT',
+    now: Date = new Date(),
+  ): Promise<void> {
+    if (kind === 'PERMANENT') {
+      await this.db.query(
+        `UPDATE notification SET status='FAILED', last_error=$2, claimed_at=NULL WHERE id=$1`,
+        [notificationId, error.slice(0, 500)],
+      );
+      return;
+    }
+
+    /* One statement. The delay has to be computed from the attempt count the
+       row already carries, and `random()` supplies the jitter — without it a
+       provider outage synchronises every failed row onto the same retry
+       instant, and the recovery is a thundering herd against a service that
+       has only just come back. Capped at 2^6 minutes so the ladder stops at
+       roughly an hour rather than growing without bound. */
     await this.db.query(
       `UPDATE notification
-          SET attempts = attempts + 1,
-              last_error = $2,
-              status = CASE WHEN attempts + 1 >= 5 THEN 'FAILED' ELSE 'PENDING' END
+          SET last_error = $2,
+              claimed_at = NULL,
+              status = CASE WHEN attempts >= $3 THEN 'FAILED' ELSE 'PENDING' END,
+              next_attempt_at = CASE
+                WHEN attempts >= $3 THEN NULL
+                ELSE $4::timestamptz
+                     + (power(2, least(attempts, 6)) * (0.5 + random())) * interval '1 minute'
+              END
         WHERE id=$1`,
-      [notificationId, error.slice(0, 500)],
+      [notificationId, error.slice(0, 500), MAX_DELIVERY_ATTEMPTS, now.toISOString()],
     );
   }
+
+  /** Consent withdrawn between enqueue and send. Not a failure — a decision. */
+  async markSuppressed(notificationId: string, reason: string): Promise<void> {
+    await this.db.query(
+      `UPDATE notification SET status='SUPPRESSED', last_error=$2, claimed_at=NULL WHERE id=$1`,
+      [notificationId, reason.slice(0, 500)],
+    );
+  }
+
+  /**
+   * Where a notification should actually go, resolved NOW.
+   *
+   * Deliberately not read from the payload. A payload is written when the event
+   * happens and delivered later; an address baked in at enqueue time would send
+   * a corrected email to the old address, and would keep sending to a Telegram
+   * chat somebody has since unlinked. Resolving late also means withdrawal of
+   * consent takes effect on everything still queued.
+   *
+   * Returns null when there is nowhere to send — a phone-only account has no
+   * email address, and `app_user` requires only one of the two.
+   */
+  async resolveAddress(userId: string, channel: Channel): Promise<string | null> {
+    if (channel === 'IN_APP') return userId;
+    if (channel === 'EMAIL') {
+      const { rows } = await this.db.query<{ email: string | null }>(
+        `SELECT email FROM app_user WHERE id=$1 AND deleted_at IS NULL`,
+        [userId],
+      );
+      return rows[0]?.email ?? null;
+    }
+    const { rows } = await this.db.query<{ telegram_chat_id: string }>(
+      `SELECT telegram_chat_id FROM telegram_connection WHERE user_id=$1 AND unlinked_at IS NULL`,
+      [userId],
+    );
+    return rows[0] ? String(rows[0].telegram_chat_id) : null;
+  }
+
+  /** What is queued, delivered and stuck — for the console. */
+  async backlog(): Promise<Record<string, unknown>> {
+    const { rows } = await this.db.query(
+      `SELECT channel, status, count(*)::int AS count,
+              min(created_at) AS oldest
+         FROM notification
+        GROUP BY channel, status
+        ORDER BY channel, status`,
+    );
+    return { byChannelAndStatus: rows };
+  }
+}
+
+/** After this many attempts a row is given up on. */
+export const MAX_DELIVERY_ATTEMPTS = 6;
+
+export interface ClaimedNotification {
+  readonly id: string;
+  readonly user_id: string;
+  readonly category: NotificationCategory;
+  readonly channel: Channel;
+  readonly payload: Record<string, unknown>;
+  readonly attempts: number;
+}
+
+/**
+ * The retry ladder, expressed in TypeScript for tests and for the console.
+ *
+ * The authoritative copy is the SQL in `markFailed`, because the delay must be
+ * computed from the attempt count in the same statement that writes it. This
+ * mirrors it: minutes = 2^attempts, capped, times a jitter factor in [0.5, 1.5).
+ */
+export function backoffMinutes(attempts: number): { min: number; max: number } {
+  const base = 2 ** Math.min(attempts, 6);
+  return { min: base * 0.5, max: base * 1.5 };
 }

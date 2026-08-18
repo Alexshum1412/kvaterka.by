@@ -130,6 +130,39 @@ export const retentionStaffRoutes: AnyRoute[] = [
   }),
 
   defineRoute({
+    method: 'POST',
+    path: '/admin/notifications/run',
+    summary: 'Drain the notification outbox once',
+    tags: ['admin'],
+    auth: 'required',
+    permission: 'notifications.run',
+    idempotent: true,
+    async handler({ ctx, caller }) {
+      /* Separate from the other two job routes because this one reaches
+         OUTSIDE the platform — it hands an address and a subject line to a
+         third party — while the lifecycle sweep and the retention purge never
+         leave the database. Same mechanism underneath: one job_run row, whose
+         partial unique index refuses a second concurrent runner. */
+      return ctx.services.delivery.run({ now: ctx.now, triggeredBy: caller?.userId ?? null });
+    },
+  }),
+
+  defineRoute({
+    method: 'GET',
+    path: '/admin/notifications/backlog',
+    summary: 'What is queued, delivered and stuck, by channel',
+    tags: ['admin'],
+    auth: 'required',
+    permission: 'retention.hold',
+    async handler({ ctx }) {
+      return {
+        ...(await ctx.services.notifications.backlog()),
+        channels: ctx.services.delivery.describeChannels(),
+      };
+    },
+  }),
+
+  defineRoute({
     method: 'GET',
     path: '/admin/retention/runs',
     summary: 'Did the job run, and what did it do',

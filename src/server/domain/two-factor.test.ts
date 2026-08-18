@@ -206,6 +206,16 @@ describe('who needs a second factor', () => {
     expect(requiresTwoFactor(['TENANT', 'LANDLORD'])).toBe(false);
     expect(requiresTwoFactor([])).toBe(false);
   });
+
+  /* Derived by subtraction, so a staff role added in a later slice is covered
+     the moment it exists rather than when somebody remembers this file. */
+  it('is derived from ROLES, so a new staff role is covered automatically', () => {
+    expect([...TWO_FACTOR_ROLES].sort()).toEqual(
+      ROLES.filter((r) => r !== 'TENANT' && r !== 'LANDLORD').sort(),
+    );
+    expect(TWO_FACTOR_ROLES).not.toContain('TENANT');
+    expect(TWO_FACTOR_ROLES).not.toContain('LANDLORD');
+  });
 });
 
 /* The enforcement mechanism itself. A staff member on a password-only session

@@ -65,6 +65,13 @@ export const PERMISSIONS = [
    * and kept separate from it because this job reads document storage keys.
    */
   'retention.run',
+  /**
+   * Draining the notification outbox. A machine credential like the other two
+   * job permissions, and separate from them because a delivery run reaches
+   * outside the platform — it hands addresses and subject lines to a third
+   * party — while the other jobs never leave the database.
+   */
+  'notifications.run',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -118,6 +125,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'lifecycle.run',
     'retention.hold',
     'retention.run',
+    'notifications.run',
   ],
 };
 

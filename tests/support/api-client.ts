@@ -21,6 +21,15 @@ export interface RequestOptions {
   readonly headers?: Record<string, string>;
   readonly ip?: string;
   readonly idempotencyKey?: string;
+  /**
+   * Move the server's clock.
+   *
+   * `dispatch` has always accepted `deps.now`; this client simply never passed
+   * it, so every suite has had to shift timestamps with SQL instead. TOTP and
+   * booking expiry both need the SERVER to believe in a different moment, not
+   * just the row, so the capability is finally wired through.
+   */
+  readonly now?: Date;
 }
 
 export class ApiTestClient {
@@ -65,6 +74,7 @@ export class ApiTestClient {
         db: this.db,
         services: this.services,
         onError: (entry) => this.errors.push(entry.error),
+        ...(opts.now ? { now: () => opts.now! } : {}),
       },
     );
 

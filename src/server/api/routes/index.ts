@@ -8,6 +8,7 @@ import { chatRoutes, dashboardRoutes, notificationRoutes, profileRoutes, reviewR
 import { adminRoutes, financeRoutes } from './admin.ts';
 import { staffRoutes } from './staff.ts';
 import { accountSelfRoutes, retentionStaffRoutes } from './retention.ts';
+import { twoFactorRoutes } from './two-factor.ts';
 import { verificationSelfRoutes, verificationStaffRoutes } from './verification.ts';
 import { defineRoute } from '../http.ts';
 
@@ -42,6 +43,7 @@ export const allRoutes: AnyRoute[] = [
   ...financeRoutes,
   ...staffRoutes,
   ...accountSelfRoutes,
+  ...twoFactorRoutes,
   ...retentionStaffRoutes,
   ...verificationSelfRoutes,
   ...verificationStaffRoutes,

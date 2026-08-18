@@ -17,6 +17,7 @@ import { FinanceService } from './finance-service.ts';
 import { ListingService } from './listing-service.ts';
 import { MessagingService } from './messaging-service.ts';
 import { NotificationService } from './notification-service.ts';
+import { DeliveryService } from './delivery-service.ts';
 import { RetentionService } from './retention-service.ts';
 import { ReviewService } from './review-service.ts';
 import { SearchService } from './search-service.ts';
@@ -39,9 +40,17 @@ export interface Services {
   readonly finance: FinanceService;
   readonly verification: VerificationService;
   readonly retention: RetentionService;
+  readonly delivery: DeliveryService;
 }
 
 export function createServices(db: Db): Services {
+  // Two services are named before the literal because the delivery worker
+  // composes them: it drains the outbox NotificationService owns, under the
+  // job mutex RetentionService owns. Building a third copy of either would be
+  // two sources of truth for one queue.
+  const notifications = new NotificationService(db);
+  const retention = new RetentionService(db);
+
   return {
     auth: new AuthService(db),
     listings: new ListingService(db),
@@ -53,10 +62,11 @@ export function createServices(db: Db): Services {
     favorites: new FavoriteService(db),
     reviews: new ReviewService(db),
     messaging: new MessagingService(db),
-    notifications: new NotificationService(db),
+    notifications,
     trust: new TrustService(db),
     finance: new FinanceService(db),
     verification: new VerificationService(db),
-    retention: new RetentionService(db),
+    retention,
+    delivery: new DeliveryService(db, notifications, retention),
   };
 }

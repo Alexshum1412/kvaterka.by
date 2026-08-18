@@ -607,7 +607,19 @@ export class AuthService {
     code: string,
     now: Date = new Date(),
   ): Promise<{ ok: true }> {
-    return this.db.transaction(async (tx) => {
+    /* THE FAILURE COUNTER IS WRITTEN OUTSIDE THE TRANSACTION, AND THAT IS THE
+       WHOLE POINT OF THIS SHAPE.
+
+       The obvious implementation — increment `failed_attempts` and then throw,
+       both inside one transaction — does not work: the throw rolls the
+       transaction back, taking the increment with it. The counter stays at
+       zero, the lockout never engages, and an attacker may guess for ever
+       while every individual response looks correctly rejected. A test caught
+       this; nothing about the code reads as wrong.
+
+       So the transaction decides, commits only what should survive a success,
+       and the rejection is recorded afterwards by a statement of its own. */
+    const outcome = await this.db.transaction(async (tx) => {
       const { rows } = await tx.query<{
         secret_base32: string;
         confirmed_at: Date | null;
@@ -620,12 +632,11 @@ export class AuthService {
         [userId],
       );
       const totp = rows[0];
-      if (!totp?.confirmed_at) throw new DomainError('VALIDATION_FAILED', GENERIC_CHALLENGE_ERROR);
+      if (!totp?.confirmed_at) return { kind: 'REJECT' as const, record: false };
 
       if (isLockedOut(totp.failed_attempts) && totp.last_failure_at) {
-        const until = lockedUntil(totp.failed_attempts, totp.last_failure_at);
-        if (now < until) {
-          throw new DomainError('RATE_LIMITED', 'Слишком много попыток. Попробуйте позже.');
+        if (now < lockedUntil(totp.failed_attempts, totp.last_failure_at)) {
+          return { kind: 'LOCKED' as const };
         }
       }
 
@@ -634,8 +645,8 @@ export class AuthService {
 
       let matchedRecoveryId: string | null = null;
       if (!totpResult.valid) {
-        // Only consult recovery codes when the authenticator did not match, so
-        // a valid TOTP code never burns one.
+        // Only consulted when the authenticator did not match, so a valid TOTP
+        // code never burns a recovery code.
         const recovery = await tx.query<{ id: string }>(
           `SELECT id FROM two_factor_recovery_code
             WHERE user_id=$1 AND code_hash=$2 AND used_at IS NULL`,
@@ -645,20 +656,7 @@ export class AuthService {
       }
 
       if (!totpResult.valid && !matchedRecoveryId) {
-        await tx.query(
-          `UPDATE user_totp SET failed_attempts = failed_attempts + 1, last_failure_at = now()
-            WHERE user_id=$1`,
-          [userId],
-        );
-        await writeAudit(tx, {
-          actorUserId: userId,
-          action: 'auth.2fa.failed',
-          targetType: 'user',
-          targetId: userId,
-          // The reason is recorded; the submitted code never is.
-          reason: 'invalid code',
-        });
-        throw new DomainError('VALIDATION_FAILED', GENERIC_CHALLENGE_ERROR);
+        return { kind: 'REJECT' as const, record: true };
       }
 
       if (matchedRecoveryId) {
@@ -668,7 +666,7 @@ export class AuthService {
           `UPDATE two_factor_recovery_code SET used_at=now() WHERE id=$1 AND used_at IS NULL`,
           [matchedRecoveryId],
         );
-        if (spent.rowCount === 0) throw new DomainError('VALIDATION_FAILED', GENERIC_CHALLENGE_ERROR);
+        if (spent.rowCount === 0) return { kind: 'REJECT' as const, record: true };
       }
 
       await tx.query(
@@ -688,9 +686,39 @@ export class AuthService {
         targetType: 'user',
         targetId: userId,
       });
-
-      return { ok: true as const };
+      return { kind: 'PASS' as const };
     });
+
+    if (outcome.kind === 'PASS') return { ok: true as const };
+
+    if (outcome.kind === 'LOCKED') {
+      throw new DomainError('RATE_LIMITED', 'Слишком много попыток. Попробуйте позже.');
+    }
+
+    if (outcome.record) {
+      // Its own transaction, so it commits even though the caller is about to
+      // receive an error. The audit row travels with it.
+      await this.db.transaction(async (tx) => {
+        await tx.query(
+          `UPDATE user_totp SET failed_attempts = failed_attempts + 1, last_failure_at = now()
+            WHERE user_id=$1`,
+          [userId],
+        );
+        await writeAudit(tx, {
+          actorUserId: userId,
+          action: 'auth.2fa.failed',
+          targetType: 'user',
+          targetId: userId,
+          // The reason is recorded; the submitted code never is.
+          reason: 'invalid code',
+        });
+      });
+    }
+
+    /* Every failure says the same thing. Distinguishing "not enrolled" from
+       "wrong code" from "already used" would tell somebody holding a stolen
+       code exactly which half of their attack was working. */
+    throw new DomainError('VALIDATION_FAILED', GENERIC_CHALLENGE_ERROR);
   }
 
   /** How many recovery codes remain, for the reminder on the security page. */
