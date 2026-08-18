@@ -234,6 +234,41 @@ export async function seedDemoData(db: Db): Promise<{ listings: number }> {
   // separate grant even for the demo administrator (rbac.ts).
   await db.query(`INSERT INTO user_role (user_id, role) VALUES ($1,'ADMIN')`, [adminId]);
 
+  /* A verifier, because otherwise the one role whose entire job is a staff
+     screen has no account that can open it. VERIFIER holds `document.read`,
+     which ADMIN deliberately does not, so signing in as each of them is how the
+     split becomes visible while developing: the administrator can work the
+     verification queue and refuse a request, and simply has no approve button.
+
+     Safe for the same reason as the other staff fixtures: `seedDemoData` runs
+     only from the `DATABASE_URL=pglite` branch, and pglite throws outright when
+     NODE_ENV is production.
+
+     Note that this account still cannot open a document today — the
+     `verification.identity_documents` flag is off pending LEGAL-004, and the
+     route refuses regardless of role. That is the point. */
+  const verifierId = uuidv7();
+  await db.query(
+    `INSERT INTO app_user (id, email, display_name, password_hash, email_verified_at, verification_level)
+     VALUES ($1,'verifier@demo.kvaterka.by','Кацярына Праверка',$2, now(), 2)`,
+    [verifierId, password],
+  );
+  await db.query(`INSERT INTO user_role (user_id, role) VALUES ($1,'VERIFIER')`, [verifierId]);
+
+  /* One pending request, so the queue is not empty on a fresh database and the
+     console can be looked at without first pretending to be a landlord. */
+  const pendingVerificationId = uuidv7();
+  await db.query(
+    `INSERT INTO verification_request (id, user_id, kind, target_level, status, declared, submitted_at)
+     VALUES ($1,$2,'IDENTITY',1,'SUBMITTED','{}'::jsonb, now() - interval '20 hours')`,
+    [pendingVerificationId, landlords[0]],
+  );
+  await db.query(
+    `INSERT INTO verification_event (request_id, actor_user_id, actor_role, event_type, visibility)
+     VALUES ($1,$2,'APPLICANT','SUBMITTED','APPLICANT')`,
+    [pendingVerificationId, landlords[0]],
+  );
+
   for (const [index, listing] of LISTINGS.entries()) {
     const id = uuidv7();
     const owner = landlords[index % landlords.length]!;

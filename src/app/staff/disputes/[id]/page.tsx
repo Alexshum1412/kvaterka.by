@@ -394,7 +394,7 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
           .dd__layout { grid-template-columns: minmax(0, 1fr) 21rem; align-items: start; }
           .dd__aside { position: sticky; top: calc(var(--header-height) + 0.75rem); }
         }
-        .dd__main { display: grid; min-width: 0; align-content: start; }
+        .dd__main { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; align-content: start; }
         .dd__aside { display: grid; gap: var(--space-3); min-width: 0; }
 
         .dd__section { padding-block: var(--space-5); }
@@ -442,7 +442,7 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
           font-size: var(--text-xs); color: var(--text-secondary); line-height: 1.5;
         }
         .dd__locked > svg { color: var(--text-tertiary); flex: 0 0 auto; margin-top: 0.1rem; }
-        .dd__lockedNeed { font-family: ui-monospace, monospace; }
+        .dd__lockedNeed { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
 
         .dd__party { display: grid; gap: 0.3rem; padding-block: var(--space-3); }
         .dd__party + .dd__party { border-top: 1px solid var(--border); }

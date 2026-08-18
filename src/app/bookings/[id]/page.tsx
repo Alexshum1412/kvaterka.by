@@ -515,7 +515,7 @@ export default async function BookingDetailPage({
           .bk__layout { grid-template-columns: minmax(0, 1fr) 19rem; align-items: start; }
           .bk__aside { position: sticky; top: calc(var(--header-height) + 0.75rem); }
         }
-        .bk__main { display: grid; min-width: 0; align-content: start; }
+        .bk__main { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; align-content: start; }
         .bk__aside { display: grid; gap: var(--space-3); min-width: 0; align-content: start; }
 
         .bk__section { padding-block: var(--space-5); }

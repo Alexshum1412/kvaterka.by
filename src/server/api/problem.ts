@@ -13,6 +13,7 @@ import { hasErrorCode, isPgError, PG_ERROR } from '../db/sql.ts';
 import { WeakPasswordError } from '../auth/credentials.ts';
 import { IllegalTransitionError } from '../domain/booking/states.ts';
 import { IllegalDisputeTransitionError } from '../domain/dispute.ts';
+import { IllegalVerificationTransitionError } from '../domain/verification.ts';
 import { PricingError } from '../domain/pricing.ts';
 import { MoneyError } from '../domain/money.ts';
 import type { ApiResponse } from './http.ts';
@@ -92,6 +93,33 @@ export function toProblem(
     return error.reason === 'REASON_REQUIRED'
       ? problem('VALIDATION_FAILED', 422, 'Для этого действия нужно указать причину', correlationId)
       : problem('ILLEGAL_TRANSITION', 409, 'Это действие сейчас недоступно', correlationId);
+  }
+  /* Verification refusals carry four distinct meanings and deserve four
+     distinct answers. Without this they all fell through to a generic 500,
+     which reported a correct refusal as a server fault and put a line in the
+     error log every time an administrator clicked a button they were never
+     going to be allowed to use. */
+  if (error instanceof IllegalVerificationTransitionError) {
+    switch (error.reason) {
+      case 'REASON_REQUIRED':
+        return problem('VALIDATION_FAILED', 422, 'Укажите причину решения', correlationId);
+      case 'DOCUMENT_ACCESS_REQUIRED':
+        return problem(
+          'FORBIDDEN',
+          403,
+          'Подтвердить может только тот, кто может открыть документы',
+          correlationId,
+        );
+      case 'INSUFFICIENT_EVIDENCE':
+        return problem(
+          'CONFLICT',
+          409,
+          'Недостаточно материалов для подтверждения уровня',
+          correlationId,
+        );
+      default:
+        return problem('ILLEGAL_TRANSITION', 409, 'Это действие сейчас недоступно', correlationId);
+    }
   }
   if (error instanceof PricingError) {
     return problem('VALIDATION_FAILED', 422, 'Некорректные даты или цена', correlationId);
