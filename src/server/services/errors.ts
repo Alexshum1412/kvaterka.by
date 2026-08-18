@@ -19,7 +19,21 @@ export type ErrorCode =
   | 'ALREADY_EXISTS'
   | 'RATE_LIMITED'
   | 'ACCOUNT_RESTRICTED'
-  | 'CONFLICT';
+  | 'CONFLICT'
+  /**
+   * Switched off by policy rather than by permission — a feature flag that is
+   * deliberately closed. Distinct from FORBIDDEN, which is about who is asking:
+   * this one would refuse everybody, including an administrator, and the caller
+   * has done nothing wrong.
+   */
+  | 'FEATURE_DISABLED'
+  /**
+   * The code path exists and the infrastructure behind it does not. Kept
+   * separate from a 500 so a missing bucket is never reported as a bug, and
+   * separate from FEATURE_DISABLED so "not allowed yet" and "not built yet"
+   * cannot be confused when reading a log.
+   */
+  | 'NOT_IMPLEMENTED';
 
 const STATUS: Record<ErrorCode, number> = {
   NOT_FOUND: 404,
@@ -35,6 +49,8 @@ const STATUS: Record<ErrorCode, number> = {
   RATE_LIMITED: 429,
   ACCOUNT_RESTRICTED: 403,
   CONFLICT: 409,
+  FEATURE_DISABLED: 409,
+  NOT_IMPLEMENTED: 501,
 };
 
 export class DomainError extends Error {
