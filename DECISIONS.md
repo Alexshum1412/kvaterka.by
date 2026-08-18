@@ -953,3 +953,102 @@ A test asserts that the forbidden phrasings appear nowhere in any of the level l
 **Trade-offs.** Weaker-sounding than a competitor willing to say more. That is the correct trade for the one number a tenant uses to decide whether to trust a stranger.
 
 **Revisit when.** A licensed provider or a state identity mechanism is integrated, at which point a stronger claim may be *true* — and would need its own legal sign-off before being written down.
+
+---
+
+## DEC-050 — Retention state is derived; nothing stores permission to destroy
+
+**Question.** A retention subsystem needs to know whether a row may be purged. Where does that answer live?
+
+**Options.** (a) A `lifecycle_state` column per table, maintained by the job. (b) The sketch in the brief — `ACTIVE → SOFT_DELETED → RETENTION → ELIGIBLE_FOR_PURGE → PURGED` — stored. (c) Derived on read from the timestamps that already exist, plus holds.
+
+**Chosen.** (c). The vocabulary from (b) is kept; its storage is rejected.
+
+**Why.** Two of the four inputs change with nobody writing anything. A `purge_after` date passes because time passes. A legal hold lands on an entirely different table. A stored `ELIGIBLE_FOR_PURGE` would go stale on both, and staleness here is not a cosmetic problem: **the column would be a cached permission to destroy data**, written before the hold arrived and still saying yes afterwards. A job reading it would destroy held data and be correct according to its own state machine.
+
+DEC-041 made this call for dispute priority, where a stale value costs a badly sorted queue. Here it costs a destroyed passport scan somebody had ordered kept, so the same answer applies with more force.
+
+There is a redundancy argument too. The schema already stores `deleted_at`, `purge_after`, `purged_at` and now `purge_started_at`. A state enum is a fifth copy of what four timestamps already say, and it can disagree with them. Timestamps compose; an enum does not.
+
+The cost is real and named: the rule is written twice, in TypeScript and in SQL, because the console orders and paginates in the database. DEC-041 accepted that cost only on the condition of a parity test, and the verification slice then shipped a SQL twin with no such test. Not repeated: `retention.integration.test.ts` runs all thirty-six combinations of `deleted_at` × `purge_after` × `purged_at` × hold through both and asserts they agree.
+
+**One ordering decision inside the rule.** A row that is both soft-deleted and on a retention clock reports the clock, not the deletion. That leaves `SOFT_DELETED` meaning something precise and worth seeing — marked for deletion and governed by no window at all, which is a row stuck in limbo rather than one in progress. A unit test caught this the other way round and was right.
+
+**Trade-offs.** Two implementations of one rule, held together by one test. If that test is ever deleted, this decision becomes the wrong one.
+
+---
+
+## DEC-051 — Purging destroys bytes and keeps the row
+
+**Question.** `verification_document.purge_after` has existed since 0005 and nothing ever enforced it. What does enforcing it actually do — delete the row?
+
+**Options.** (a) `DELETE FROM verification_document`. (b) Destroy the object in storage and keep the row as a tombstone. (c) Apply the DEC-031 cascade-aware trigger pattern to `document_access_log` so the row can be deleted with its log.
+
+**Chosen.** (b).
+
+**Why.** (a) does not work, and the reason it does not work is instructive. `document_access_log` carries a `forbid_mutation()` trigger and an `ON DELETE CASCADE` from the document. A row trigger fires during a cascade exactly as it does on a direct delete, so deleting a document that anybody had ever opened raised `restrict_violation` and aborted. The purge was structurally impossible on precisely the documents that mattered most. This was proven against a real database before anything was written; the same shape exists on four other append-only children, and `0010_review_cascade.sql` records the identical problem being discovered and fixed for a fifth.
+
+(c) is the tempting generalisation and it is wrong here. DEC-031's discriminator suits `listing_moderation_review` because a moderation note about a property that no longer exists serves nobody. Neither premise transfers. Under erasure the parent going away is the *normal* case, and the log is the one table whose entire purpose is being tamper-evident about who opened somebody's passport. Applying DEC-031 would mean **the record of who read your passport is destroyed by the same request that destroys the passport**. That converts a deliberate accountability guarantee into an erasable one.
+
+So the row survives and the bytes do not. `storage_key` stays populated: it is the only evidence of which object was destroyed, the read route already refuses on `purged_at`, and the public media route refuses every `private/` key unconditionally. The schema had already chosen this without saying so — a row carrying `purged_at` cannot be a row that was removed.
+
+**The ordering is forced.** Destroying an object and committing a row cannot be one transaction, and the two failures are not symmetric:
+
+| Failure | Result | Recoverable |
+|---|---|---|
+| Row gone, bytes remain | nothing remembers the key; nothing retries | **No. Unrecoverable leak.** |
+| Row remains, bytes gone | the read route already refuses | Yes, cosmetic |
+
+So: claim (`purge_started_at`), destroy, confirm (`purged_at`). **`purged_at` is not a request to purge — it is an assertion that the bytes are gone**, and writing it first produces a row swearing a passport was destroyed while it sits in the bucket, which nothing will ever retry because the scan filters on `purged_at IS NULL`.
+
+**Explicitly not decided.** `booking_event`, `case_event` and `message_moderation_event` keep their cascades untouched. Nothing hard-deletes their parents under this design, so the dormant landmines stay dormant and defused by construction. Three new conditional triggers to defend a path being closed anyway would be cost without benefit. This is recorded so the next person does not re-derive it.
+
+**Revisit when.** A second table needs byte-level purge, at which point the claim/destroy/confirm shape should be extracted rather than copied.
+
+---
+
+## DEC-052 — A hold prevents; only an administrator may stop preventing
+
+**Question.** Retention needs something that stops destruction for a dispute, an investigation, an official request. Who may set it, who may clear it, and does it expire?
+
+**Options.** (a) Derive holds from facts already in the database — an open dispute, an unresolved fee. (b) An explicit `legal_hold` row. (c) Both.
+
+**Chosen.** (b), with the asymmetry below.
+
+**Why not (a) alone.** Not everything worth freezing has a row that says so. "Somebody phoned about this account and we are looking into it" is real, common, and has no schema representation — and inventing one for each case is how a hold mechanism becomes six half-mechanisms.
+
+**The asymmetry is the design.** Placing a hold is granted to SUPPORT and MODERATOR as well as ADMIN, because placing only ever *prevents* destruction: no legal answer can make keeping data more wrong than destroying it by mistake, so the people who first hear "there is a problem with this account" must be able to stop the clock without escalating. Releasing is ADMIN's alone and always carries a written reason, because release is the direction that re-enables destruction. The console reflects it rather than hiding it: a support agent sees no release control at all, not a disabled one.
+
+**VERIFIER holds neither permission.** The role that can open a passport must not also decide whether it is kept. That separation is worth more than the convenience of one role doing both.
+
+**Reason codes describe us, not the law.** `LEGAL_QUESTION_UNRESOLVED` is how an open question is named without pretending to know its answer, with the number itself in free text. A test asserts no reason label claims a legal requirement.
+
+**No expiry, but a review date.** A hold that released itself would not be a hold. But an indefinite hold nobody revisits is how "we hold what we must" quietly becomes "we keep everything for ever". So a hold has a review cadence, passing it changes nothing about the hold, and the console shows it as overdue until a person deals with it. Ninety days is a cadence for staff attention, never a retention period for anybody's data — which is why it may be a number here when no retention window may be.
+
+**The race, and why the guard is the answer.** A hold and a purge write different tables, so a row lock on the document says nothing about a hold row that does not exist yet, and a `NOT EXISTS` subquery under READ COMMITTED sees a snapshot from statement start. Both paths therefore lock the same target row first, and the purge locks every row a covering hold could name, parent first — which is also a fixed order, so two purges cannot deadlock. The candidate query is advisory; the transaction re-reads every condition. PGlite is a single connection and cannot run the race, so the test asserts the guard and the genuine concurrency test is skipped rather than faked unless `TEST_DATABASE_URL` points at a real server.
+
+**Trade-offs.** Holds accumulate if nobody releases them, and the equilibrium of "easy to place, harder to lift" is everything held for ever. The overdue-review surface is the only thing pushing back, and it is deliberately not automatic.
+
+---
+
+## DEC-053 — Closing an account is not erasing it, and the product says so
+
+**Question.** `app_user.deleted_at` and `status='DELETED'` have existed since the first migration and nothing ever wrote either. What should "delete my account" do while LEGAL-003 is unanswered?
+
+**Options.** (a) Nothing — wait for the legal answer. (b) Build erasure now and gate it behind a flag. (c) Build closure now, name erasure as unbuilt, refuse to conflate them.
+
+**Chosen.** (c).
+
+**Why.** Closure removes *access*: sessions end everywhere, one-time tokens are destroyed, the profile leaves the site, listings come down. None of that needs a legal answer, and all of it is a superset of the suspension the product already performs. Erasure destroys *data*, and what may be destroyed — and what must be kept, and for how long — is exactly LEGAL-003.
+
+(b) is the dangerous one. **A half-finished erasure is worse than none, because it looks finished to the person who asked for it.** Removing a display name while the chat history, the check-in photographs and the original unfiltered message texts remain is not partial compliance; it is a false assurance given to somebody who trusted it.
+
+So the screen never says «удалить» for what it does. It says «закрыть», lists what survives *before* the button rather than after it, and prints every unbuilt step beside the legal question it waits on. The domain declares those steps as data with a `built` flag, and a test asserts that nothing which destroys personal data is marked built — so the day somebody implements one, the claim and the code move together.
+
+**Debt does not block closure.** It is the obvious candidate and the wrong call: refusing to let somebody close their account until they have paid uses a data-protection mechanism as leverage over money. It is also unnecessary — every financial foreign key is RESTRICT precisely so closure cannot take a fee with it, so the ledger is exactly as correct afterwards. The person is told the debt survives; they are not held hostage to it.
+
+**What does block it:** an active booking, an open dispute, a hold. The first is not a privacy judgement at all — closing mid-stay strands a counterparty in a booking with somebody who no longer exists.
+
+**Confirmation is a typed word, not a checkbox.** `true` is what a mis-sent request contains by accident; ЗАКРЫТЬ is not. And the typing is the moment a person actually reads what they are agreeing to.
+
+**Revisit when.** LEGAL-003 is answered. `ERASURE_STEPS` is the work list, and each entry already names its blocker.

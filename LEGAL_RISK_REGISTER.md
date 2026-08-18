@@ -79,9 +79,13 @@ What this register *is* good for: it names the questions precisely, records the 
 | `evidenceSufficiency()` in `domain/verification.ts` | Refuses EVERY approval while the flag is off, so no trust badge can be granted with nothing behind it. |
 | `GET /admin/verification/documents/:id` | Pre-existing. `document.read` (VERIFIER alone), a stated purpose, and an append-only `document_access_log` row written before the key is returned. |
 | `verification_document_is_private` CHECK (0012) | A document row cannot exist outside the `private/` namespace, which the public media route refuses to serve. |
-| `verification_document.purge_after` | Written as now + 1 year at attach time. **No purge job exists** — the column is a stored intention, not an enforced policy. |
+| `verification_document.purge_after` | **Left NULL.** It used to be written as now + 1 year — the only retention period committed to code anywhere in this repository, chosen by nobody with authority to choose it. NULL means «срок не установлен», and the retention domain treats that as never eligible for purge. |
+| `POST /admin/retention/run` | The purge job exists and runs. It refuses every document twice over: once because `purge_after` is NULL, once because no object store is configured. It destroys expired sessions and tokens, and no personal data. |
+| `legal_hold` | A hold on a user, request or document blocks the purge, re-checked inside the purge transaction rather than only in the candidate query. |
 
-**Two things a favourable answer still would not give us.** There is no private object storage configured anywhere (`VERIFICATION_DOCUMENT_BUCKET_URL` is unset and nothing implements it), and there is no retention/purge job. Turning the flag on without both would mean collecting passports with nowhere lawful to put them and no deletion path — so the flag alone must not be treated as the green light.
+**What a favourable answer still would not give us.** The retention slice built the purge path, so one of the two gaps named here is closed. What remains: there is no private object storage configured anywhere (the variable is `DOCUMENTS_BUCKET_URL` — an earlier gate read a name nobody sets, which failed closed but for the wrong reason and is now fixed), and no client implements one. Turning the flag on without storage would mean collecting passports with nowhere lawful to put them, so the flag alone is still not the green light.
+
+**Answering this question is now a configuration change, not a coding task**, which was the design intent. It means: choose a window, set `purge_after` on attachment and backfill existing rows. The job, the holds, the audit trail and the console already exist and are tested.
 
 **Lawyer:** yes. Highest sensitivity item in the product, and now the one with a built pipeline waiting behind it.
 
@@ -235,11 +239,27 @@ What this register *is* good for: it names the questions precisely, records the 
 
 **Product decision riding on it.** The console exists and is used internally. Nothing in it is described to users as arbitration: the wording is «рассмотрение обращения», «решение по обращению» and «внутренняя проверка» throughout, and the screen says in plain words that there is no automated resolution. The platform states an outcome for its own fee, not a determination of the parties' rights against each other.
 
-**If unfavourable.** Retention limits would mean purging or anonymising closed cases on a schedule. The append-only design makes that a deliberate, auditable operation rather than a silent one — but there is currently no purge path at all, which is the gap to close if the answer requires one. A finding that the process itself creates obligations would be a wording and workflow question, not a schema one.
+**If unfavourable.** Retention limits would mean purging or anonymising closed cases on a schedule. The append-only design makes that a deliberate, auditable operation rather than a silent one. A finding that the process itself creates obligations would be a wording and workflow question, not a schema one.
+
+**What the retention slice changed here.** A `legal_hold` can now be placed on a case, so a case under investigation is protected from any future purge by an explicit, audited record rather than by nothing existing yet. **No dispute purge or anonymisation was built**, deliberately: this entry is unanswered, and building a destruction path for allegations one user made about another before knowing what may be kept would be exactly backwards. `dispute_case` and `case_event` are in the retention catalogue as KEEP_AS_AUDIT with the window marked UNKNOWN and pointing here.
 
 **Confidence.** Low. Not researched.
 
 **Lawyer:** yes — together with LEGAL-016, since the fee decision and the complaint process are the same act seen from two sides.
+
+---
+
+### LEGAL-018 — Retention for data no other entry covers
+
+**Question.** Building the retention catalogue forced a per-table answer for all forty tables, and four turned out to be covered by no existing entry. First: **check-in and check-out photographs** (`stay_photo`) — images of somebody's home, sometimes with possessions and occasionally people in them, kept as dispute evidence with no stated limit. Second: **listing data after delisting** (`property`, `property_photo`) — an address, coordinates and photographs of a home that is no longer offered. Third: **reviews** — LEGAL-009 asks whether they may be published and whether there is a correction duty, but not how long they are kept, nor what happens to one written by somebody who has closed their account. Fourth, and the broadest: **does a deletion right reach append-only records at all** — `ledger_entry`, `audit_log`, `booking_event`, `listing_snapshot`? PRIVACY.md has proposed since the first commit that the answer is anonymisation of the linked person rather than destruction of the record, and that proposal has never had a register entry or a lawyer.
+
+**Product decision riding on it.** The catalogue in `domain/retention.ts` declares each of these with an UNKNOWN window naming this entry, and the purge job acts on none of them. `listing_snapshot` is the sharpest: it is a frozen JSON blob holding a description, exact coordinates and an apartment number, with no separable columns — so if erasure ever reaches it, there is nothing to anonymise and the only options are destroying dispute evidence or a bespoke migration.
+
+**If unfavourable.** Windows would need to be set for the first three, which is configuration. The fourth could require redesigning how evidence snapshots are stored, which is not.
+
+**Confidence.** None. Not researched. Raised because writing the catalogue made the gaps visible, not because anything is known about them.
+
+**Lawyer:** yes — naturally alongside LEGAL-003 and LEGAL-011.
 
 ---
 
@@ -252,5 +272,8 @@ What this register *is* good for: it names the questions precisely, records the 
 | LEGAL-012 | Any rewards feature — currently gated and safe |
 | LEGAL-016 | Charging the service fee at all |
 | LEGAL-002, 005 | Invoicing and accounting setup |
+| LEGAL-003 | Erasure of personal data — closure ships, erasure does not |
+| LEGAL-017 | Any purge or anonymisation of dispute records |
+| LEGAL-018 | Retention for stay photos, delisted listings, reviews, and whether erasure reaches append-only records |
 
 **Nothing in this product may be described as legally compliant on the basis of this document.**

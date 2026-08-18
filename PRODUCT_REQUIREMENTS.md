@@ -270,6 +270,44 @@ paid directly between them. No new legal claim is made here, and no legally gate
 feature was enabled. Dispute handling is described throughout as «рассмотрение
 обращения» and «решение по обращению» — an internal review, not arbitration.
 
+
+## Data lifecycle and retention
+
+| ID | Requirement | Status |
+|---|---|---|
+| DATA-001 | Every table has a declared data class, subject, disposition on account closure and retention window | TESTED — `RETENTION_CATALOGUE`, compared against `information_schema` so a new table cannot be added without one |
+| DATA-002 | No retention period is defined anywhere without a cited basis | TESTED — every window is technical, per-row, indefinite-with-reason, or UNKNOWN naming its LEGAL-xxx; a test forbids a fourth kind |
+| DATA-003 | An absent retention window never permits destruction | TESTED — `purge_after IS NULL` yields RETAINED and blocks with `NO_RETENTION_POLICY` |
+| DATA-004 | Retention state is derived, and the TypeScript and SQL rules agree | TESTED — all 36 combinations through both |
+| DATA-005 | A legal hold blocks destruction, including one placed after the candidate list was built | TESTED — re-checked inside the purge transaction under a row lock |
+| DATA-006 | Placing a hold is broader than lifting one; lifting requires ADMIN and a written reason | TESTED — SUPPORT places and is refused 403 on release; the database refuses a release with no reason |
+| DATA-007 | VERIFIER can neither hold nor run retention | TESTED — 404 on the page, 403 on all four routes |
+| DATA-008 | Purging destroys bytes before recording it, and never records an unconfirmed destruction | TESTED — a failing store leaves `purged_at` NULL and the row is retried |
+| DATA-009 | The access log survives the document it describes | TESTED — and still refuses direct deletion afterwards |
+| DATA-010 | No retention response carries a storage key at any permission level | TESTED — across ADMIN, SUPPORT, MODERATOR |
+| DATA-011 | A scheduled job cannot run twice concurrently, and records what it did | TESTED — partial unique index; a stale run is reclaimed after a lease |
+| DATA-012 | One failing item never abandons the batch | TESTED — 3 documents, the middle one fails, the others are destroyed |
+| DATA-013 | Closing an account revokes all access and destroys nothing | TESTED — session dead, re-login refused, the row and display name intact |
+| DATA-014 | Closure is refused during an active booking, an open dispute or a hold — and never for debt | TESTED |
+| DATA-015 | The closure screen names every unbuilt erasure step with its legal blocker | TESTED — and no step that destroys personal data may be marked built |
+| DATA-016 | Financial and audit records survive every retention operation | TESTED — counts and content unchanged; append-only tables still refuse mutation |
+| DATA-017 | Erasure of personal data | **NOT BUILT** — LEGAL-003. Declared, surfaced, refused. |
+| DATA-018 | Purge or anonymisation of dispute records | **NOT BUILT** — LEGAL-017 |
+| DATA-019 | Data export | **NOT STARTED** — LEGAL-003 |
+| DATA-020 | Real destruction of document bytes | **NOT POSSIBLE** — no private object storage exists; the store refuses rather than pretending |
+
+**Deliberately not built, and not claimed.** No anonymisation routine of any
+kind. No redaction of `message.body_original`. No purge of disputes, reviews,
+listings or media. No automatic expiry of legal holds — a hold that released
+itself would not be a hold. Each of these is listed in the risk register as a
+consequence of an *unfavourable* answer, which makes it a contingency rather
+than a default, and building a destruction path before knowing what may be kept
+would be exactly backwards.
+
+**The one number in the subsystem** is a ninety-day review cadence for legal
+holds. It decides how often staff must look at a hold, never how long anybody's
+data is kept, which is why it can be a number when no retention window can be.
+
 ## Status reconciliation — the verification slice
 
 Verified by `tests/verification.integration.test.ts` (42 tests) and
@@ -290,7 +328,9 @@ of both sides. Only rows those suites exercise are restated:
 
 **Deliberately not built, and not claimed.** There is no document upload path that
 works — collection is gated on LEGAL-004 and on private object storage that does
-not exist, and both refuse independently. There is no purge job, so
-`purge_after` is a stored intention rather than an enforced policy. There is no
+not exist, and both refuse independently. The purge job now exists
+(the retention slice), and `purge_after` is deliberately left NULL, which the
+retention domain treats as never eligible — so the job cannot act on a window
+nobody chose. There is no
 selfie-matching, liveness check or third-party KYC integration. Approving is
 impossible today by design, and the console says so rather than looking broken.

@@ -58,7 +58,15 @@ Financial and audit records are append-only and cannot be deleted piecemeal. If 
 
 ## Deletion and export
 
-`app_user.status = 'DELETED'` plus `deleted_at` supports soft deletion; foreign keys are `RESTRICT` on financial and booking rows precisely so a deletion cannot silently orphan a debt. A full export/erasure workflow is **NOT STARTED** and its scope depends on LEGAL-003.
+`app_user.status = 'DELETED'` plus `deleted_at` supports soft deletion; foreign keys are `RESTRICT` on financial and booking rows precisely so a deletion cannot silently orphan a debt. Until the retention slice **nothing in the product ever wrote either column**.
+
+**Closing an account is now built. Erasing one is not, and the two are kept apart deliberately.**
+
+Closure (`POST /me/account/close`, and a staff equivalent) revokes every session, destroys unconsumed one-time tokens, sets `status='DELETED'` and `deleted_at`, and pauses the person's published listings. It removes *access* and destroys *no data at all*. It is refused while an active booking, an open dispute or a legal hold exists — the first because closing mid-stay would strand a counterparty. An outstanding debt does **not** block closure: refusing would use a data-protection mechanism as leverage over money, and the ledger is unaffected by closure either way.
+
+Erasure — anonymising the profile, redacting messages and `body_original`, purging media and identity documents — is **NOT BUILT**. Each step is declared in `domain/retention.ts` with the legal question that gates it (LEGAL-003, LEGAL-010, LEGAL-004), the account screen prints every one of them beside its blocker, and a test asserts that no step which destroys personal data is marked as built. A half-finished erasure is worse than none, because it looks finished to the person who asked for it.
+
+**Legal hold.** Any user, listing, booking, case, verification request, document or conversation can be frozen against destruction, with a reason code, free-text reason, and the person who placed it. Placing is available to support and moderation because it only ever prevents destruction; lifting requires an administrator and a written reason. Both write append-only audit rows. Holds do not expire — one that released itself would not be a hold — but they carry a review cadence and the console shows an unreviewed hold as overdue, because "we hold what we must" otherwise becomes "we keep everything for ever".
 
 ## What is public
 

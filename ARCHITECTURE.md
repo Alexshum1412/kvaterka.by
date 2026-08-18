@@ -138,16 +138,20 @@ Identity documents and property photos live in separate object-storage buckets w
 
 A worker process handles what must happen without a user present:
 
-| Job | Cadence | Effect |
-|---|---|---|
-| Expire stale requests | frequent | `REQUESTED`/`OFFER_PENDING` past `expires_at` → `EXPIRED` |
-| Open completion windows | daily | stay end reached → `COMPLETION_PENDING`, deadline set |
-| Resolve elapsed completions | daily | `resolveExpiredCompletion()` on the stored evidence |
-| Notification outbox | frequent | `notification.status = PENDING` → deliver, dedupe key prevents doubles |
-| Calendar staleness | daily | freshness signals, landlord reminders |
-| Document retention | daily | purge verification documents past `purge_after` |
+There is no worker process. Both jobs below are permission-gated POST routes called by a cron, because a Next.js server may run as several short-lived instances, so an in-process timer would either never fire or fire N times. A cron with a credential is honest about who is doing the work, and the permission is auditable.
 
-All of them are idempotent by design: re-running a job produces no additional side effects, because the guards are the same database constraints the interactive paths rely on.
+| Job | Route | Cadence | Effect | State |
+|---|---|---|---|---|
+| Open completion windows | `/admin/lifecycle/run` | daily | stay end reached → `COMPLETION_PENDING`, deadline set | **built** |
+| Resolve elapsed completions | `/admin/lifecycle/run` | daily | `resolveExpiredCompletion()` on the stored evidence | **built** |
+| Publish review windows | `/admin/lifecycle/run` | daily | one-sided reviews published once the window closes | **built** |
+| Expired credential sweep | `/admin/retention/run` | daily | expired sessions, consumed tokens, idempotency records, rate-limit counters | **built** |
+| Document retention | `/admin/retention/run` | daily | destroy documents past `purge_after` | **built, destroys nothing** — no window is ever set (LEGAL-004) and no object store exists. Both refuse independently. |
+| Expire stale requests | — | frequent | `REQUESTED`/`OFFER_PENDING` past `expires_at` → `EXPIRED` | **not built** |
+| Notification outbox | — | frequent | `notification.status = PENDING` → deliver | **not built**; nothing delivers a notification today |
+| Calendar staleness | — | daily | freshness signals, landlord reminders | **not built** |
+
+Every job is idempotent, and two guards make that true rather than hoped for. Per item, the guards are the same database constraints the interactive paths rely on. Per run, `job_run` carries a partial unique index on `(job_name) WHERE status='RUNNING'`, so a second concurrent runner is turned away by the database rather than doing the work twice — and a run abandoned by a dead process is reclaimed after a lease. The table is also the answer to "did last night's job fire?", which nothing could answer before.
 
 ## 8. Notifications
 

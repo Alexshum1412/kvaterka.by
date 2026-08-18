@@ -52,8 +52,9 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 
 - [x] Data minimisation applied (hashed IPs, diff-only audit, hashed session tokens)
 - [x] Exact location withheld until confirmation
-- [ ] Retention job implemented
-- [ ] Export/erasure workflow
+- [~] Retention job implemented — the job, the holds and the console exist and run. It destroys expired credentials and **no personal data**: no retention window has been chosen (LEGAL-004) and no private object storage exists. Both refuse independently, so this is not "done" and is not a stub either.
+- [~] Export/erasure workflow — **closure** ships (access ends, sessions revoked, listings paused, nothing destroyed). **Erasure** is not built and is gated on LEGAL-003; `ERASURE_STEPS` in `domain/retention.ts` is the work list and each entry names its blocker. Export is not started.
+- [ ] Legal hold reviewed on a cadence — the mechanism and the overdue surface exist; the operational habit does not
 - [ ] Consent management — depends on LEGAL-003
 
 ## Product

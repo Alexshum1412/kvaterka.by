@@ -145,11 +145,29 @@ The three verification tables existed and were well designed. What they had no r
 
 **No priority column**, for the same reasons as disputes (DEC-041): it is derived from the kind, whether the applicant has a listing already taking bookings, fraud signals and age, in both `verificationPriorityOf()` and `VERIFICATION_PRIORITY_SQL`.
 
+### Data lifecycle and holds — `0013_retention_and_holds.sql`
+
+**`legal_hold`** is polymorphic on `(target_type, target_id)`, following `audit_log`'s convention rather than seven nullable foreign keys. It has **no foreign key to any target on purpose**: a hold whose subject was removed would disappear exactly when it was doing its job. `placed_by` and `released_by` are `RESTRICT`, so somebody who has ever frozen another person's data cannot themselves be erased out of the record. A partial unique index gives one live hold per target; a CHECK makes release atomic — `released_at`, `released_by` and a non-empty `release_reason` arrive together or not at all. It is deliberately **not** append-only, because release is an UPDATE that `forbid_mutation()` would refuse; tamper-evidence comes from `audit_log`, written in the same transaction as both the placement and the release.
+
+**`job_run`** exists because `/admin/lifecycle/run` had shipped with no record that it ran and no guard against running twice. The partial unique index on `(job_name) WHERE status='RUNNING'` **is** the mutex — not an advisory lock, because those live on one connection and this application talks to Postgres through a pool, so a lock taken in one transaction is gone by the next item. A row is visible to every connection, excludes the second runner, survives a restart, and answers "did last night's job fire?". A run abandoned by a dead process is reclaimed after a lease. `detail` holds counters and step names only — never a storage key.
+
+**`verification_document.purge_started_at`** exists because destroying an object and committing a row cannot be one transaction, and only one ordering is recoverable. Claim (`purge_started_at`), destroy the bytes, confirm (`purged_at`). `purged_at` is an assertion that the bytes are gone, never a request to purge — see DEC-051. A row where the first is set and the second is not is a purge that did not finish; the next run retries it and the console shows it.
+
+**Foreign keys retargeted to RESTRICT.** `fraud_signal` cascaded from `app_user`, `property` and `booking`, and alone among the tables holding an accusation it had no append-only trigger — so deleting a fresh account destroyed the antifraud record of why it was suspicious, and nothing refused. `verification_request` cascaded from `app_user` and `property` too; that one only destroyed history when the request had no `verification_event` rows yet, because once it has any, the append-only trigger fires during the cascade and aborts. The protection existed and depended on whether an event happened to have been written. Both are now guarantees rather than accidents, and the refusal is a legible foreign-key error instead of a `restrict_violation` raised from inside a trigger three tables away.
+
+**`app_user.closure_requested_at`** is separate from `deleted_at` so that a closure request which is refused — an active booking, an open dispute — still leaves a trace that it was made.
+
+**No `lifecycle_state` column on any table.** Retention state is derived from the timestamps that already exist plus the holds (DEC-050). A stored eligibility flag would be a cached permission to destroy data, written before a hold arrived and still true afterwards.
+
 ## Append-only tables
 
-`audit_log`, `ledger_entry`, `booking_event`, `listing_snapshot`, `case_event`, `verification_event`, `document_access_log`, `message_moderation_event`.
+`audit_log`, `ledger_entry`, `booking_event`, `listing_snapshot`, `case_event`, `verification_event`, `document_access_log`, `message_moderation_event`, and `listing_moderation_review` via the cascade-aware variant (DEC-031).
 
 Each carries a `BEFORE UPDATE OR DELETE` trigger raising `restrict_violation`. This holds against the application, against an admin tool, and against a manual `UPDATE` at a psql prompt. `TRUNCATE` is not blocked by row triggers, which is what makes the test reset fast.
+
+**A cascade into one of these aborts the parent delete**, because a row trigger fires during a cascade exactly as it does on a direct delete. Five of them sit behind an `ON DELETE CASCADE`: `document_access_log`→`verification_document`, `verification_event`→`verification_request`, `case_event`→`dispute_case`, `booking_event`→`booking`, `message_moderation_event`→`message`. This was verified against a real database, and `0010_review_cascade.sql` records the same behaviour being discovered on a sixth.
+
+That is why **purging is an UPDATE and never a DELETE** (DEC-051): a delete-based purge would fail on exactly the records that matter most, and `verification_document` already carried `purged_at` — a row that records its own purge cannot be a row that was removed. The remaining cascades are left untouched because nothing hard-deletes those parents; the decision not to generalise DEC-031 to them is recorded rather than left to be re-derived.
 
 ## Migrations
 
