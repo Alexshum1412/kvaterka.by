@@ -33,6 +33,7 @@
  */
 
 import { uuidv7 } from '../../lib/id.ts';
+import { documentStore } from '../storage/object-store.ts';
 import { hasErrorCode, PG_ERROR, type Db, type Sql } from '../db/sql.ts';
 import {
   applyVerificationAction,
@@ -367,7 +368,12 @@ export class VerificationService {
           'Заявку можно отправить — мы сообщим, когда проверка станет доступна.',
       );
     }
-    if (!process.env.VERIFICATION_DOCUMENT_BUCKET_URL) {
+    // Asks the store itself rather than reading an environment variable by
+    // name. The name had drifted — this gate read VERIFICATION_DOCUMENT_BUCKET_URL
+    // while runtime.ts and .env.example both call it DOCUMENTS_BUCKET_URL, so
+    // provisioning the documented variable would have left the gate shut for
+    // ever with no way to tell why.
+    if (!documentStore().configured) {
       throw new DomainError(
         'NOT_IMPLEMENTED',
         'Приватное хранилище для документов не настроено. Документы нельзя принимать, пока его нет.',
@@ -381,9 +387,22 @@ export class VerificationService {
        also requires (0012), so a document row cannot exist outside the
        namespace the public media route declines to serve. */
     const storageKey = `private/verification/${requestId}/${uuidv7()}`;
+    /* `purge_after` is deliberately left NULL.
+     *
+     * It used to be written as `now() + interval '1 year'`. That year was the
+     * only retention period committed to code anywhere in this repository, and
+     * no lawyer chose it — LEGAL-004 is precisely the question of what the
+     * retention window may be. A number nobody authorised, applied to passport
+     * scans, is worse than no number: it looks like policy.
+     *
+     * NULL means «срок не установлен», and the retention domain treats that as
+     * never eligible for purge. So a document attached before LEGAL-004 is
+     * answered cannot be destroyed by a job acting on a guess. Answering the
+     * question means setting the window and backfilling this column — a
+     * configuration change, which is what the design was for. */
     await this.db.query(
-      `INSERT INTO verification_document (id, request_id, doc_type, storage_key, purge_after)
-       VALUES ($1,$2,$3,$4, now() + interval '1 year')`,
+      `INSERT INTO verification_document (id, request_id, doc_type, storage_key)
+       VALUES ($1,$2,$3,$4)`,
       [uuidv7(), requestId, docType, storageKey],
     );
     return { storageKey };

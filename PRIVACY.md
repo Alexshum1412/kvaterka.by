@@ -36,7 +36,7 @@ The strictest handling in the product:
 1. Stored in a **separate private bucket**, never the listing-media bucket, and never served from a public URL.
 2. Reachable only by the `VERIFIER` role. **`SUPPORT` has no grant at all** — the common case of a support agent browsing passport scans is structurally impossible rather than discouraged (§17).
 3. **Every single read** writes a row to the append-only `document_access_log` — actor, role, purpose, timestamp, hashed IP.
-4. Each document carries `purge_after`, making retention a stored, auditable value rather than an implicit convention. A scheduled job enforces it.
+4. Each document carries `purge_after`, making retention a stored, auditable value rather than an implicit convention. A purge job reads it (`POST /admin/retention/run`), and **it is left NULL on attachment**: no retention period has been chosen, because choosing one is LEGAL-004. A NULL window means the document is never eligible for purge, so the job cannot act on a number nobody authorised. This sentence previously claimed a scheduled job enforced the column; no such job existed, and the column was written as one year with no cited basis. Both have been corrected.
 5. Encryption at rest is a storage-layer requirement; the retention window itself depends on LEGAL-004.
 
 ## Chat and moderation
