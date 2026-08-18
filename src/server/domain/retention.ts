@@ -354,6 +354,24 @@ export const RETENTION_CATALOGUE: readonly TablePolicy[] = [
   /* -- platform ----------------------------------------------------- */
   { table: 'feature_flag', dataClass: 'REFERENCE', subject: null, purpose: 'Переключатели, часть из них — юридические', onErasure: 'KEEP', window: { kind: 'INDEFINITE', why: 'Ничей' } },
   { table: 'listing_moderation_review', dataClass: 'PERSONAL', subject: 'moderator_id', purpose: 'Решения модерации по объявлению', onErasure: 'CASCADE_WITH_PARENT', window: { kind: 'UNKNOWN', blockedBy: LEGAL_011, why: 'Срок хранения не определён' }, appendOnly: true, note: 'DEC-031: удаляется только вместе с объявлением, никогда отдельно.' },
+  {
+    table: 'legal_hold',
+    dataClass: 'AUDIT',
+    subject: 'placed_by',
+    purpose: 'Причина, по которой данные нельзя уничтожать, и кто её назвал',
+    onErasure: 'KEEP_AS_AUDIT',
+    window: { kind: 'INDEFINITE', why: 'Запись об удержании переживает само удержание — иначе не видно, почему данные хранились' },
+    note: 'Внешних ключей на объект удержания нет: удержание не должно исчезать вместе с тем, что оно защищает.',
+  },
+  {
+    table: 'job_run',
+    dataClass: 'OPERATIONAL',
+    subject: null,
+    purpose: 'Когда и что делало фоновое задание',
+    onErasure: 'KEEP',
+    window: { kind: 'UNKNOWN', blockedBy: LEGAL_011, why: 'Срок хранения журналов выполнения не определён' },
+    note: 'Содержит только счётчики и идентификаторы — ни ключей хранилища, ни персональных данных.',
+  },
   { table: 'idempotency_record', dataClass: 'OPERATIONAL', subject: 'user_id', purpose: 'Защита от повторов; хранит копию ответа', onErasure: 'HARD_DELETE', window: { kind: 'TECHNICAL', why: 'Есть expires_at' }, enforced: true },
   { table: 'rate_limit_counter', dataClass: 'OPERATIONAL', subject: null, purpose: 'Счётчики ограничений', onErasure: 'HARD_DELETE', window: { kind: 'TECHNICAL', why: 'Окно закрылось' }, enforced: true },
 ];
@@ -703,21 +721,41 @@ export const ERASURE_BLOCKED_STEPS = ERASURE_STEPS.filter((s) => !s.built);
  * the other party in a booking with a counterparty who no longer exists, and no
  * data-protection answer makes that acceptable.
  */
-export const ERASURE_BLOCKERS = ['ACTIVE_BOOKING', 'OPEN_DISPUTE', 'OUTSTANDING_DEBT', 'LEGAL_HOLD'] as const;
+export const ERASURE_BLOCKERS = ['ACTIVE_BOOKING', 'OPEN_DISPUTE', 'LEGAL_HOLD'] as const;
 
 export type ErasureBlocker = (typeof ERASURE_BLOCKERS)[number];
 
 export const ERASURE_BLOCKER_LABEL: Record<ErasureBlocker, string> = {
   ACTIVE_BOOKING: 'Есть активное бронирование',
   OPEN_DISPUTE: 'Есть открытое обращение',
-  OUTSTANDING_DEBT: 'Есть непогашенная задолженность',
   LEGAL_HOLD: 'Действует удержание',
 };
 
 export const ERASURE_BLOCKER_EXPLANATION: Record<ErasureBlocker, string> = {
   ACTIVE_BOOKING:
     'Пока идёт бронирование, закрыть учётную запись нельзя: вторая сторона осталась бы со сделкой без собеседника.',
-  OPEN_DISPUTE: 'Пока обращение не рассмотрено, закрытие учётной записи остановит разбирательство на полпути.',
-  OUTSTANDING_DEBT: 'Есть непогашенная задолженность по комиссии. Закрытие счёта её не отменяет.',
-  LEGAL_HOLD: 'На учётную запись наложено удержание. Снять его может только администратор, указав причину.',
+  OPEN_DISPUTE:
+    'Пока обращение не рассмотрено, закрытие учётной записи остановит разбирательство на полпути.',
+  LEGAL_HOLD:
+    'На учётную запись наложено удержание. Снять его может только администратор, указав причину.',
 };
+
+/**
+ * An outstanding debt is deliberately NOT a blocker.
+ *
+ * It is the obvious candidate and it is the wrong call. Refusing to let
+ * somebody close their account until they have paid uses a data-protection
+ * mechanism as leverage over money, and it is unnecessary: the debt does not
+ * depend on the account being open. Every financial foreign key is RESTRICT
+ * precisely so that closing an account cannot take a fee with it, so the ledger
+ * is exactly as correct afterwards as before.
+ *
+ * What the person is owed instead is a plain statement of what survives, shown
+ * beside the closure form rather than used as a refusal.
+ */
+export const CLOSURE_SURVIVES: readonly string[] = [
+  'Начисленная комиссия и задолженность: закрытие счёта их не отменяет.',
+  'Завершённые бронирования и финансовые записи по ним.',
+  'Отзывы, которые вы оставили: они остаются у второй стороны, иначе её рейтинг изменился бы задним числом.',
+  'Журналы аудита: кто и что делал на площадке.',
+];

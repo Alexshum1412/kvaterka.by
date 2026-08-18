@@ -17,6 +17,7 @@ import { FinanceService } from './finance-service.ts';
 import { ListingService } from './listing-service.ts';
 import { MessagingService } from './messaging-service.ts';
 import { NotificationService } from './notification-service.ts';
+import { RetentionService } from './retention-service.ts';
 import { ReviewService } from './review-service.ts';
 import { SearchService } from './search-service.ts';
 import { TrustService } from './trust-service.ts';
@@ -37,6 +38,7 @@ export interface Services {
   readonly trust: TrustService;
   readonly finance: FinanceService;
   readonly verification: VerificationService;
+  readonly retention: RetentionService;
 }
 
 export function createServices(db: Db): Services {
@@ -55,5 +57,6 @@ export function createServices(db: Db): Services {
     trust: new TrustService(db),
     finance: new FinanceService(db),
     verification: new VerificationService(db),
+    retention: new RetentionService(db),
   };
 }

@@ -53,6 +53,18 @@ export const PERMISSIONS = [
    * state, so it must not ride along on a human support permission.
    */
   'lifecycle.run',
+  /**
+   * Freezing data so a retention job cannot destroy it. Deliberately wider
+   * than most staff permissions: a hold only ever PREVENTS destruction, so the
+   * people who first hear "there is a problem with this account" must be able
+   * to stop the clock without escalating first.
+   */
+  'retention.hold',
+  /**
+   * Running the retention purge. A machine credential like `lifecycle.run`,
+   * and kept separate from it because this job reads document storage keys.
+   */
+  'retention.run',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -68,9 +80,17 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
 
   // First-line support: read enough to help, change nothing sensitive, and no
   // path whatsoever to identity documents (spec §17).
-  SUPPORT: ['user.view', 'case.view', 'case.handle', 'debt.view'],
+  SUPPORT: ['user.view', 'case.view', 'case.handle', 'debt.view', 'retention.hold'],
 
-  MODERATOR: ['listing.moderate', 'review.moderate', 'message.review', 'user.view', 'case.view', 'case.handle'],
+  MODERATOR: [
+    'listing.moderate',
+    'review.moderate',
+    'message.review',
+    'user.view',
+    'case.view',
+    'case.handle',
+    'retention.hold',
+  ],
 
   // The only role that may open an identity document, and every read is logged.
   VERIFIER: ['verification.review', 'verification.decide', 'document.read', 'user.view'],
@@ -96,6 +116,8 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'feature_flag.write',
     'role.grant',
     'lifecycle.run',
+    'retention.hold',
+    'retention.run',
   ],
 };
 
@@ -138,6 +160,7 @@ const REASON_REQUIRED: readonly Permission[] = [
   'document.read',
   'feature_flag.write',
   'role.grant',
+  'retention.hold',
 ];
 
 export const requiresReason = (permission: Permission): boolean => REASON_REQUIRED.includes(permission);
