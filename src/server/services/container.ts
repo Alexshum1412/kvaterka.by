@@ -20,6 +20,7 @@ import { NotificationService } from './notification-service.ts';
 import { ReviewService } from './review-service.ts';
 import { SearchService } from './search-service.ts';
 import { TrustService } from './trust-service.ts';
+import { VerificationService } from './verification-service.ts';
 
 export interface Services {
   readonly auth: AuthService;
@@ -35,6 +36,7 @@ export interface Services {
   readonly notifications: NotificationService;
   readonly trust: TrustService;
   readonly finance: FinanceService;
+  readonly verification: VerificationService;
 }
 
 export function createServices(db: Db): Services {
@@ -52,5 +54,6 @@ export function createServices(db: Db): Services {
     notifications: new NotificationService(db),
     trust: new TrustService(db),
     finance: new FinanceService(db),
+    verification: new VerificationService(db),
   };
 }

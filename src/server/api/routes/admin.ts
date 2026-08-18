@@ -3,6 +3,7 @@ import { defineRoute, type AnyRoute } from '../http.ts';
 import { writeAudit } from '../../services/audit.ts';
 import { invalid } from '../../services/errors.ts';
 import { MODERATION_REASON_CODES } from '../../domain/moderation.ts';
+import { VERIFICATION_REASON_CODES } from '../../domain/verification.ts';
 
 /**
  * Staff endpoints.
@@ -348,51 +349,66 @@ export const adminRoutes: AnyRoute[] = [
   defineRoute({
     method: 'POST',
     path: '/admin/verification/:requestId/decide',
-    summary: 'Approve or reject a verification request',
-    tags: ['admin'],
+    summary: 'Approve or reject a verification request (delegates to the domain)',
+    tags: ['admin', 'verification'],
     auth: 'required',
     permission: 'verification.decide',
-    body: z.object({ decision: z.enum(['APPROVED', 'REJECTED']), note: reason }),
+    legalReview: 'LEGAL-004 — approval is refused while document collection is disabled',
+    body: z.object({
+      decision: z.enum(['APPROVED', 'REJECTED']),
+      note: reason,
+      reasonCodes: z.array(z.enum(VERIFICATION_REASON_CODES)).max(10).optional(),
+    }),
     async handler({ params, body, ctx, caller }) {
-      await ctx.db.transaction(async (tx) => {
-        const { rows } = await tx.query(
-          `UPDATE verification_request
-              SET status=$2, decided_by=$3, decided_at=now(), decision_note=$4
-            WHERE id=$1 AND status IN ('SUBMITTED','IN_REVIEW')
-            RETURNING user_id, property_id, kind, target_level`,
-          [params.requestId!, body.decision, caller.userId, body.note],
-        );
-        const request = rows[0] as Record<string, unknown> | undefined;
-        if (!request) throw invalid('Заявка уже обработана или не найдена');
+      /* WHAT THIS USED TO DO, AND WHY IT DOES NOT ANY MORE.
+       *
+       * It wrote the status itself and raised `app_user.verification_level`
+       * directly, with no check that any evidence existed — and since no
+       * submission path existed and identity-document collection is off, that
+       * meant «Личность подтверждена» could be granted on the strength of
+       * nothing at all. It also ran on `verification.decide`, which ADMIN holds
+       * while deliberately NOT holding `document.read`, so an administrator
+       * could grant an identity badge they were structurally forbidden from
+       * examining.
+       *
+       * It now delegates to VerificationService, which runs the transition
+       * table: APPROVE requires `document.read` AND sufficient evidence, and a
+       * rejection requires at least one structured reason code so the applicant
+       * is told what to fix. The endpoint is kept because it is in the
+       * published OpenAPI surface; `/admin/verification/requests/:id/actions`
+       * is the fuller one. */
+      const { can } = await import('../../auth/rbac.ts');
+      const staff = {
+        userId: caller.userId,
+        role: caller.roles.includes('VERIFIER') ? 'VERIFIER' : 'ADMIN',
+        canReview: can(caller.roles, 'verification.review'),
+        canDecide: true,
+        canReadDocuments: can(caller.roles, 'document.read'),
+      };
 
-        if (body.decision === 'APPROVED') {
-          if (request.kind === 'IDENTITY') {
-            await tx.query(
-              `UPDATE app_user SET verification_level = GREATEST(verification_level, $2) WHERE id=$1`,
-              [request.user_id, request.target_level ?? 1],
-            );
-          } else if (request.property_id) {
-            // Property verification is tracked separately from identity: a
-            // fully verified person may still list an unverified property.
-            await tx.query(
-              `UPDATE property SET property_verified_at = now(), property_verified_by = $2 WHERE id=$1`,
-              [request.property_id, caller.userId],
-            );
-          }
-        }
+      const current = await ctx.db.query<{ status: string }>(
+        `SELECT status FROM verification_request WHERE id=$1`,
+        [params.requestId!],
+      );
+      if (!current.rows[0]) throw invalid('Заявка не найдена');
 
-        await writeAudit(tx, {
-          actorUserId: caller.userId,
-          actorRole: 'VERIFIER',
-          action: 'verification.decide',
-          targetType: 'verification_request',
-          targetId: params.requestId!,
-          changes: { decision: { from: 'SUBMITTED', to: body.decision } },
-          reason: body.note,
-          source: 'admin',
-        });
-      });
-      return { ok: true };
+      // APPROVE only exists from IN_REVIEW in the transition table, so taking
+      // it first is part of the same act rather than an extra step for the
+      // caller. Refusal still works straight from SUBMITTED.
+      if (body.decision === 'APPROVED' && current.rows[0].status === 'SUBMITTED') {
+        await ctx.services.verification.act(params.requestId!, staff, 'TAKE');
+      }
+
+      const result = await ctx.services.verification.act(
+        params.requestId!,
+        staff,
+        body.decision === 'APPROVED' ? 'APPROVE' : 'REJECT',
+        {
+          internalNote: body.note,
+          ...(body.reasonCodes ? { reasonCodes: body.reasonCodes } : {}),
+        },
+      );
+      return { ok: true, status: result.status };
     },
   }),
 
