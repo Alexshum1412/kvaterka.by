@@ -1128,3 +1128,43 @@ That is **at-least-once, said plainly**. No provider this will ever talk to can 
 **The address is resolved at send time**, from the user's current record, never from the payload. A payload written last week would carry an address the person has since corrected and would keep sending to a Telegram chat they have unlinked. Late resolution is also what makes withdrawal of consent take effect on everything still queued.
 
 **Today IN_APP is the only real channel**, and it is genuinely real — the row *is* the message. EMAIL and TELEGRAM refuse, differently depending on whether the address is missing or the client is unimplemented, because an operator who has set `SMTP_URL` and still sees failures needs to know the configuration arrived and the code did not.
+
+---
+
+## DEC-058 — Background jobs get a machine principal, not an exempt admin
+
+**Question.** DEC-054 made every staff role conditional on a second factor. The three job permissions — `lifecycle.run`, `retention.run`, `notifications.run` — are held by ADMIN. A cron cannot answer a TOTP challenge. So who runs the jobs?
+
+**Options.** (a) Exempt a designated service account from 2FA. (b) Drop the job permissions to a role that is not withheld. (c) A principal that is not a user at all.
+
+**Chosen.** (c).
+
+**Why this was urgent rather than tidy.** The regression was invisible. `rbac.ts` had described these three as machine credentials since they were written — "a cron calls it" is in the comment beside `lifecycle.run` — but nothing enforced that they were reachable by a machine, because until DEC-054 an ADMIN session was a machine's only option and worked fine. Afterwards it did not, and all 1001 tests still passed, because every one of them logs in as a person. The background half of the product stopped working and nothing said so.
+
+**Why not (a).** A service account exempt from 2FA is an ADMIN account exempt from 2FA. It holds `document.read`'s neighbours, `role.grant`, `ledger.adjust` — everything the second factor was introduced to protect — and it is the one credential that must live in a CI secret store and be readable by a deployment pipeline. It reintroduces the exact hole while looking like a fix.
+
+**Why not (b).** Any role low enough to be exempt is a role ordinary people hold. The retention purge reads document storage keys.
+
+**What (c) buys.** A machine has no row in `app_user`, no session, and no roles — so it cannot be granted anything, and widening ADMIN can never widen it. Its permissions are a hand-written list of three. A leaked scheduler token lets an attacker run an idempotent job early, which the `job_run` mutex already makes close to harmless; it does not let them read one byte, and a test asserts the document route answers 403 to it.
+
+**Details that are load-bearing.** The header is `x-job-token`, never `authorization`, because `readSessionToken` already consumes that and a credential which could be mistaken for a session token eventually will be. Comparison is constant-time against a padded copy, because `timingSafeEqual` throws on unequal lengths and the naive repair leaks the real length. A session always wins over the token, so an operator debugging with both stays themselves in the audit trail. `triggered_by` stays NULL for a machine — the column references `app_user`, and a human always has an id, so NULL is unambiguous rather than merely absent.
+
+**Fails closed.** With `JOB_RUNNER_TOKEN` unset there is no machine principal and the routes behave exactly as before: a deployment that forgets it gets a queue that does not drain, not an open door.
+
+---
+
+## DEC-059 — `/terms` and `/privacy` describe the software rather than pretending to be documents
+
+**Question.** Both were linked from the footer of every page and both answered 404. A marketplace that collects identity documents and 404s on its privacy link has a real problem. What goes there?
+
+**Options.** (a) Adapt a template terms-of-service and privacy policy. (b) Leave the 404 until a lawyer writes them. (c) Publish pages that state what the platform verifiably does, and say plainly that the formal documents do not exist.
+
+**Chosen.** (c).
+
+**Why not (a).** It is the obvious move and it is the dangerous one. A templated policy asserts a legal basis for processing, a retention period and a data-transfer position — three things LEGAL-003 exists precisely because nobody has answered. Publishing confident language about them would create a document users rely on, that binds nobody, and that contradicts what the code actually does. This project has refused invented legal claims everywhere else; a page is not the place to start.
+
+**Why not (b).** The 404 is itself a claim, and a worse one: it says nothing has been considered. What the platform does with data has been considered carefully — hashed IP addresses, hashed session tokens, diff-only audit rows, exact addresses withheld until confirmation, `document.read` held by one role, every document read logged. All of that is true, checkable and useful to a reader, and none of it needs a lawyer to state.
+
+**So the pages describe behaviour and mark the gap.** Each opens with a panel saying the formal document is in preparation and why we are not publishing a substitute. Everything below is a factual account of the software, including the uncomfortable parts — that erasure is not built, that the platform cannot return money it never held, that moderation checks the listing and not the flat.
+
+**Revisit when.** A Belarus-qualified lawyer drafts either document. These pages then become the plain-language companion to it, not a replacement.

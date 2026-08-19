@@ -2,6 +2,16 @@
 
 **Audited:** 2026-08-15 · **Auditor:** principal engineer pass · **Commit at audit:** `ab67c9f`
 
+> **This document is historical and is deliberately not maintained.** It records the state of the
+> repository on the day work began, when it contained one specification file and nothing else. Every
+> "NOT STARTED" below was true then and most are false now — auth, the API, the interface, staff
+> consoles, verification, disputes, retention and 2FA have all since been built.
+>
+> **For current status use [MVP_RELEASE_CHECKLIST.md](MVP_RELEASE_CHECKLIST.md)** and the status
+> tables in [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md). This file is kept because the
+> reasoning in it — what was chosen at the start and why — is still the reasoning the codebase runs
+> on, not because its status table is worth reading.
+
 ---
 
 ## 1. Finding: the repository was empty

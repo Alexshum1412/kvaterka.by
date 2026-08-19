@@ -4,7 +4,7 @@ A rental marketplace for Belarus — trust infrastructure for honest rentals, no
 
 Landlords publish and manage listings; tenants find, compare, communicate, book, document and review. The platform never touches rent: tenant and landlord settle directly, and the platform charges the landlord a 5% service fee once a completed rental is confirmed by both sides.
 
-> **Status: early development.** The data model, booking lifecycle, money handling and anti-off-platform filter are built and tested. There is no authentication layer, no HTTP API and no user interface yet. See [REPO_AUDIT.md](REPO_AUDIT.md) §5 for a component-by-component status table, and do not read "tested" as "production-ready".
+> **Status: substantially built, not yet launchable.** Authentication, sessions, RBAC and staff 2FA, a 125-route HTTP API, and the web interface — search, listing, booking, chat, dashboards, moderation and four staff consoles — all exist and are tested. What blocks a launch is not features: no email or Telegram message can currently leave the platform, no payment provider is connected so an accrued fee cannot be paid, no hosting decision has been made (LEGAL-003), and no lawyer has drafted the terms or the privacy policy. See [MVP_RELEASE_CHECKLIST.md](MVP_RELEASE_CHECKLIST.md) for the gates, and do not read "tested" as "production-ready".
 
 ## Quick start
 
@@ -40,20 +40,34 @@ TEST_DATABASE_URL=postgres://user:pass@localhost:5432/kvaterka_test npm test
 | Booking state machine | Tested — declarative transition table |
 | Two-sided completion + fee accrual | Tested — end to end against the database |
 | Anti-off-platform contact filter | Tested — RU/BE corpus, evasion and false-positive cases |
-| Auth, API, UI, search, admin | Not started |
+| Auth, sessions, RBAC, staff 2FA | Tested — argon2id, hashed rotating session tokens, TOTP enforced by withholding roles |
+| HTTP API | Tested — 125 routes declared as data, driving dispatch, authorization, validation, rate limiting and idempotency |
+| Web interface | Built — search, listing, booking, chat, trips, landlord dashboard, four staff consoles |
+| Verification levels 0/1/2 | Tested — level 2 gated off pending LEGAL-004 |
+| Disputes and moderation | Tested — queue, decisions, and the exit back into the booking FSM |
+| Retention, legal hold, account closure | Built — closure ships; erasure is gated on LEGAL-003 |
+| Notification delivery | Built — outbox, worker, retry ladder. **Only IN_APP reaches anybody**: no email or Telegram client exists |
+| Scheduled jobs | Built — one job runner, a machine credential, and a scheduler script; needs a deployment to run against |
+| Payments | **Not started** — an accrued fee cannot be paid through the platform |
 
-**274 tests passing.** `npm test` is the source of truth for that number.
+**1034 tests passing.** `npm test` is the source of truth for that number.
 
 ## Layout
 
 ```
 db/migrations/        SQL schema, applied verbatim and in order
+scripts/              migrate, seed, and the job scheduler
 src/
-  lib/                UUIDv7, references
+  app/                Next.js App Router: pages and the API adapter
+  lib/                UUIDv7, references, browser API client
   server/
+    api/              Route table, dispatcher, machine principal, rate limit, idempotency
+    auth/             Argon2id credentials, sessions, RBAC
     db/               Db interface; PGlite and node-postgres adapters; migrator
-    domain/           Pure logic: money, pricing, booking FSM, completion, contact filter
+    delivery/         Notification provider contract and the providers that ship
+    domain/           Pure logic: money, pricing, booking FSM, completion, 2FA, retention
     services/         Transaction boundaries, audit, error mapping
+  ui/                 Components; light theme, cornflower palette, mobile first
 tests/                Integration suites against a real PostgreSQL engine
 ```
 
@@ -71,8 +85,8 @@ The dependency arrow points one way: `services → domain`. Domain modules do no
 
 | Document | Contents |
 |---|---|
-| [REPO_AUDIT.md](REPO_AUDIT.md) | Audit findings, environment constraints, risk register, current status |
-| [DECISIONS.md](DECISIONS.md) | 17 architecture decision records with alternatives and trade-offs |
+| [REPO_AUDIT.md](REPO_AUDIT.md) | **Historical** — the day-one audit of an empty repository. Not current status |
+| [DECISIONS.md](DECISIONS.md) | Architecture decision records with alternatives and trade-offs |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System shape, layering, where correctness lives |
 | [DATABASE_DESIGN.md](DATABASE_DESIGN.md) | Entities, constraints, indexes, immutability |
 | [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | Requirement IDs, acceptance criteria, implementation status |

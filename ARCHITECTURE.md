@@ -2,7 +2,7 @@
 
 ## 1. Shape of the system
 
-One deployable Next.js application, one PostgreSQL database, one worker process for scheduled work. Deliberately not microservices — the spec warns against premature distribution (§51), and nothing here has independent scaling needs yet.
+One deployable Next.js application, one PostgreSQL database, and scheduled work driven from outside the application by a credentialed caller rather than by a worker process. Deliberately not microservices — the spec warns against premature distribution (§51), and nothing here has independent scaling needs yet.
 
 ```
                     ┌──────────────────────────────────────┐
@@ -138,7 +138,9 @@ Identity documents and property photos live in separate object-storage buckets w
 
 A worker process handles what must happen without a user present:
 
-There is no worker process. Both jobs below are permission-gated POST routes called by a cron, because a Next.js server may run as several short-lived instances, so an in-process timer would either never fire or fire N times. A cron with a credential is honest about who is doing the work, and the permission is auditable.
+There is no worker process. The jobs below are permission-gated POST routes called by a scheduler, because a Next.js server may run as several short-lived instances, so an in-process timer would either never fire or fire N times. A caller with a credential is honest about who is doing the work, and the permission is auditable.
+
+**The caller is a machine principal, not an admin account** (DEC-058). The three job permissions were always documented as machine credentials, but were held by ADMIN — and ADMIN is withheld until a second factor is satisfied, which no cron can do. `scripts/run-jobs.mjs` presents `JOB_RUNNER_TOKEN` in the `x-job-token` header; it authorises those three routes and nothing else, and reads nothing at all. With the variable unset there is no machine principal, and the jobs stay reachable only by a human holding the permission.
 
 | Job | Route | Cadence | Effect | State |
 |---|---|---|---|---|

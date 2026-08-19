@@ -30,16 +30,22 @@ The platform is financial-adjacent even though rent never flows through it. The 
 | Partial writes on failure | every service method is one transaction | test asserts a failed authorization leaves no events behind |
 | Contact-exchange leakage before confirmation | layered filter + `contact_release_state` | 71 tests |
 
-## Designed, not yet implemented
+## Implemented since the auth layer landed
 
-| Control | Design | Status |
+The table below was written before authentication existed and said NOT STARTED for five controls
+that have since been built and tested. Corrected here rather than left to mislead — a security
+document that understates what exists is the same kind of defect as one that overstates it.
+
+| Control | Mechanism | Status |
 |---|---|---|
-| Password hashing | argon2id, verified to run on the target platform | NOT STARTED |
-| Session tokens | SHA-256 stored, never the token; rotation chain detects replay of a rotated token; expiry + revocation | schema TESTED, logic NOT STARTED |
-| CSRF | `SameSite=Lax` cookies + token on state-changing requests | NOT STARTED |
-| Rate limiting | per-account and per-IP on auth, messaging, booking | NOT STARTED |
-| Brute force | attempt counters on `auth_token`, progressive delay, lockout | schema present |
+| Password hashing | argon2id via `@node-rs/argon2` | IMPLEMENTED — `auth/credentials.ts`, exercised throughout `tests/auth.integration.test.ts` |
+| Session tokens | SHA-256 stored, never the token; rotation chain detects replay of a rotated token; expiry + revocation | IMPLEMENTED — `auth/auth-service.ts` |
+| CSRF | `SameSite=Lax`, `HttpOnly`, `Secure` session cookie; no state change on GET | IMPLEMENTED |
+| Rate limiting | per-IP and per-account, declared per route in the route table | IMPLEMENTED — `api/rate-limit.ts`; login, registration, reset, messaging and Telegram linking all carry limits |
+| Document access control | `document.read` held by VERIFIER alone; every read written to an append-only log before the key is returned | IMPLEMENTED and TESTED — `tests/authorization.integration.test.ts` |
+| Brute force | attempt counters, escalating lockout cleared only by success | IMPLEMENTED for 2FA (see below); login relies on rate limiting |
 | Staff 2FA | TOTP, required for every staff role | **ENFORCED** — see below |
+| Machine credential | A scheduler principal holding three job permissions and nothing else | IMPLEMENTED and TESTED — `api/machine.ts`, DEC-058 |
 
 ### How staff 2FA is enforced, and what it does not protect
 
@@ -52,9 +58,13 @@ The control is not a check. A session that has not satisfied its second factor i
 - **Resetting somebody else's authenticator** requires `role.grant`, which only ADMIN holds — so SUPPORT cannot strip a colleague's second factor.
 
 **What it does not protect against, stated plainly.** The TOTP secret is stored in **plaintext**. It cannot be hashed, because verification needs it, and this project has no encryption-at-rest layer — nothing encrypts any column today. So the second factor defends against a stolen or guessed **password**; it does **not** defend against an attacker who already has the database. That is a smaller guarantee than "2FA" usually implies, and it is recorded in DEC-055 rather than left to be assumed.
-| Document access control | `VERIFIER` role only; `SUPPORT` has no path at all; every read logged | schema TESTED, enforcement NOT STARTED |
-| Upload safety | type/size validation, image re-encoding to strip payloads and EXIF, content hashing, no execution from the media bucket | NOT STARTED |
+## Designed, not yet implemented
+
+| Control | Design | Status |
+|---|---|---|
+| Upload safety | type/size validation, image re-encoding to strip payloads and EXIF, content hashing, no execution from the media bucket | NOT STARTED — uploads are size- and type-checked; no re-encoding |
 | Secure headers / CSP | strict CSP, HSTS, `X-Content-Type-Options`, frame denial | NOT STARTED |
+| Encryption at rest | no column is encrypted; the TOTP secret is the first that should be | NOT STARTED — DEC-055 |
 | Secrets management | env vars validated at startup; never in the repository | partially |
 | SSRF | no user-supplied URL is ever fetched server-side; if that changes, allowlist only | policy |
 | XSS | React escapes by default; no `dangerouslySetInnerHTML` on user content | policy |
@@ -73,11 +83,13 @@ The control is not a check. A session that has not satisfied its second factor i
 
 ## Known gaps
 
-1. **Concurrency verified by constraint, not yet by race.** PGlite serialises connections. The `EXCLUDE` constraint is a PostgreSQL guarantee and the tests prove it rejects overlaps, but a genuine simultaneous-transaction test requires a real server (`TEST_DATABASE_URL`) and **has not been run here**.
-2. **No auth layer yet** — everything in the second table above.
-3. **No dependency scanning or SAST in CI** — CI does not exist yet.
-4. **No penetration test.**
-5. **Rewards subsystem gated** but the flag mechanism itself needs authorization once admin exists.
+1. **Concurrency verified by constraint, not yet by race.** PGlite serialises connections. The `EXCLUDE` constraint is a PostgreSQL guarantee and the tests prove it rejects overlaps, but a genuine simultaneous-transaction test requires a real server (`TEST_DATABASE_URL`). A CI job that stands one up now exists (`.github/workflows/verify.yml`) and **has never been run**, because this environment has no Docker and no server.
+2. **The TOTP secret is stored in plaintext.** The second factor defends against a stolen password, not against an attacker holding the database. DEC-055.
+3. **No secure headers or CSP.**
+4. **Uploads are not re-encoded**, so EXIF and any embedded payload survive.
+5. **No penetration test.**
+6. **No SAST.** `npm audit` now runs in CI, advisory only.
+7. **Rewards subsystem gated** behind a flag that refuses to enable without a recorded legal approval reference.
 
 ## Reporting
 
