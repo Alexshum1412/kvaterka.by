@@ -1,0 +1,88 @@
+# The gate.
+#
+# `npm run verify` (typecheck + lint + the full suite) and a production build
+# have been the release gate since the first commit, and until now nothing ran
+# them except a person remembering to. This makes the gate mechanical.
+#
+# The suite needs no database server: PGlite runs a real PostgreSQL engine
+# in-process. That is also its limitation — it serialises connections, so the
+# concurrency invariants are proven by constraint rather than by race. The
+# genuine concurrency run needs TEST_DATABASE_URL against a real server and is
+# the second job below, which stays skipped until that secret exists.
+
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Audit dependencies
+        # Advisory rather than blocking: a transitive advisory with no patch
+        # available should not stop a release that does not reach the affected
+        # code path. It is reported so somebody looks, which is the gap the
+        # MVP checklist names.
+        run: npm audit --audit-level=high || true
+
+  real-postgres:
+    # The gate MVP_RELEASE_CHECKLIST.md calls "the only mode that exercises
+    # genuine concurrency". It runs a real PostgreSQL 18 with the extensions
+    # the schema needs, so EXCLUDE constraints, SKIP LOCKED claiming and the
+    # booking race are exercised under true simultaneity rather than under
+    # PGlite's single connection.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kvaterka_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test against a real server
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/kvaterka_test
+        run: npm test

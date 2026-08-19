@@ -30,6 +30,12 @@ export interface RequestOptions {
    * just the row, so the capability is finally wired through.
    */
   readonly now?: Date;
+  /**
+   * The deployment's scheduler secret, as `runtime.ts` would have validated it.
+   * Undefined means this deployment has no machine principal, which is the
+   * default and the state every pre-existing suite runs in.
+   */
+  readonly jobToken?: string;
 }
 
 export class ApiTestClient {
@@ -75,6 +81,7 @@ export class ApiTestClient {
         services: this.services,
         onError: (entry) => this.errors.push(entry.error),
         ...(opts.now ? { now: () => opts.now! } : {}),
+        ...(opts.jobToken ? { jobToken: opts.jobToken } : {}),
       },
     );
 

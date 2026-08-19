@@ -15,6 +15,7 @@ import type { z } from 'zod';
 import type { Db } from '../db/sql.ts';
 import type { Permission, Role } from '../auth/rbac.ts';
 import type { Services } from '../services/container.ts';
+import type { MachinePrincipal } from './machine.ts';
 
 export type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
@@ -53,6 +54,12 @@ export interface RequestContext {
   readonly services: Services;
   /** Null for anonymous requests. */
   readonly caller: Caller | null;
+  /**
+   * Set when a scheduler authenticated with the job token instead of a session.
+   * A machine has no user, no roles and no session; it may run the three job
+   * permissions and nothing else. See `api/machine.ts`.
+   */
+  readonly machine: MachinePrincipal | null;
   readonly correlationId: string;
   readonly ip: string | null;
   readonly userAgent: string | null;

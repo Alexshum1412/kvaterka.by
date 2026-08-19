@@ -27,6 +27,7 @@ import {
   type Caller,
   type RequestContext,
 } from './http.ts';
+import { machineCan, resolveMachine, type MachinePrincipal } from './machine.ts';
 import { toProblem, type ErrorLogEntry } from './problem.ts';
 import { bucketForIp, bucketForUser, checkRateLimit, rateLimitError } from './rate-limit.ts';
 import { abandonIdempotent, beginIdempotent, completeIdempotent, IDEMPOTENCY_HEADER } from './idempotency.ts';
@@ -120,6 +121,12 @@ export interface DispatchDeps {
   readonly services: Services;
   readonly onError?: (entry: ErrorLogEntry) => void;
   readonly now?: () => Date;
+  /**
+   * The scheduler's shared secret, from validated configuration. Undefined
+   * means this deployment has no machine principal and the job routes stay
+   * reachable only by a human holding the permission.
+   */
+  readonly jobToken?: string | undefined;
 }
 
 /** Extract the session token from a cookie, falling back to a bearer header. */
@@ -175,6 +182,7 @@ export async function dispatch(
 
     /* ---- authenticate ------------------------------------------------ */
     let caller: Caller | null = null;
+    let machine: MachinePrincipal | null = null;
     if (route.auth !== 'none') {
       const token = readSessionToken(request.headers);
       if (token) {
@@ -192,14 +200,31 @@ export async function dispatch(
           };
         }
       }
-      if (route.auth === 'required' && !caller) {
+      /* A scheduler, if it presented the job token and no session took
+         precedence. A session always wins: a human debugging a job with both
+         a cookie and the token in their client stays themselves in the audit
+         trail rather than silently becoming "scheduler". */
+      if (!caller) machine = resolveMachine(request.headers, deps.jobToken);
+
+      if (route.auth === 'required' && !caller && !machine) {
         throw new DomainError('UNAUTHENTICATED', 'Требуется вход в аккаунт');
       }
     }
 
     /* ---- authorize --------------------------------------------------- */
     if (route.permission) {
-      if (!caller) throw new DomainError('UNAUTHENTICATED', 'Требуется вход в аккаунт');
+      /* A machine is authorised from a hand-written list, never from a role.
+         It holds the three job permissions and nothing else, so widening
+         ADMIN — or any other role — can never widen what a scheduler may do.
+         Step-up is skipped because it is unsatisfiable by a machine, and no
+         machine permission is a step-up permission; a test asserts that those
+         two sets stay disjoint rather than leaving it to be remembered. */
+      if (machine) {
+        if (!machineCan(route.permission)) {
+          throw new DomainError('FORBIDDEN', 'Недостаточно прав');
+        }
+      } else {
+        if (!caller) throw new DomainError('UNAUTHENTICATED', 'Требуется вход в аккаунт');
       if (!can(caller.roles, route.permission)) {
         // Deliberately identical to any other permission failure: the response
         // must not tell a prober which permission would have worked.
@@ -227,6 +252,7 @@ export async function dispatch(
           'Подтвердите вход кодом из приложения — это действие требует свежего подтверждения',
         );
       }
+      }
     }
 
     /* ---- validate ---------------------------------------------------- */
@@ -237,6 +263,7 @@ export async function dispatch(
       db: deps.db,
       services: deps.services,
       caller,
+      machine,
       correlationId,
       ip: request.ip ?? null,
       userAgent: request.headers['user-agent'] ?? null,

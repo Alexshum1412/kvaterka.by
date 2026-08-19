@@ -1,0 +1,56 @@
+# The scheduler, for a deployment that has one.
+#
+# Every scheduled job in this platform is an HTTP route with a machine
+# credential (see src/server/api/machine.ts and DEC-058). This workflow is one
+# way to call them on a clock; a systemd timer or a Kubernetes CronJob running
+# `node scripts/run-jobs.mjs` is equally valid and needs no GitHub.
+#
+# It does nothing at all until both repository secrets exist, and says so
+# rather than failing obscurely — a deployment that has not been provisioned
+# yet should not produce a red cross every fifteen minutes.
+#
+# SETUP
+#   Settings → Secrets and variables → Actions:
+#     KVATERKA_BASE_URL    https://kvaterka.by
+#     JOB_RUNNER_TOKEN     a random string of at least 32 characters
+#
+#   Generate one with:  openssl rand -base64 48
+
+name: Scheduled jobs
+
+on:
+  schedule:
+    # Every fifteen minutes. The delivery drain wants to be frequent — a
+    # booking request that waits an hour for its notification is a product
+    # failure — and the other two jobs are cheap no-ops when there is nothing
+    # due, guarded by the job_run mutex if a run overlaps the next tick.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  # Two overlapping runs are harmless (the partial unique index on job_run
+  # refuses the second runner), but there is no reason to pay for them.
+  group: scheduled-jobs
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run the scheduled jobs
+        env:
+          BASE_URL: ${{ secrets.KVATERKA_BASE_URL }}
+          JOB_RUNNER_TOKEN: ${{ secrets.JOB_RUNNER_TOKEN }}
+        run: |
+          if [ -z "$BASE_URL" ] || [ -z "$JOB_RUNNER_TOKEN" ]; then
+            echo "No deployment configured yet (KVATERKA_BASE_URL / JOB_RUNNER_TOKEN unset). Skipping."
+            exit 0
+          fi
+          node scripts/run-jobs.mjs

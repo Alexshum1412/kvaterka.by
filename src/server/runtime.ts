@@ -11,6 +11,7 @@ import { createPostgresDb } from './db/postgres.ts';
 import type { Db } from './db/sql.ts';
 import { createServices, type Services } from './services/container.ts';
 import { Router } from './api/router.ts';
+import { MIN_JOB_TOKEN_LENGTH } from './api/machine.ts';
 import { allRoutes } from './api/routes/index.ts';
 
 /**
@@ -34,6 +35,18 @@ const envSchema = z.object({
   PUBLIC_BASE_URL: z.string().url().default('http://localhost:3000'),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   SMTP_URL: z.string().optional(),
+  /**
+   * Shared secret a scheduler presents to run the three background jobs.
+   *
+   * Optional, and absent means there is no machine principal at all — the jobs
+   * stay reachable only by a human with the permission, which is what the
+   * product did before. Validated here rather than at first use so a weak
+   * token stops a deployment instead of surfacing at 03:00 when the sweep runs.
+   */
+  JOB_RUNNER_TOKEN: z
+    .string()
+    .min(MIN_JOB_TOKEN_LENGTH, `JOB_RUNNER_TOKEN must be at least ${MIN_JOB_TOKEN_LENGTH} characters`)
+    .optional(),
   /** Object storage: listing media and identity documents live in SEPARATE buckets. */
   MEDIA_BUCKET_URL: z.string().optional(),
   DOCUMENTS_BUCKET_URL: z.string().optional(),

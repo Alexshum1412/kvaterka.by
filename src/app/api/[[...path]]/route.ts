@@ -10,7 +10,7 @@
 
 import { dispatch } from '../../../server/api/router.ts';
 import type { ApiRequest, Method } from '../../../server/api/http.ts';
-import { ready, readyServices, router } from '../../../server/runtime.ts';
+import { env, ready, readyServices, router } from '../../../server/runtime.ts';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -62,6 +62,7 @@ async function handle(request: Request): Promise<Response> {
   const response = await dispatch(router(), apiRequest, {
     db: await ready(),
     services: await readyServices(),
+    jobToken: env().JOB_RUNNER_TOKEN,
     onError: ({ correlationId, error }) => {
       console.error(
         JSON.stringify({

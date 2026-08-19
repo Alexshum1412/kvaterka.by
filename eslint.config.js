@@ -175,7 +175,19 @@ export default [
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
-      globals: { console: 'readonly', process: 'readonly', URL: 'readonly', Buffer: 'readonly' },
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        URL: 'readonly',
+        Buffer: 'readonly',
+        // Node 18+ web platform globals, used by the scheduler script. They
+        // are as much a part of the runtime as `process`; without them a
+        // dependency-free script that calls `fetch` reads as four errors.
+        fetch: 'readonly',
+        AbortController: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+      },
     },
   },
 ];
