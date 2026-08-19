@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { CornflowerMark } from './brand.tsx';
 import { Icon } from './icons.tsx';
 import { currentUser } from '@/server/session.ts';
+import { readyServices } from '@/server/runtime.ts';
 import { can } from '@/server/auth/rbac.ts';
 
 /**
@@ -23,6 +24,14 @@ import { can } from '@/server/auth/rbac.ts';
 export async function SiteHeader() {
   const user = await currentUser();
   const initial = Array.from(user?.displayName.trim() ?? '')[0]?.toUpperCase() ?? '';
+
+  /* The unread count, which is the only reason a person ever discovers the
+     inbox exists. It is one indexed aggregate rather than a fetch of the rows,
+     because this runs on every render of the site chrome.
+
+     Signed out it is skipped entirely — `currentUser` has already returned
+     without touching the database, and asking would undo that. */
+  const unread = user ? await (await readyServices()).notifications.unreadCount(user.userId) : 0;
 
   return (
     <header className="sh">
@@ -96,6 +105,25 @@ export async function SiteHeader() {
           <Link href="/search" className="sh__icon-link" aria-label="Найти жильё">
             <Icon name="search" size={20} />
           </Link>
+
+          {user && (
+            <Link
+              href="/notifications"
+              className="sh__icon-link sh__bell"
+              aria-label={unread === 0 ? 'Уведомления' : `Уведомления, непрочитанных: ${unread}`}
+            >
+              <Icon name="bell" size={20} />
+              {/* A count, not a bare dot: "you have things waiting" and "you
+                  have one thing waiting" are different enough to act on
+                  differently. Capped so a neglected inbox cannot widen the
+                  header on a phone. */}
+              {unread > 0 && (
+                <span className="sh__badge" aria-hidden="true">
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
+            </Link>
+          )}
 
           {user ? (
             <Link
@@ -188,6 +216,26 @@ export async function SiteHeader() {
         }
         .sh__icon-link:hover { color: var(--text-primary); }
 
+        .sh__bell { position: relative; }
+        /* Sits on the bell rather than beside it: a badge that reflows the bar
+           when a notification arrives makes the header twitch under the
+           reader's cursor. */
+        .sh__badge {
+          position: absolute;
+          top: 0.35rem;
+          inset-inline-end: 0.3rem;
+          min-width: 1.05rem;
+          height: 1.05rem;
+          padding: 0 0.2rem;
+          border-radius: 999px;
+          background: var(--primary);
+          color: #fff;
+          font-size: 0.65rem;
+          font-weight: 700;
+          line-height: 1.05rem;
+          text-align: center;
+        }
+
         /* 40px, not the default 44: a full-height button in a 56px bar makes
            the chrome the loudest thing on a phone. */
         .sh .sh__cta { min-height: 2.5rem; padding-inline: 1rem; }
@@ -257,6 +305,11 @@ export async function SiteHeader() {
             margin-inline-start: var(--space-4);
           }
           .sh__icon-link { display: none; }
+          /* The bell is the exception: the search icon disappears here because
+             the text navigation already carries "Найти жильё", but nothing in
+             that navigation carries unread state, so hiding the bell on
+             desktop would hide the count exactly where there is room for it. */
+          .sh__bell { display: inline-flex; }
           /* The identity block gives up width by dropping the name rather than
              by squeezing it to a clipped stub next to the monogram. */
           .sh__name { display: none; }

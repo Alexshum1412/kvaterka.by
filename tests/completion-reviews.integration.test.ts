@@ -984,12 +984,22 @@ describe('review content', () => {
     expect(review.stayLength).toMatch(/ноч/);
     expect(review.stayLength).toContain('5');
 
-    const serialised = JSON.stringify(res.body);
-    // Publishing exactly when a home stood empty is a security problem, not a
-    // feature. The publication date is fine and is deliberately not asserted
-    // against — it says nothing about the property.
-    expect(serialised).not.toContain(rows[0]!.stay_from);
-    expect(serialised).not.toContain(rows[0]!.stay_to);
+    /* Publishing exactly when a home stood empty is a security problem, not a
+       feature. The publication date is fine — it says nothing about the
+       property — and it is stripped before the search rather than merely
+       excluded in a comment.
+
+       It has to be. `publishedAt` is the moment the review went live, and the
+       fixture's stay ends today, so on any day where those coincide a bare
+       substring search finds "today" inside `publishedAt` and reports a leak
+       that is not there. The assertion said one thing and tested another; this
+       makes it test what it says, on every day of the year. */
+    const withoutPublicationDates = JSON.stringify(res.body).replaceAll(
+      /"publishedAt":"[^"]*"/g,
+      '"publishedAt":"<redacted>"',
+    );
+    expect(withoutPublicationDates).not.toContain(rows[0]!.stay_from);
+    expect(withoutPublicationDates).not.toContain(rows[0]!.stay_to);
   });
 
   it('summarises dimensions across every published review, not one page of them', async () => {

@@ -88,7 +88,7 @@ export const TRANSACTIONAL_CATEGORIES: readonly NotificationCategory[] = [
  * are not marketing; suppressing them would leave someone unaware their account
  * was accessed or that they have a debt.
  */
-const MANDATORY_IN_APP: readonly NotificationCategory[] = ['SECURITY', 'DEBT', 'MODERATION'];
+export const MANDATORY_IN_APP: readonly NotificationCategory[] = ['SECURITY', 'DEBT', 'MODERATION'];
 
 export interface EnqueueInput {
   readonly userId: string;
@@ -189,11 +189,14 @@ export class NotificationService {
     );
     const out: Record<string, Record<string, boolean>> = {};
     for (const category of NOTIFICATION_CATEGORIES) {
-      out[category] = {
-        IN_APP: MANDATORY_IN_APP.includes(category),
-        EMAIL: true,
-        TELEGRAM: false,
-      };
+      /* These defaults must be the SAME defaults `channelAllowed` applies when
+         no row exists, or the settings screen describes a system that does
+         something else. IN_APP previously defaulted to false here for every
+         non-mandatory category while `channelAllowed` treated it as on, so a
+         person would have read "booking requests: off" on a product that was
+         sending them. Nothing was broken in delivery; the description of it
+         was wrong, which is worse in a screen whose only job is to describe. */
+      out[category] = { IN_APP: true, EMAIL: true, TELEGRAM: false };
     }
     for (const r of rows) {
       (out[r.category] ??= {})[r.channel] = r.enabled;
@@ -217,6 +220,27 @@ export class NotificationService {
       readAt: r.read_at,
       createdAt: r.created_at,
     }));
+  }
+
+  /**
+   * How many unread in-app notifications this person has.
+   *
+   * Separate from `inbox()` because the header needs the number on every page
+   * and the rows on none of them. Counting is one indexed aggregate; fetching
+   * thirty rows and measuring them would put a payload on every render of the
+   * site chrome.
+   *
+   * SUPPRESSED rows are excluded for the same reason `inbox()` excludes them:
+   * a notification withheld by the person's own preference is not something
+   * they have failed to read.
+   */
+  async unreadCount(userId: string): Promise<number> {
+    const { rows } = await this.db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM notification
+        WHERE user_id=$1 AND channel='IN_APP' AND status <> 'SUPPRESSED' AND read_at IS NULL`,
+      [userId],
+    );
+    return Number(rows[0]?.c ?? 0);
   }
 
   async markRead(userId: string, notificationId?: string): Promise<number> {

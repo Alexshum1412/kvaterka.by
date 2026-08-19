@@ -66,7 +66,7 @@ export function CloseAccount() {
         }}
       >
         <label className="field">
-          <span className="field__label">
+          <span className="label">
             Введите <strong>{PHRASE}</strong>, чтобы подтвердить
           </span>
           <input
@@ -79,7 +79,7 @@ export function CloseAccount() {
         </label>
 
         <label className="field">
-          <span className="field__label">Причина — необязательно, но помогает нам</span>
+          <span className="label">Причина — необязательно, но помогает нам</span>
           <textarea className="input" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={2000} />
         </label>
 

@@ -235,7 +235,29 @@ export default async function DashboardPage() {
         </Link>
       </section>
 
+      {/* The account screen was reachable only by typing its address: nothing
+          in the product linked to it, so the one place a person can see what
+          happens to their data and close their account was, in practice,
+          invisible. */}
+      <nav className="dash-settings" aria-label="Настройки">
+        <Link href="/notifications" className="link">
+          Уведомления
+        </Link>
+        <Link href="/dashboard/account" className="link">
+          Учётная запись и данные
+        </Link>
+      </nav>
+
       <style>{`
+        .dash-settings {
+          display: flex;
+          flex-wrap: wrap;
+          gap: var(--space-4);
+          margin-top: var(--space-5);
+          padding-top: var(--space-4);
+          border-top: 1px solid var(--border);
+          font-size: var(--text-sm);
+        }
         .dash { padding-block: var(--space-5) var(--space-8); }
         @media (min-width: 768px) { .dash { padding-block: var(--space-6) var(--space-8); } }
 

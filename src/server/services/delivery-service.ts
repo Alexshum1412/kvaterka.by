@@ -69,6 +69,18 @@ export class DeliveryService {
   }
 
   /** What this deployment can actually reach. Shown in the console. */
+  /**
+   * The channels this deployment can actually reach.
+   *
+   * Exposed so a settings screen never offers a switch for a transport that
+   * would do nothing — the provider's own `configured` flag is the only
+   * honest source for that, and it is deliberately false for a channel whose
+   * credentials exist but whose client does not.
+   */
+  liveChannels(): readonly Channel[] {
+    return this.providers.liveChannels;
+  }
+
   describeChannels(): Record<string, string> {
     const out: Record<string, string> = {};
     for (const [channel, provider] of Object.entries(this.providers.byChannel)) {

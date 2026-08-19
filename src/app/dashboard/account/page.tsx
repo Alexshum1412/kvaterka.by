@@ -4,6 +4,16 @@ import { currentUser, signInUrl } from '@/server/session.ts';
 import { readyServices } from '@/server/runtime.ts';
 import { Icon } from '@/ui/icons.tsx';
 import { CloseAccount } from '@/ui/close-account.tsx';
+import {
+  NotificationPreferences,
+  type ChannelInfo,
+  type PreferenceRow,
+} from '@/ui/notification-preferences.tsx';
+import {
+  MANDATORY_IN_APP,
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_CATEGORY_TITLE,
+} from '@/server/services/notification-service.ts';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +55,34 @@ export default async function AccountPage() {
   const services = await readyServices();
   const status = (await services.retention.erasureStatus(user.userId)) as unknown as Status;
 
+  /* Preferences, and — just as important — which channels this deployment can
+     actually reach. `describeChannels()` is the provider's own account of
+     itself, so a toggle is never offered for a transport that would silently
+     do nothing. IN_APP is always real: the row IS the message. */
+  const preferences = await services.notifications.getPreferences(user.userId);
+  const describe = services.delivery.describeChannels();
+  const configured = services.delivery.liveChannels();
+
+  const preferenceRows: PreferenceRow[] = NOTIFICATION_CATEGORIES.map((category) => ({
+    category,
+    title: NOTIFICATION_CATEGORY_TITLE[category] ?? category,
+    mandatoryInApp: MANDATORY_IN_APP.includes(category),
+    channels: preferences[category] ?? { IN_APP: true, EMAIL: true, TELEGRAM: false },
+  }));
+
+  const channelInfo: ChannelInfo[] = [
+    { channel: 'IN_APP', label: 'В кабинете' },
+    { channel: 'EMAIL', label: 'Почта' },
+    { channel: 'TELEGRAM', label: 'Telegram' },
+  ].map((c) => ({
+    channel: c.channel as ChannelInfo['channel'],
+    label: c.label,
+    available: configured.includes(c.channel as ChannelInfo['channel']),
+    // Strip the channel prefix the provider puts in front of its own reason,
+    // which is useful in a job report and redundant beside a column header.
+    note: (describe[c.channel] ?? '').replace(new RegExp(`^${c.channel}:\\s*`), ''),
+  }));
+
   const built = status.steps.filter((s) => s.built);
   const notBuilt = status.steps.filter((s) => !s.built);
   const owes = BigInt(status.outstandingBalanceMinor || '0') < 0n;
@@ -54,9 +92,16 @@ export default async function AccountPage() {
       <header className="acc__head">
         <h1>Учётная запись</h1>
         <p className="acc__lede">
-          Здесь можно закрыть учётную запись. Ниже честно написано, что при этом происходит, а что остаётся.
+          Настройки уведомлений и закрытие учётной записи. Ниже честно написано, что происходит при
+          закрытии, а что остаётся.
         </p>
       </header>
+
+      {!status.closedAt && (
+        <section className="card">
+          <NotificationPreferences rows={preferenceRows} channels={channelInfo} />
+        </section>
+      )}
 
       {status.closedAt ? (
         <section className="card acc__closed">
