@@ -1,0 +1,65 @@
+# The application, as a service.
+#
+#   sudo cp deploy/kvaterka.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now kvaterka
+#
+# WHY systemd AND NOT PM2. The platform already refuses to invent a process
+# manager it does not need: PM2 is a Node process supervising Node processes,
+# with its own daemon, its own startup hook and its own log rotation. systemd is
+# already running, already starts on boot, already collects logs, and already
+# restarts what dies. One fewer moving part on the machine that has to stay up.
+
+[Unit]
+Description=Kvaterka.by
+Documentation=https://github.com/Alexshum1412/kvaterka.by
+After=network-online.target postgresql.service
+Wants=network-online.target
+# The app cannot serve anything without its database, and a restart loop
+# against a database that is still starting is noise rather than resilience.
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=kvaterka
+Group=kvaterka
+WorkingDirectory=/srv/kvaterka
+
+# Configuration lives in a file readable only by this user — never in this unit,
+# which is world-readable, and never in the repository.
+EnvironmentFile=/etc/kvaterka/kvaterka.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# Bind to loopback only. nginx is the only thing that may reach the app, so the
+# port is not exposed even if the firewall is later misconfigured.
+Environment=HOSTNAME=127.0.0.1
+
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start
+
+Restart=always
+RestartSec=5
+# Give up restarting after five failures in a minute rather than hammering a
+# broken deployment for ever; `systemctl status` then says so plainly.
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Everything below is free hardening: the process needs to read its own
+# directory and talk to PostgreSQL, and nothing else.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+# Next writes its build cache here; the media directory is the only other
+# writable path, and only until real object storage exists.
+ReadWritePaths=/srv/kvaterka/.next /srv/kvaterka/.media
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kvaterka
+
+[Install]
+WantedBy=multi-user.target

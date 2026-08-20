@@ -1,0 +1,45 @@
+# The scheduler, as a systemd timer rather than a crontab line.
+#
+#   sudo cp deploy/kvaterka-jobs.service deploy/kvaterka-jobs.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now kvaterka-jobs.timer
+#
+# Three background jobs exist and none of them runs unless something calls
+# them: the notification outbox, the lifecycle sweep (expiring unanswered
+# requests, opening completion windows, publishing reviews) and the retention
+# purge. Without this timer the queue never drains and no fee ever accrues,
+# silently — which is the failure the job runner was written to make visible.
+#
+# A timer rather than cron because the output then lands in the journal beside
+# the application's, `systemctl list-timers` says when it last ran and when it
+# runs next, and a failed run is visible to the same tooling as a failed
+# service. A crontab line mails root and is discovered months later.
+
+[Unit]
+Description=Kvaterka.by scheduled jobs
+After=kvaterka.service
+Requires=kvaterka.service
+
+[Service]
+Type=oneshot
+User=kvaterka
+Group=kvaterka
+WorkingDirectory=/srv/kvaterka
+
+# JOB_RUNNER_TOKEN lives here. It is NOT an admin account: it authorises three
+# job routes and can read nothing at all (see src/server/api/machine.ts).
+EnvironmentFile=/etc/kvaterka/kvaterka.env
+Environment=BASE_URL=http://127.0.0.1:3000
+
+# Straight to the app on loopback, not through nginx and the public name: the
+# scheduler is not a visitor, and this keeps it working if DNS or the
+# certificate ever has a bad day.
+ExecStart=/usr/bin/node scripts/run-jobs.mjs
+
+# The script exits non-zero if any job failed, so a broken queue turns the
+# timer red instead of looking like a queue with nothing in it.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+SyslogIdentifier=kvaterka-jobs

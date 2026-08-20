@@ -1,0 +1,20 @@
+[Unit]
+Description=Run Kvaterka.by scheduled jobs every 15 minutes
+Documentation=https://github.com/Alexshum1412/kvaterka.by
+
+[Timer]
+# Fifteen minutes is chosen by the slowest thing that hurts: a landlord who
+# waits a quarter of an hour to hear about a booking request has been failed
+# only mildly. The other two jobs are cheap no-ops when nothing is due, and the
+# job_run mutex makes an overlap with the previous tick harmless.
+OnCalendar=*:0/15
+# Do not fire every missed tick at once after the machine was down.
+Persistent=false
+# A minute of spread so the drain never lands on the same instant as anything
+# else scheduled on the hour.
+RandomizedDelaySec=60
+AccuracySec=30
+Unit=kvaterka-jobs.service
+
+[Install]
+WantedBy=timers.target

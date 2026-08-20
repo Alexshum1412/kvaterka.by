@@ -33,6 +33,19 @@ const envSchema = z.object({
     .transform((v) => v === 'true'),
   /** Base URL used in emails and Telegram deep links. */
   PUBLIC_BASE_URL: z.string().url().default('http://localhost:3000'),
+  /**
+   * Whether search engines may index this deployment.
+   *
+   * Defaults to FALSE, and stays false for every staging deployment. The first
+   * deployment of this platform lands on the real domain while the product is
+   * still closed; a crawler that finds it puts demonstration flats and seeded
+   * people into search results, and removing them again is somebody's week.
+   * Opening it is a deliberate act performed once, at launch.
+   */
+  SITE_INDEXABLE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   SMTP_URL: z.string().optional(),
   /**
