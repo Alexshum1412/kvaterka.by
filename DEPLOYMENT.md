@@ -26,8 +26,33 @@ CMSs, which reads like a refusal. **The actual cPanel on the purchased account s
 offers «Базы данных PostgreSQL», phpPgAdmin, «Настройка Node.js приложений», Terminal, SSH access,
 cron and Git — with PostgreSQL databases limited to ∞, 4 GB of memory and 150 processes.
 
-So shared hosting is **not** ruled out by inspection, and three questions decide it. None can be
-answered from marketing pages; all three are answered in five minutes from cPanel → Terminal:
+So shared hosting is **not** ruled out by inspection. Three questions decide it — and on the
+account as purchased, they have now been answered by looking:
+
+> ### VERDICT ON THE PURCHASED TARIFF (Cloud Бизнес, server `ultra.hostflyby.net`)
+>
+> **PostgreSQL is 9.6.22** — read from phpPgAdmin's own header while connected as the account user.
+> That version was released in 2016 and has been end-of-life since November 2021. This schema needs
+> **16+**, and it fails on 9.6 in two independent ways, neither of which is a permissions problem:
+>
+> 1. `db/migrations/0001_foundation.sql:12` — `CREATE EXTENSION btree_gist`. Trusted extensions,
+>    which let a database owner create an extension without superuser rights, arrived in
+>    **PostgreSQL 13**. On 9.6 an unprivileged account cannot create any extension at all.
+> 2. `db/migrations/0003_bookings.sql:49` — `nights integer GENERATED ALWAYS AS (...) STORED`. A
+>    generated stored column is **PostgreSQL 12+** syntax. On 9.6 it is a parse error, and no
+>    administrator can grant it away.
+>
+> The first could in principle be solved by asking support to install five extensions. **The second
+> cannot.** It needs a newer server.
+>
+> Node.js is not the problem: the cPanel selector offers **22.23.2 and 24.18.1**, both above the
+> project's floor and above the 22.7 the migration CLI wants.
+>
+> **Therefore: this tariff cannot host Kvaterka.by.** The route is either a HostFly Cloud VPS
+> (§2–§4), or shared hosting on a server whose PostgreSQL is 16 or newer — worth one question to
+> support before spending anything.
+
+For any other account, the same three questions, answered in five minutes from cPanel → Terminal:
 
 | Question | Why it decides everything |
 |---|---|
