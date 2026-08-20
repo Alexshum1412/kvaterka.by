@@ -98,6 +98,66 @@ Nothing larger is justified before there are real users.
 
 ---
 
+## 2bis. Your own machine at home
+
+An unused desktop is a legitimate host for **closed staging**, and on raw hardware it beats the VPS
+tariffs outright: an i5-6400 is four cores against CloudVPS-2's two, and 8 GB against its 4. Nothing
+in §4 changes — the same Ubuntu, the same PostgreSQL, the same systemd units.
+
+What decides it is not the machine. It is whether the internet can reach it. **Three checks, in
+order; the first failure is the answer.**
+
+### 1. Do you have a public IP at all?
+
+```bash
+curl -s ifconfig.me; echo
+ip -4 addr show scope global | grep inet
+```
+
+If the first address is not the same as the second, you are behind **CGNAT** — the ISP shares one
+public address between many subscribers and no port forwarding is possible from your side. A
+`100.64.x.x`–`100.127.x.x` local address is CGNAT by definition.
+
+### 2. Is it the same address tomorrow?
+
+Most residential connections give a **dynamic** address. A DNS `A` record pointing at yesterday's
+address is a site that is down and looks like a bug. Either ask the ISP for a static address
+(usually a small monthly fee), or run a dynamic-DNS updater and accept the propagation gap.
+
+### 3. Are ports 80 and 443 open?
+
+Many ISPs block them on residential plans specifically to discourage hosting. Forward both to the
+machine in the router, then verify **from outside** — testing from inside the house proves nothing,
+because the router will happily answer itself.
+
+```bash
+# From any machine NOT on your home network:
+curl -sI http://ВАШ_IP | head -1
+```
+
+### If all three pass
+
+Use it. Point `kvaterka.by`'s `A` record at the address and follow §4 unchanged.
+
+### If any fails
+
+Two honest options, and they are not equivalent:
+
+- **A tunnel** (Cloudflare Tunnel, `cloudflared`) reaches a machine with no public IP and no open
+  ports at all, and terminates TLS for you. It also means every request and every page of this
+  product passes through a third party outside Belarus — which is exactly the question **LEGAL-003**
+  is about, and not one this file can answer.
+- **A VPS**, which sidesteps all three checks by having a real address.
+
+### What a home machine is not
+
+Fine for staging; not the same thing as a launch. No SLA on power or the ISP. Uptime is the
+household's uptime. Residential upload is the narrow direction, and photographs go that way. A
+machine exposed to the internet sits **inside your home network**, so a compromise is a compromise
+of everything on that LAN — put it on an isolated VLAN or guest network if it stays.
+
+---
+
 ## 3. The shape of it
 
 ```
@@ -124,8 +184,40 @@ Run as root on a fresh Ubuntu 24.04 VPS.
 
 ### 4.1 Base packages
 
+**Check the Ubuntu release first — it decides which PostgreSQL you get:**
+
+```bash
+lsb_release -a
+```
+
+| Ubuntu | `apt-get install postgresql` gives | Verdict |
+|---|---|---|
+| 24.04 LTS | PostgreSQL **16** | Fine — install straight from the distribution |
+| 22.04 LTS | PostgreSQL **14** | **Too old.** Add the PGDG repository below |
+| older | 13 or less | **Too old.** Add the PGDG repository below |
+
+On 24.04:
+
 ```bash
 apt-get update && apt-get install -y curl ca-certificates gnupg git nginx postgresql postgresql-contrib
+```
+
+On 22.04 or older, take PostgreSQL from the project's own repository instead — installing the
+distribution's version and discovering it is 14 halfway through migration `0003` is the exact trap
+the HostFly shared hosting fell into:
+
+```bash
+apt-get update && apt-get install -y curl ca-certificates gnupg git nginx
+install -d /usr/share/postgresql-common/pgdg
+curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+apt-get update && apt-get install -y postgresql-17 postgresql-contrib-17
+```
+
+Either way, confirm before going further — this single number has already cost one deployment:
+
+```bash
+sudo -u postgres psql -tAc 'SHOW server_version'
 ```
 
 Node 24 from NodeSource:
