@@ -58,7 +58,23 @@ export const twoFactorRoutes: AnyRoute[] = [
     tags: ['auth'],
     auth: 'required',
     rateLimit: { limit: 10, windowSeconds: 3600, by: 'user', bucket: '2fa:enrol' },
-    async handler({ ctx, caller }) {
+    /* THE PASSWORD, not merely a session.
+     *
+     * Disabling a second factor already required a current code, on the
+     * reasoning that a stolen session must not be able to remove it. Enrolling
+     * one required nothing at all, which left the mirror image wide open: on an
+     * account that has NOT yet enrolled, a stolen PASSWORD-level session could
+     * register its own authenticator and, from that moment, hold the second
+     * factor. The owner could then no longer disable it — that path needs a
+     * code they do not have — and would need an administrator to reset it.
+     *
+     * So the weaker credential could be traded for durable control of a
+     * staff-privileged identity, silently. A session token is what a borrowed
+     * browser or an XSS bug yields; the password is what distinguishes the
+     * owner from somebody sitting at their unlocked laptop. */
+    body: z.object({ password: z.string().min(1).max(256) }),
+    async handler({ ctx, caller, body }) {
+      await ctx.services.auth.assertPassword(caller.userId, body.password);
       /* The account label inside the authenticator app. A person with two work
          accounts otherwise sees two identical six-digit codes. */
       const { rows } = await ctx.db.query<{ email: string | null; display_name: string }>(

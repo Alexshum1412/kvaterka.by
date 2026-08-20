@@ -20,6 +20,9 @@ let db: TestDb;
 let api: ApiTestClient;
 let auth: AuthService;
 
+/** The password `ApiTestClient.signUp` registers every fixture with. */
+const DEMO_PASSWORD = 'karotkaja-vulica-2026';
+
 beforeAll(async () => {
   db = await createTestDb();
   api = new ApiTestClient(db);
@@ -44,7 +47,7 @@ async function passwordOnlyStaff(role: 'ADMIN' | 'VERIFIER' | 'SUPPORT' | 'MODER
 
 /** Enrol properly, through the real endpoints, and return the codes. */
 async function enrol(token: string) {
-  const begin = await api.post('/me/2fa/enrol', {}, { token });
+  const begin = await api.post('/me/2fa/enrol', { password: DEMO_PASSWORD }, { token });
   const secret = begin.body.secret as string;
   const code = totpCodeFor(secret, totpStep(new Date()));
   const confirm = await api.post('/me/2fa/confirm', { code }, { token });
@@ -115,7 +118,7 @@ describe('a staff role is withheld until the second factor is satisfied', () => 
   it('leaves the enrolment route reachable while roles are withheld', async () => {
     const admin = await passwordOnlyStaff('ADMIN');
     expect((await api.get('/me/2fa', { token: admin.token })).status).toBe(200);
-    expect((await api.post('/me/2fa/enrol', {}, { token: admin.token })).status).toBe(200);
+    expect((await api.post('/me/2fa/enrol', { password: DEMO_PASSWORD }, { token: admin.token })).status).toBe(200);
   });
 
   it('reports what is required and what is withheld', async () => {
@@ -132,10 +135,43 @@ describe('a staff role is withheld until the second factor is satisfied', () => 
  * Enrolment
  * ================================================================== */
 
+describe('enrolling requires the password, not merely a session', () => {
+  it('refuses enrolment with no password at all', async () => {
+    const admin = await passwordOnlyStaff('ADMIN');
+    const res = await api.post('/me/2fa/enrol', {}, { token: admin.token });
+    expect(res.status).toBe(422);
+  });
+
+  it('refuses enrolment with the wrong password', async () => {
+    const admin = await passwordOnlyStaff('ADMIN');
+    const res = await api.post('/me/2fa/enrol', { password: 'not-the-password' }, { token: admin.token });
+    expect(res.status).toBe(401);
+  });
+
+  it('closes the escalation a stolen session used to open', async () => {
+    /* The hole this replaces: disabling a second factor already required a
+       current code, so a stolen session could not remove one. Enrolling
+       required nothing, so on an account that had NOT yet enrolled, a stolen
+       PASSWORD-level session could register its own authenticator and become
+       the second factor — and the owner could then no longer disable it,
+       because that path needs a code they do not have. The weaker credential
+       bought durable control of a staff identity. */
+    const admin = await passwordOnlyStaff('ADMIN');
+
+    const stolen = await api.post('/me/2fa/enrol', { password: 'guessing' }, { token: admin.token });
+    expect(stolen.status).toBe(401);
+
+    // Nothing was minted, so the owner's own enrolment is still the first one.
+    const owner = await api.post('/me/2fa/enrol', { password: DEMO_PASSWORD }, { token: admin.token });
+    expect(owner.status).toBe(200);
+    expect(owner.body.secret).toBeTruthy();
+  });
+});
+
 describe('enrolment', () => {
   it('hands back a secret and an otpauth URI, then recovery codes', async () => {
     const admin = await passwordOnlyStaff();
-    const begin = await api.post('/me/2fa/enrol', {}, { token: admin.token });
+    const begin = await api.post('/me/2fa/enrol', { password: DEMO_PASSWORD }, { token: admin.token });
     expect(begin.body.uri).toContain('otpauth://totp/');
 
     const { recoveryCodes } = await enrol2(admin.token, begin.body.secret as string);
@@ -152,7 +188,7 @@ describe('enrolment', () => {
 
   it('refuses a wrong code and does not enrol', async () => {
     const admin = await passwordOnlyStaff();
-    await api.post('/me/2fa/enrol', {}, { token: admin.token });
+    await api.post('/me/2fa/enrol', { password: DEMO_PASSWORD }, { token: admin.token });
     const res = await api.post('/me/2fa/confirm', { code: '000000' }, { token: admin.token });
     expect(res.status).toBe(422);
     expect((await api.get('/me/2fa', { token: admin.token })).body.enrolled).toBe(false);
@@ -168,7 +204,7 @@ describe('enrolment', () => {
   it('refuses to enrol twice', async () => {
     const admin = await passwordOnlyStaff();
     await enrol(admin.token);
-    expect((await api.post('/me/2fa/enrol', {}, { token: admin.token })).status).toBe(409);
+    expect((await api.post('/me/2fa/enrol', { password: DEMO_PASSWORD }, { token: admin.token })).status).toBe(409);
   });
 
   it('never returns the secret again after confirmation', async () => {

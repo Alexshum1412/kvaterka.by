@@ -600,6 +600,106 @@ describe('debt restrictions', () => {
     expect(existing.body.status).toBe('CONFIRMED');
   });
 
+  it('blocks a NEW instant booking too, which used to slip past the restriction', async () => {
+    /* `/bookings/:id/accept` has always asserted this restriction, and the
+       finance screen tells the landlord that accepting new bookings is
+       blocked. Instant booking confirms WITHOUT the landlord acting, so it
+       never passed through accept — the one path that needed no decision was
+       the one path the restriction did not reach, and the debt kept growing
+       while the product said otherwise. */
+    const { landlord, listingId } = await publishedListing();
+    const tenant = await api.signUp();
+
+    const first = await api.post(
+      '/bookings',
+      { propertyId: listingId, from: '2026-09-01', to: '2026-09-08', instant: true },
+      { token: tenant.token },
+    );
+    expect(first.status).toBe(201);
+
+    const feeId = crypto.randomUUID();
+    await db.query(
+      `INSERT INTO service_fee (id, booking_id, landlord_id, base_minor, bps, fee_minor, due_at)
+       VALUES ($1,$2,$3, 190000, 500, 9500, now() - interval '1 day')`,
+      [feeId, first.body.id, landlord.userId],
+    );
+    await db.query(
+      `INSERT INTO ledger_entry (landlord_id, entry_type, amount_minor, service_fee_id, booking_id)
+       VALUES ($1,'FEE_ACCRUED', -9500, $2, $3)`,
+      [landlord.userId, feeId, first.body.id],
+    );
+
+    const other = await api.signUp();
+    const blocked = await api.post(
+      '/bookings',
+      { propertyId: listingId, from: '2026-10-01', to: '2026-10-08', instant: true },
+      { token: other.token },
+    );
+    expect(blocked.status).toBe(403);
+
+    // A plain REQUEST is still allowed: it confirms nothing, and the landlord
+    // will meet this same restriction if they try to accept it.
+    const requested = await api.post(
+      '/bookings',
+      { propertyId: listingId, from: '2026-10-01', to: '2026-10-08' },
+      { token: other.token },
+    );
+    expect(requested.status).toBe(201);
+    expect(requested.body.status).toBe('REQUESTED');
+  });
+
+  it('settles a fee paid in instalments, which never used to close', async () => {
+    /* `recordPayment` walked the fee list with `remaining = amount` — this ONE
+       payment — so a fee larger than a single instalment could never be
+       settled. Somebody owing 95.00 who paid 50.00 and then 45.00 had a zero
+       balance and a fee still marked PAYABLE, for ever. The ledger was right;
+       the per-fee status, which is what the landlord's fee list shows and what
+       any payment provider would reconcile against, was permanently wrong. And
+       instalments are the ordinary case for a debt somebody is struggling
+       with, not an edge. */
+    const { landlord, listingId } = await publishedListing();
+    const tenant = await api.signUp();
+    const booking = await api.post(
+      '/bookings',
+      { propertyId: listingId, from: '2026-09-01', to: '2026-09-08', instant: true },
+      { token: tenant.token },
+    );
+
+    const feeId = crypto.randomUUID();
+    await db.query(
+      `INSERT INTO service_fee (id, booking_id, landlord_id, base_minor, bps, fee_minor, due_at)
+       VALUES ($1,$2,$3, 190000, 500, 9500, now() - interval '1 day')`,
+      [feeId, booking.body.id, landlord.userId],
+    );
+    await db.query(
+      `INSERT INTO ledger_entry (landlord_id, entry_type, amount_minor, service_fee_id, booking_id)
+       VALUES ($1,'FEE_ACCRUED', -9500, $2, $3)`,
+      [landlord.userId, feeId, booking.body.id],
+    );
+
+    const finance = await api.signUp();
+    await api.grantRole(finance.userId, 'FINANCE');
+    const pay = async (minor: string) =>
+      api.post(
+        `/admin/finance/${landlord.userId}/payments`,
+        { amountMinor: minor, reference: `Платёж ${minor}` },
+        { token: finance.token },
+      );
+
+    expect((await pay('5000')).status).toBeLessThan(400);
+    let fees = await api.get('/me/fees', { token: landlord.token });
+    // Half paid is not paid: the fee is still owed and still says so.
+    expect(fees.body.find((f: any) => f.id === feeId).status).toBe('PAYABLE');
+
+    expect((await pay('4500')).status).toBeLessThan(400);
+    fees = await api.get('/me/fees', { token: landlord.token });
+    expect(fees.body.find((f: any) => f.id === feeId).status).toBe('PAID');
+
+    const balance = await api.get('/me/balance', { token: landlord.token });
+    expect(balance.body.balanceMinor).toBe('0');
+    expect(balance.body.restrictions).toEqual([]);
+  });
+
   it('shows the arithmetic behind every fee', async () => {
     const { landlord, listingId } = await publishedListing();
     const tenant = await api.signUp();

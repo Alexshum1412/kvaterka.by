@@ -142,7 +142,7 @@ export async function seedDemoData(db: Db): Promise<{ listings: number }> {
 
   for (const [key, enabled, description, legal] of [
     ['rewards.lottery', false, 'Prize draw. Requires LEGAL-012.', true],
-    ['fee.enforcement', true, 'Service fee accrues as payable debt. LEGAL-016 unverified.', true],
+    ['fee.enforcement', true, 'Whether an unpaid fee restricts the account. The fee is recorded either way. LEGAL-016 unverified.', true],
     ['verification.identity_documents', false, 'Identity document collection. Requires LEGAL-004.', true],
     ['notifications.telegram', true, 'Telegram channel, opt-in per user.', false],
   ] as const) {

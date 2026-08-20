@@ -281,25 +281,45 @@ export class BookingService {
       // AUTO_DECLINE_COMPETING_REQUESTS: everyone else who wanted these nights
       // finds out immediately instead of waiting for a request that can no
       // longer be accepted.
-      const declined = await tx.query<{ id: string }>(
-        `UPDATE booking
-            SET status = 'DECLINED', responded_at = now()
+      /* Read the losers BEFORE declining them, so each transition is put
+         through the same table every other transition goes through.
+         *
+         * This block used to UPDATE them in one statement and then hand-write
+         * an event claiming `actor: 'SYSTEM'`, `from: 'REQUESTED'`. Both were
+         * fictions. The transition table permits DECLINE_REQUEST only to a
+         * LANDLORD, so anyone replaying this log against it — an audit tool, a
+         * dispute, a future refactor making applyEvent authoritative — would
+         * find SYSTEM performing something the machine forbids. And a booking
+         * that was OFFER_PENDING was recorded as having come from REQUESTED,
+         * which is simply not what happened.
+         *
+         * The actor is the landlord, because it is: accepting one booking is
+         * what declines the others. The reason is in the payload, where it can
+         * be read without being confused with a decision they typed. */
+      const losers = await tx.query<{ id: string; status: BookingState }>(
+        `SELECT id, status FROM booking
           WHERE property_id = $1
             AND id <> $2
             AND status IN ('REQUESTED', 'OFFER_PENDING')
             AND stay_period && (SELECT stay_period FROM booking WHERE id = $2)
-          RETURNING id`,
+          FOR UPDATE`,
         [booking.property_id, bookingId],
       );
 
-      for (const row of declined.rows) {
+      for (const row of losers.rows) {
+        const declineTransition = applyEvent(row.status, 'DECLINE_REQUEST', 'LANDLORD');
+        await tx.query(`UPDATE booking SET status = $2, responded_at = now() WHERE id = $1`, [
+          row.id,
+          declineTransition.to,
+        ]);
         await recordEvent(tx, {
           bookingId: row.id,
           eventType: 'DECLINE_REQUEST',
-          actor: 'SYSTEM',
-          from: 'REQUESTED',
-          to: 'DECLINED',
-          effects: ['NOTIFY_TENANT'],
+          actor: 'LANDLORD',
+          actorUserId: landlordId,
+          from: row.status,
+          to: declineTransition.to,
+          effects: declineTransition.effects,
           payload: { reason: 'DATES_TAKEN_BY_ANOTHER_BOOKING', winner: bookingId },
           correlationId,
         });
@@ -330,7 +350,7 @@ export class BookingService {
         action: 'booking.accept',
         targetType: 'booking',
         targetId: bookingId,
-        changes: { status: { from: booking.status, to: transition.to }, autoDeclined: declined.rows.length },
+        changes: { status: { from: booking.status, to: transition.to }, autoDeclined: losers.rows.length },
         correlationId: correlationId ?? null,
       });
 
@@ -1159,7 +1179,35 @@ async function ensureConversation(
      VALUES ($1,$2,$3,$4,$5,$6, CASE WHEN $6 = 'RELEASED' THEN now() END,
         CASE WHEN $6 = 'RELEASED' THEN 'BOOKING_CONFIRMED' END)
      ON CONFLICT (property_id, tenant_id) WHERE property_id IS NOT NULL
-     DO UPDATE SET booking_id = EXCLUDED.booking_id`,
+     DO UPDATE SET
+        booking_id = EXCLUDED.booking_id,
+        /* Release an EXISTING conversation too, not only a new one.
+         *
+         * The insert carried the right state and the conflict branch dropped
+         * it, so contacts opened on an instant booking only when the two had
+         * never spoken. A tenant who asked a question first — the ordinary
+         * way somebody books a flat — kept a BLOCKED thread after paying and
+         * confirming: the chat went on telling both sides to wait, and the
+         * filter went on hiding the phone number they were entitled to
+         * exchange.
+         *
+         * The move is one-way. Once released, a later insert can never take
+         * it back: people have already seen each other's details, and
+         * re-blocking would only break the thread they are using. */
+        contact_release_state = CASE
+          WHEN EXCLUDED.contact_release_state = 'RELEASED' THEN 'RELEASED'
+          ELSE conversation.contact_release_state
+        END,
+        contact_released_at = CASE
+          WHEN EXCLUDED.contact_release_state = 'RELEASED'
+          THEN COALESCE(conversation.contact_released_at, now())
+          ELSE conversation.contact_released_at
+        END,
+        contact_released_reason = CASE
+          WHEN EXCLUDED.contact_release_state = 'RELEASED'
+          THEN COALESCE(conversation.contact_released_reason, 'BOOKING_CONFIRMED')
+          ELSE conversation.contact_released_reason
+        END`,
     [
       uuidv7(),
       args.propertyId,

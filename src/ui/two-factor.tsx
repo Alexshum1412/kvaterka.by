@@ -209,6 +209,7 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
   const [enrolment, setEnrolment] = useState<EnrolState | null>(null);
   const [codes, setCodes] = useState<string[]>([]);
   const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -225,17 +226,21 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
     );
   }
 
-  const begin = async () => {
+  const begin = async (e: React.FormEvent) => {
+    e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const res = await api.post<EnrolState>('/me/2fa/enrol', {});
+      // The password, not just the session. A stolen session must not be able
+      // to register its own authenticator and become the second factor.
+      const res = await api.post<EnrolState>('/me/2fa/enrol', { password });
       setEnrolment(res);
       setStep('SCAN');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Не удалось начать настройку');
     } finally {
       setBusy(false);
+      setPassword('');
     }
   };
 
@@ -315,7 +320,7 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
 
         <form onSubmit={confirm} className="tfa__form">
           <label className="field">
-            <span className="field__label">Код из приложения</span>
+            <span className="label">Код из приложения</span>
             <input
               className="input tfa__code"
               value={code}
@@ -347,14 +352,31 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
           ? 'Для служебного доступа нужен второй фактор: пароля недостаточно, чтобы открыть обращения, документы или финансовые данные. Пока он не настроен, служебные разделы недоступны — ваш обычный аккаунт работает как прежде.'
           : 'Дополнительная защита аккаунта: при входе понадобится код из приложения.'}
       </p>
-      {error && (
-        <p className="tfa__error" role="alert">
-          {error}
-        </p>
-      )}
-      <button type="button" className="btn btn--primary" onClick={begin} disabled={busy}>
-        {busy ? 'Готовим…' : 'Настроить'}
-      </button>
+      <form onSubmit={begin} className="tfa__form">
+        <label className="field">
+          <span className="label">Подтвердите паролем</span>
+          <input
+            type="password"
+            className="input"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+          <span className="hint">
+            Пароль нужен, чтобы никто, кроме вас, не смог привязать свой аутентификатор к вашей
+            учётной записи.
+          </span>
+        </label>
+        {error && (
+          <p className="tfa__error" role="alert">
+            {error}
+          </p>
+        )}
+        <button type="submit" className="btn btn--primary" disabled={busy || password.length === 0}>
+          {busy ? 'Готовим…' : 'Настроить'}
+        </button>
+      </form>
     </section>
   );
 }

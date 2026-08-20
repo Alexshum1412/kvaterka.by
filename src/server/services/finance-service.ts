@@ -6,9 +6,18 @@
  * it. Corrections are new rows carrying a reason and an author.
  *
  * LEGAL NOTE (LEGAL-016): whether this fee is enforceable as modelled has NOT
- * been confirmed by a Belarusian lawyer. The `fee.enforcement` feature flag
- * exists so the fee can be recorded as informational rather than as a payable
- * debt without a schema change or a rewrite of history.
+ * been confirmed by a Belarusian lawyer.
+ *
+ * The `fee.enforcement` flag gates the CONSEQUENCE, not the record. Accrual
+ * happens either way — `accrueServiceFee()` reads no flag, and recording that a
+ * completed rental generated a fee is a factual statement about a transaction
+ * that is defensible whatever the answer turns out to be. What the flag decides
+ * is whether an unpaid fee RESTRICTS the account, which is the part that rests
+ * on the fee being a collectable debt.
+ *
+ * This comment used to say the flag made the fee "informational rather than
+ * payable", which it never did; migration 0015 corrects the same claim in the
+ * flag's own description, where an administrator actually reads it.
  */
 
 import { formatMoney, fromStorage, money, toDecimalString, type Money } from '../domain/money.ts';
@@ -184,8 +193,34 @@ export class FinanceService {
         [landlordId, amount.toString(), reference, actorId],
       );
 
-      // Settle oldest first, and only as far as the payment reaches.
-      let remaining = amount;
+      /* Settle oldest first against everything this landlord has EVER paid,
+         not against this one payment.
+         *
+         * The previous version walked the fee list with `remaining = amount`,
+         * so a fee larger than a single payment could never be settled by
+         * instalments: somebody owing 25.00 who paid 10.00 and then 15.00 had
+         * a zero balance and a fee still marked PAYABLE, for ever. The ledger
+         * was right — the balance is a SUM and always was — but the per-fee
+         * status, which is what the landlord's fee list shows and what a
+         * payment provider would reconcile against, was permanently wrong.
+         *
+         * Instalments are the ordinary case for a debt somebody is struggling
+         * with, so this was not an edge.
+         *
+         * The pool counts PAYMENT_RECEIVED only. A waiver already removes its
+         * own fee from PAYABLE and would otherwise be counted twice; an
+         * ADJUSTMENT is a correction to the balance and deliberately does not
+         * decide whether a particular fee was paid. */
+      const { rows: pool } = await tx.query<{ paid: string; consumed: string }>(
+        `SELECT
+           COALESCE((SELECT SUM(amount_minor) FROM ledger_entry
+                      WHERE landlord_id=$1 AND entry_type='PAYMENT_RECEIVED'), 0)::text AS paid,
+           COALESCE((SELECT SUM(fee_minor) FROM service_fee
+                      WHERE landlord_id=$1 AND status='PAID'), 0)::text AS consumed`,
+        [landlordId],
+      );
+      let remaining = BigInt(pool[0]!.paid) - BigInt(pool[0]!.consumed);
+
       const { rows } = await tx.query<{ id: string; fee_minor: string }>(
         `SELECT id, fee_minor::text AS fee_minor FROM service_fee
           WHERE landlord_id=$1 AND status='PAYABLE' ORDER BY accrued_at`,

@@ -29,6 +29,30 @@ export const bookingRoutes: AnyRoute[] = [
     }),
     successStatus: 201,
     async handler({ body, ctx, caller }) {
+      /* A landlord in arrears cannot take a new booking — including one that
+         confirms itself.
+         *
+         * `POST /bookings/:id/accept` has always asserted this, and the finance
+         * screen tells the landlord in as many words that "подтверждение новых
+         * бронирований" is blocked. Instant booking never passed through
+         * accept, so the one path that confirms WITHOUT the landlord acting was
+         * the one path the restriction did not reach: the debt kept growing and
+         * the product kept promising otherwise (DEC-022).
+         *
+         * The check is on the OWNER, not the caller — the tenant owes nothing —
+         * and only for the instant path, because an ordinary request confirms
+         * nothing and will meet this same restriction at acceptance. */
+      if (body.instant) {
+        const { rows } = await ctx.db.query<{ owner_id: string }>(
+          `SELECT owner_id FROM property WHERE id = $1 AND deleted_at IS NULL`,
+          [body.propertyId],
+        );
+        const ownerId = rows[0]?.owner_id;
+        if (ownerId) {
+          await ctx.services.finance.assertNotRestricted(ownerId, 'CANNOT_ACCEPT_NEW_BOOKINGS');
+        }
+      }
+
       const booking = await ctx.services.bookings.requestBooking({
         propertyId: body.propertyId,
         tenantId: caller.userId,

@@ -409,6 +409,31 @@ export class AuthService {
    * somebody sitting at their unlocked laptop, and a stolen session must not be
    * upgradeable into permanent account takeover.
    */
+  /**
+   * Prove the person at the keyboard knows the account password.
+   *
+   * The same reasoning `changePassword` applies, extracted because enrolling a
+   * second factor needs it just as badly and did not have it. A session token
+   * is a weaker thing to hold than a password — it is what a stolen laptop, a
+   * borrowed browser or an XSS bug yields — and any operation that turns a
+   * session into DURABLE control of the account has to ask for the stronger
+   * one.
+   *
+   * The error is deliberately the same wording `changePassword` uses. Whether
+   * an account has a password at all (an invited staff member may not yet) is
+   * not something a prober should learn from the difference.
+   */
+  async assertPassword(userId: string, password: string): Promise<void> {
+    const { rows } = await this.db.query<{ password_hash: string | null }>(
+      `SELECT password_hash FROM app_user WHERE id=$1 AND deleted_at IS NULL`,
+      [userId],
+    );
+    const stored = rows[0]?.password_hash;
+    if (!stored || !(await verifyPassword(stored, password))) {
+      throw new DomainError('UNAUTHENTICATED', 'Текущий пароль указан неверно');
+    }
+  }
+
   async changePassword(
     userId: string,
     currentPassword: string,

@@ -86,6 +86,22 @@ export async function SiteHeader() {
                   </Link>
                 )
               )}
+
+              {/* The way back in.
+                  Since roles are withheld until a second factor is satisfied,
+                  every one of the links above disappears on a fresh staff
+                  login — `can()` answers false for all of them — and every
+                  staff page answers 404. That is the enforcement working, and
+                  it left the person with no visible route to the one page that
+                  resolves it: they saw an ordinary tenant's site and had to
+                  already know the address /staff/security.
+                  This is the only staff link driven by roles that are ABSENT,
+                  which is why it sits outside the chain above. */}
+              {user.withheldRoles.length > 0 && (
+                <Link href="/staff/security" className="sh__link sh__link--staff">
+                  Подтвердить вход
+                </Link>
+              )}
             </>
           ) : (
             <>

@@ -13,6 +13,7 @@ import { DomainError } from '@/server/services/errors.ts';
 import { toDecimalString, fromStorage } from '@/server/domain/money.ts';
 import { verifyStoredFee } from '@/server/domain/pricing.ts';
 import { uuidv7 } from '@/lib/id.ts';
+import { applyEvent } from '@/server/domain/booking/states.ts';
 
 let db: TestDb;
 let service: BookingService;
@@ -622,5 +623,132 @@ describe('listing rules are enforced at booking time', () => {
     );
     expect(snap.rows[0]!.content.base_price_minor).toBe('8000');
     await expect(db.query(`UPDATE listing_snapshot SET content='{}'::jsonb`)).rejects.toThrow(/append-only/i);
+  });
+});
+
+/* ================================================================== *
+ * Three things that were wrong beneath a passing suite
+ * ================================================================== */
+
+describe('contact release survives a conversation that already existed', () => {
+  it('opens contacts on an instant booking even when the tenant messaged first', async () => {
+    /* `ensureConversation` carried the right state on INSERT and dropped it in
+       the ON CONFLICT branch, which updated only `booking_id`. So contacts
+       opened on an instant booking only when the two had never spoken — and a
+       tenant who asked a question first, the ordinary way somebody books a
+       flat, kept a BLOCKED thread after paying and confirming. */
+    await db.query(
+      `INSERT INTO conversation (id, property_id, tenant_id, landlord_id, contact_release_state)
+       VALUES ($1,$2,$3,$4,'BLOCKED')`,
+      [uuidv7(), property, tenant, landlord],
+    );
+
+    await service.requestBooking({
+      propertyId: property,
+      tenantId: tenant,
+      from: '2026-09-01',
+      to: '2026-09-08',
+      instant: true,
+    });
+
+    const { rows } = await db.query<{ state: string; reason: string | null; at: string | null }>(
+      `SELECT contact_release_state AS state, contact_released_reason AS reason,
+              contact_released_at::text AS at
+         FROM conversation WHERE property_id=$1 AND tenant_id=$2`,
+      [property, tenant],
+    );
+    expect(rows[0]!.state).toBe('RELEASED');
+    expect(rows[0]!.reason).toBe('BOOKING_CONFIRMED');
+    expect(rows[0]!.at).not.toBeNull();
+  });
+
+  it('never re-blocks a conversation that was already released', async () => {
+    // Releasing is one-way: the two have seen each other's details, and
+    // re-blocking would only break the thread they are using.
+    await service.requestBooking({
+      propertyId: property,
+      tenantId: tenant,
+      from: '2026-09-01',
+      to: '2026-09-08',
+      instant: true,
+    });
+
+    await service.requestBooking({
+      propertyId: property,
+      tenantId: tenant,
+      from: '2026-11-01',
+      to: '2026-11-05',
+    });
+
+    const { rows } = await db.query<{ state: string }>(
+      `SELECT contact_release_state AS state FROM conversation WHERE property_id=$1 AND tenant_id=$2`,
+      [property, tenant],
+    );
+    expect(rows[0]!.state).toBe('RELEASED');
+  });
+});
+
+describe('auto-declining competing requests is a transition, not a fabrication', () => {
+  it('records the landlord as the actor and the real previous status', async () => {
+    /* This used to UPDATE the losers in one statement and hand-write an event
+       claiming actor SYSTEM and from REQUESTED. Both were fictions: the
+       transition table permits DECLINE_REQUEST only to a LANDLORD, so anyone
+       replaying the log against it would find SYSTEM doing something the
+       machine forbids. */
+    const mine = await service.requestBooking({
+      propertyId: property,
+      tenantId: tenant,
+      from: '2026-09-01',
+      to: '2026-09-08',
+    });
+    const theirs = await service.requestBooking({
+      propertyId: property,
+      tenantId: otherTenant,
+      from: '2026-09-03',
+      to: '2026-09-10',
+    });
+
+    await service.acceptRequest(mine.id, landlord);
+
+    const { rows } = await db.query<{ actor: string; actor_user_id: string; from_status: string; to_status: string }>(
+      `SELECT actor, actor_user_id, from_status, to_status
+         FROM booking_event WHERE booking_id=$1 AND event_type='DECLINE_REQUEST'`,
+      [theirs.id],
+    );
+    expect(rows).toHaveLength(1);
+    // Accepting one booking is what declines the others; the landlord is the
+    // actor, and the reason lives in the payload where it cannot be mistaken
+    // for a decision they typed.
+    expect(rows[0]!.actor).toBe('LANDLORD');
+    expect(rows[0]!.actor_user_id).toBe(landlord);
+    expect(rows[0]!.from_status).toBe('REQUESTED');
+    expect(rows[0]!.to_status).toBe('DECLINED');
+
+    const { rows: payload } = await db.query<{ payload: Record<string, unknown> }>(
+      `SELECT payload FROM booking_event WHERE booking_id=$1 AND event_type='DECLINE_REQUEST'`,
+      [theirs.id],
+    );
+    expect(payload[0]!.payload).toMatchObject({ reason: 'DATES_TAKEN_BY_ANOTHER_BOOKING' });
+  });
+
+  it('replays cleanly against the transition table', async () => {
+    // The property this is really about: every recorded event must be a
+    // transition the machine would have allowed.
+    const mine = await service.requestBooking({
+      propertyId: property, tenantId: tenant, from: '2026-09-01', to: '2026-09-08',
+    });
+    await service.requestBooking({
+      propertyId: property, tenantId: otherTenant, from: '2026-09-03', to: '2026-09-10',
+    });
+    await service.acceptRequest(mine.id, landlord);
+
+    const { rows } = await db.query<{ from_status: string; event_type: string; actor: string; to_status: string }>(
+      `SELECT from_status, event_type, actor, to_status FROM booking_event WHERE from_status IS NOT NULL`,
+    );
+    for (const e of rows) {
+      expect(() =>
+        applyEvent(e.from_status as never, e.event_type as never, e.actor as never),
+      ).not.toThrow();
+    }
   });
 });
