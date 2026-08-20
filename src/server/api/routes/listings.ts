@@ -200,26 +200,21 @@ export const listingRoutes: AnyRoute[] = [
     },
   }),
 
-  defineRoute({
-    method: 'POST',
-    path: '/listings/:id/photos',
-    summary: 'Attach an uploaded photo to a listing',
-    tags: ['listings'],
-    auth: 'required',
-    rateLimit: { limit: 200, windowSeconds: 3600, by: 'user', bucket: 'listing:photo' },
-    body: z.object({
-      storageKey: z.string().min(3).max(300),
-      width: z.number().int().positive().max(20000).optional(),
-      height: z.number().int().positive().max(20000).optional(),
-      byteSize: z.number().int().positive().max(30 * 1024 * 1024).optional(),
-      caption: z.string().trim().max(200).optional(),
-    }),
-    successStatus: 201,
-    async handler({ params, body, ctx, caller }) {
-      const result = await ctx.services.listings.addPhoto(params.id!, caller.userId, body);
-      return ok({ id: result.id }, 201);
-    },
-  }),
+  /* THERE IS DELIBERATELY NO JSON ROUTE FOR ATTACHING A PHOTO.
+   *
+   * `POST /listings/:id/photos` used to accept `storageKey`, `width`, `height`
+   * and `byteSize` straight from the client. It predated `POST /api/uploads`
+   * and was never removed, so the codebase had two doors: one that decides the
+   * content type by sniffing magic bytes, generates the key server-side and
+   * strips EXIF, and one that took the client's word for all of it.
+   *
+   * DEC-029 states that "the client never influences" the storage key. That
+   * was true of the upload endpoint and false of the product, which is the
+   * worst combination — a documented guarantee with a registered bypass. No UI
+   * called the JSON route; only tests did, one of them with a key literally
+   * named `evil.jpg`, which is a fair description of what it permitted.
+   *
+   * Bytes arrive at `/api/uploads` or they do not arrive. See DEC-060. */
 
   defineRoute({
     method: 'POST',

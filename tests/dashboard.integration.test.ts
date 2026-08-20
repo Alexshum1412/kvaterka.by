@@ -50,7 +50,7 @@ const LISTING = {
 
 async function publishedListing(landlordToken: string): Promise<string> {
   const id = (await api.post('/listings', LISTING, { token: landlordToken })).body.id as string;
-  await api.post(`/listings/${id}/photos`, { storageKey: `m/${id}.jpg` }, { token: landlordToken });
+  await api.attachPhoto(id);
   await api.post(`/listings/${id}/submit`, {}, { token: landlordToken });
 
   const moderator = await api.signUp();
@@ -191,7 +191,7 @@ describe('«Требует внимания»', () => {
   it('surfaces a rejected listing together with the moderator’s reason', async () => {
     const landlord = await api.signUp();
     const id = (await api.post('/listings', LISTING, { token: landlord.token })).body.id;
-    await api.post(`/listings/${id}/photos`, { storageKey: 'k.jpg' }, { token: landlord.token });
+    await api.attachPhoto(id);
     await api.post(`/listings/${id}/submit`, {}, { token: landlord.token });
 
     const moderator = await api.signUp();

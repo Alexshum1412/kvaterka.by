@@ -54,9 +54,7 @@ async function publishedListing(): Promise<string> {
   expect(created.status).toBe(201);
   const listingId = created.body.id as string;
 
-  await api.post(`/listings/${listingId}/photos`, { storageKey: `media/${listingId}/1.jpg` }, {
-    token: landlord.token,
-  });
+  await api.attachPhoto(listingId);
   await api.post(`/listings/${listingId}/submit`, {}, { token: landlord.token });
 
   const moderator = await api.signUp();

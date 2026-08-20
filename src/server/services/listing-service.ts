@@ -762,6 +762,23 @@ export class ListingService {
     ownerId: string,
     photo: { storageKey: string; width?: number; height?: number; byteSize?: number; caption?: string; contentHash?: Buffer },
   ): Promise<{ id: string }> {
+    /* The key must live in this listing's own namespace.
+     *
+     * `POST /api/uploads` generates `listings/<propertyId>/<uuid>.<ext>` and
+     * never lets a client influence it. This assertion is the second lock on
+     * the same door: it means no caller — a future route, a script, a careless
+     * refactor — can attach a photo row pointing at another listing's object,
+     * at a private document key, or at anything outside the media namespace.
+     *
+     * It matters most in the deployment that does not exist yet. Once a real
+     * bucket is configured, `/media/<key>` redirects to it without consulting
+     * the database, so a row pointing at somebody else's key would publish
+     * somebody else's object under this listing. */
+    const namespace = `listings/${propertyId}/`;
+    if (!photo.storageKey.startsWith(namespace) || photo.storageKey.includes('..')) {
+      throw invalid('Недопустимый ключ файла');
+    }
+
     return this.db.transaction(async (tx) => {
       await this.loadOwned(tx, propertyId, ownerId, true);
       const id = uuidv7();

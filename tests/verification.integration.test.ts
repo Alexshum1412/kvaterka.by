@@ -86,7 +86,7 @@ async function submitIdentity(token: string) {
 async function publishedListingFor(token: string) {
   const created = await api.post('/listings', LISTING, { token });
   const listingId = created.body.id as string;
-  await api.post(`/listings/${listingId}/photos`, { storageKey: `listings/${listingId}/a.jpg` }, { token });
+  await api.attachPhoto(listingId);
   await api.post(`/listings/${listingId}/submit`, {}, { token });
   const moderator = await staffWith('MODERATOR');
   await api.post(`/admin/moderation/listings/${listingId}`, { decision: 'PUBLISHED' }, { token: moderator.token });

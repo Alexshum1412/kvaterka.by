@@ -68,9 +68,7 @@ async function publishedListing(): Promise<{ landlord: { token: string; userId: 
   expect(created.status).toBe(201);
   const listingId = created.body.id as string;
 
-  await api.post(`/listings/${listingId}/photos`, { storageKey: `media/${listingId}/1.jpg` }, {
-    token: landlord.token,
-  });
+  await api.attachPhoto(listingId);
   await api.post(`/listings/${listingId}/submit`, {}, { token: landlord.token });
 
   const moderator = await api.signUp();
@@ -313,7 +311,7 @@ describe('listing lifecycle over HTTP', () => {
     expect(premature.status).toBe(422);
     expect(premature.body.error.message).toMatch(/фотограф/i);
 
-    await api.post(`/listings/${id}/photos`, { storageKey: 'media/x/1.jpg' }, { token: landlord.token });
+    await api.attachPhoto(id);
     expect((await api.post(`/listings/${id}/submit`, {}, { token: landlord.token })).status).toBe(200);
 
     // A landlord cannot approve their own listing.
@@ -339,7 +337,7 @@ describe('listing lifecycle over HTTP', () => {
   it('requires a reason when rejecting', async () => {
     const landlord = await api.signUp();
     const id = (await api.post('/listings', LISTING, { token: landlord.token })).body.id;
-    await api.post(`/listings/${id}/photos`, { storageKey: 'k' }, { token: landlord.token });
+    await api.attachPhoto(id);
     await api.post(`/listings/${id}/submit`, {}, { token: landlord.token });
 
     const moderator = await api.signUp();

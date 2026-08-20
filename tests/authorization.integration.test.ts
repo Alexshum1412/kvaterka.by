@@ -54,7 +54,7 @@ const LISTING = {
 async function publishedListing() {
   const landlord = await api.signUp();
   const id = (await api.post('/listings', LISTING, { token: landlord.token })).body.id as string;
-  await api.post(`/listings/${id}/photos`, { storageKey: `m/${id}.jpg` }, { token: landlord.token });
+  await api.attachPhoto(id);
   await api.post(`/listings/${id}/submit`, {}, { token: landlord.token });
 
   const moderator = await api.signUp();

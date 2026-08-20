@@ -74,7 +74,7 @@ async function pendingListing() {
   const created = await api.post('/listings', { propertyType: 'APARTMENT' }, { token: landlord.token });
   const id = created.body.id as string;
   await api.patch(`/listings/${id}`, COMPLETE, { token: landlord.token });
-  await api.post(`/listings/${id}/photos`, { storageKey: `listings/${id}/a.jpg` }, { token: landlord.token });
+  await api.attachPhoto(id);
   const submitted = await api.post(`/listings/${id}/submit`, {}, { token: landlord.token });
   expect(submitted.status).toBe(200);
   return { landlord, id };

@@ -33,11 +33,15 @@ import path from 'node:path';
 import { currentUser } from '@/server/session.ts';
 import { readyServices } from '@/server/runtime.ts';
 import { DomainError } from '@/server/services/errors.ts';
+import { exceedsPixelBudget, stripMetadata } from '@/server/domain/image.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MAX_BYTES = 10 * 1024 * 1024;
+
+/** Multipart framing around the file itself: boundaries, headers, field names. */
+const FORM_OVERHEAD = 64 * 1024;
 
 /** Where development bytes live. Never inside `public/` — these are served
  *  through the media route so the same access rules apply in both modes. */
@@ -102,6 +106,19 @@ export async function POST(request: Request): Promise<Response> {
   const user = await currentUser();
   if (!user) return fail(401, 'Войдите, чтобы загрузить фотографии');
 
+  /* Refuse an oversized body BEFORE parsing it.
+   *
+   * `formData()` materialises the whole upload in memory, so a size check
+   * after it has already run is a check that happens too late: an authenticated
+   * client could hand the process a body of any size and the cap below would
+   * only observe the damage. Content-Length can be absent or a lie, which is
+   * why the real check further down stays — this one exists to make the honest
+   * case cheap and the dishonest case bounded. */
+  const declared = Number(request.headers.get('content-length') ?? '0');
+  if (Number.isFinite(declared) && declared > MAX_BYTES + FORM_OVERHEAD) {
+    return fail(413, 'Файл больше 10 МБ — уменьшите его и попробуйте снова');
+  }
+
   let form: FormData;
   try {
     form = await request.formData();
@@ -118,9 +135,24 @@ export async function POST(request: Request): Promise<Response> {
   if (file.size === 0) return fail(400, 'Файл пустой');
   if (file.size > MAX_BYTES) return fail(413, 'Файл больше 10 МБ — уменьшите его и попробуйте снова');
 
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const kind = sniff(bytes);
+  const original = Buffer.from(await file.arrayBuffer());
+  const kind = sniff(original);
   if (!kind) return fail(415, 'Поддерживаются только JPEG, PNG и WebP');
+
+  /* A decompression bomb is small on disk and enormous once decoded — a
+     30000x30000 PNG is 25 KB compressed and 3.6 GB in memory. Nothing here
+     decodes it, but the browsers of everyone who opens the listing would.
+     Refusing by dimension is the cheap defence available without an image
+     library, and the dimensions were already parsed above. */
+  if (exceedsPixelBudget(kind.width, kind.height)) {
+    return fail(413, 'Изображение слишком большое по размерам — уменьшите его и попробуйте снова');
+  }
+
+  /* Strip EXIF, XMP and IPTC before the bytes are ever stored.
+     A phone photograph carries the flat's exact coordinates, and this product
+     deliberately withholds the exact position until a booking is confirmed —
+     publishing the original bytes handed that address to every visitor. */
+  const bytes = stripMetadata(original, kind.ext);
 
   // Storage is not configured for production yet. Saying so is the whole
   // point — a landlord must never be told a photo was uploaded when it

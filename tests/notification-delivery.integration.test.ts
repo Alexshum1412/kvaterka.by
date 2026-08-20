@@ -421,7 +421,7 @@ describe('booking expiry', () => {
     const landlord = await api.signUp();
     const created = await api.post('/listings', LISTING, { token: landlord.token });
     const listingId = created.body.id as string;
-    await api.post(`/listings/${listingId}/photos`, { storageKey: `listings/${listingId}/a.jpg` }, { token: landlord.token });
+    await api.attachPhoto(listingId);
     await api.post(`/listings/${listingId}/submit`, {}, { token: landlord.token });
 
     const moderator = await api.signUp();

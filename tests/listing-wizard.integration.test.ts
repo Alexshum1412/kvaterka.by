@@ -12,13 +12,16 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '@/server/db/testing.ts';
 import { ApiTestClient } from './support/api-client.ts';
+import { ListingService } from '@/server/services/listing-service.ts';
 
 let db: TestDb;
 let api: ApiTestClient;
+let listings: ListingService;
 
 beforeAll(async () => {
   db = await createTestDb();
   api = new ApiTestClient(db);
+  listings = new ListingService(db);
 }, 120_000);
 
 afterAll(async () => {
@@ -66,12 +69,6 @@ async function fillOut(token: string, id: string) {
     { token },
   );
   expect(res.status).toBe(200);
-}
-
-async function attachPhoto(token: string, id: string) {
-  const res = await api.post(`/listings/${id}/photos`, { storageKey: `listings/${id}/a.jpg` }, { token });
-  expect(res.status).toBe(201);
-  return res.body.id as string;
 }
 
 /* ================================================================== */
@@ -144,7 +141,7 @@ describe('submission requirements', () => {
       { city: 'Минск', latitude: 53.9, longitude: 27.56, basePriceMinor: '9000' },
       { token: landlord.token },
     );
-    await attachPhoto(landlord.token, id);
+    await api.attachPhoto(id);
 
     const res = await api.post(`/listings/${id}/submit`, {}, { token: landlord.token });
     expect(res.status).toBe(422);
@@ -159,7 +156,7 @@ describe('submission requirements', () => {
       { title: 'Светлая двушка у метро', city: 'Минск', latitude: 53.9, longitude: 27.56 },
       { token: landlord.token },
     );
-    await attachPhoto(landlord.token, id);
+    await api.attachPhoto(id);
 
     const res = await api.post(`/listings/${id}/submit`, {}, { token: landlord.token });
     expect(res.status).toBe(422);
@@ -170,7 +167,7 @@ describe('submission requirements', () => {
     const landlord = await api.signUp();
     const id = await startDraft(landlord.token);
     await fillOut(landlord.token, id);
-    await attachPhoto(landlord.token, id);
+    await api.attachPhoto(id);
 
     const res = await api.post(`/listings/${id}/submit`, {}, { token: landlord.token });
     expect(res.status).toBe(200);
@@ -183,7 +180,7 @@ describe('submission requirements', () => {
     const landlord = await api.signUp();
     const id = await startDraft(landlord.token);
     await fillOut(landlord.token, id);
-    await attachPhoto(landlord.token, id);
+    await api.attachPhoto(id);
     await api.post(`/listings/${id}/submit`, {}, { token: landlord.token });
 
     // Still invisible to the public.
@@ -239,8 +236,8 @@ describe('photos', () => {
   it('makes the first photo the cover automatically', async () => {
     const landlord = await api.signUp();
     const id = await startDraft(landlord.token);
-    const first = await attachPhoto(landlord.token, id);
-    await api.post(`/listings/${id}/photos`, { storageKey: `listings/${id}/b.jpg` }, { token: landlord.token });
+    const first = await api.attachPhoto(id);
+    await api.attachPhoto(id, 'b.jpg');
 
     const res = await api.get(`/listings/${id}/edit`, { token: landlord.token });
     expect(res.body.photos).toHaveLength(2);
@@ -250,17 +247,13 @@ describe('photos', () => {
   it('moves the cover when asked', async () => {
     const landlord = await api.signUp();
     const id = await startDraft(landlord.token);
-    await attachPhoto(landlord.token, id);
-    const second = await api.post(
-      `/listings/${id}/photos`,
-      { storageKey: `listings/${id}/b.jpg` },
-      { token: landlord.token },
-    );
+    await api.attachPhoto(id);
+    const second = await api.attachPhoto(id, 'b.jpg');
 
-    await api.post(`/listings/${id}/photos/${second.body.id}/cover`, {}, { token: landlord.token });
+    await api.post(`/listings/${id}/photos/${second}/cover`, {}, { token: landlord.token });
 
     const res = await api.get(`/listings/${id}/edit`, { token: landlord.token });
-    expect(res.body.photos.find((p: any) => p.id === second.body.id).isCover).toBe(true);
+    expect(res.body.photos.find((p: any) => p.id === second).isCover).toBe(true);
   });
 });
 
@@ -297,18 +290,38 @@ describe('one landlord cannot touch another’s listing', () => {
     const bob = await api.signUp();
     const id = await startDraft(alice.token);
 
-    const res = await api.post(`/listings/${id}/photos`, { storageKey: 'listings/x/evil.jpg' }, { token: bob.token });
-    expect([403, 404]).toContain(res.status);
+    // Ownership is checked in the service, so the refusal holds no matter
+    // which door a future caller comes through.
+    await expect(
+      listings.addPhoto(id, bob.userId, { storageKey: `listings/${id}/evil.jpg` }),
+    ).rejects.toThrow();
 
     const check = await api.get(`/listings/${id}/edit`, { token: alice.token });
     expect(check.body.photos).toEqual([]);
+  });
+
+  it('cannot point a photo at another listing’s namespace', async () => {
+    const alice = await api.signUp();
+    const id = await startDraft(alice.token);
+    const other = await startDraft(alice.token);
+
+    // Alice owns both, so ownership is not what refuses this: the key must
+    // live under the listing it is attached to, or a row could publish another
+    // listing's object once a real bucket exists.
+    await expect(
+      listings.addPhoto(id, alice.userId, { storageKey: `listings/${other}/a.jpg` }),
+    ).rejects.toThrow();
+
+    await expect(
+      listings.addPhoto(id, alice.userId, { storageKey: `private/documents/passport.jpg` }),
+    ).rejects.toThrow();
   });
 
   it('cannot delete a stranger’s photo', async () => {
     const alice = await api.signUp();
     const bob = await api.signUp();
     const id = await startDraft(alice.token);
-    const photoId = await attachPhoto(alice.token, id);
+    const photoId = await api.attachPhoto(id);
 
     const res = await api.delete(`/listings/${id}/photos/${photoId}`, { token: bob.token });
     expect([403, 404]).toContain(res.status);
@@ -322,7 +335,7 @@ describe('one landlord cannot touch another’s listing', () => {
     const bob = await api.signUp();
     const id = await startDraft(alice.token);
     await fillOut(alice.token, id);
-    await attachPhoto(alice.token, id);
+    await api.attachPhoto(id);
 
     const res = await api.post(`/listings/${id}/submit`, {}, { token: bob.token });
     expect([403, 404]).toContain(res.status);

@@ -98,6 +98,34 @@ export class ApiTestClient {
     this.request<T>('PUT', path, body, opts);
   delete = <T = any>(path: string, opts?: RequestOptions) => this.request<T>('DELETE', path, undefined, opts);
 
+  /**
+   * Attach a photo to a listing the way the product does.
+   *
+   * There used to be a JSON route that took a client-supplied `storageKey`,
+   * and every fixture in this suite used it — which is how it survived: the
+   * tests certified the bypass rather than the upload path (DEC-060). Bytes
+   * now arrive only at `POST /api/uploads`, which is a Next route handler and
+   * not reachable through this in-process client, so fixtures go through the
+   * service with a server-shaped key instead.
+   *
+   * The owner is read from the row rather than passed in, because almost every
+   * caller of this helper only has the listing to hand.
+   */
+  async attachPhoto(propertyId: string, name = 'a.jpg'): Promise<string> {
+    const { rows } = await this.db.query<{ owner_id: string }>(
+      `SELECT owner_id FROM property WHERE id=$1`,
+      [propertyId],
+    );
+    const { ListingService } = await import('@/server/services/listing-service.ts');
+    const result = await new ListingService(this.db).addPhoto(propertyId, rows[0]!.owner_id, {
+      storageKey: `listings/${propertyId}/${name}`,
+      width: 1600,
+      height: 1200,
+      byteSize: 240_000,
+    });
+    return result.id;
+  }
+
   /** Register and sign in, returning the session token. */
   async signUp(overrides: Record<string, unknown> = {}): Promise<{ token: string; userId: string; email: string }> {
     const email = `u-${Math.random().toString(36).slice(2)}-${Date.now()}@example.by`;
