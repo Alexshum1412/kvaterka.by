@@ -19,6 +19,22 @@ export interface PostgresOptions {
   max?: number;
   statementTimeoutMs?: number;
   ssl?: boolean;
+  /**
+   * Confine every connection in this pool to one schema.
+   *
+   * Only the test harness passes it, and it exists because of a defect the
+   * suite could not see. Under PGlite each test file gets its own in-process
+   * database; against a real server they all share one, and every file's
+   * `truncateAll()` takes an ACCESS EXCLUSIVE lock on every table. Twenty-seven
+   * files doing that at once deadlock and wipe each other's fixtures mid-test —
+   * which is exactly what happened the first time the suite was pointed at a
+   * real PostgreSQL: 503 failures against 1034 passes on PGlite, none of them
+   * a product defect.
+   *
+   * A schema per test file restores the isolation PGlite gave for free.
+   * `public` stays on the search path because the extensions live there.
+   */
+  schema?: string;
 }
 
 /**
@@ -47,6 +63,21 @@ interface TxContext {
 
 const currentTx = new AsyncLocalStorage<TxContext>();
 
+/**
+ * Quote an identifier for a place where a parameter cannot go.
+ *
+ * A schema name reaches this from the test harness only, and is generated
+ * rather than user-supplied — but a connection-parameter string is one of the
+ * few spots in this codebase where a value is not parameterised, so it is
+ * validated rather than trusted.
+ */
+function quoteIdent(name: string): string {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    throw new Error(`Refusing an unsafe schema name: ${JSON.stringify(name)}`);
+  }
+  return name;
+}
+
 export function createPostgresDb(opts: PostgresOptions): Db {
   const pool = new Pool({
     connectionString: opts.connectionString,
@@ -54,6 +85,10 @@ export function createPostgresDb(opts: PostgresOptions): Db {
     ...(opts.ssl ? { ssl: { rejectUnauthorized: true } } : {}),
     statement_timeout: opts.statementTimeoutMs ?? 15_000,
     application_name: 'kvaterka',
+    // Set as a connection parameter rather than by issuing `SET search_path`
+    // after connecting: the pool hands out connections lazily and a per-query
+    // SET would race with whatever the caller is already doing.
+    ...(opts.schema ? { options: `-c search_path=${quoteIdent(opts.schema)},public` } : {}),
   });
 
   const wrap = (client: pg.PoolClient | pg.Pool): Sql => ({
