@@ -20,7 +20,7 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 
 - [x] Test suite passes — 1034 tests (`npm test` is the source of truth for the number)
 - [x] Typecheck clean
-- [ ] **Suite run against a real PostgreSQL server** via `TEST_DATABASE_URL` — the CI job that stands one up now exists (`.github/workflows/verify.yml`) and has never run, because this environment has no Docker and no server. Still the gate that covers true concurrency
+- [x] **Suite run against a real PostgreSQL server** — 1100 tests pass on PostgreSQL 16.14, including 20 genuine-concurrency assertions that cannot run under PGlite. The harness needed a schema per test file before this was possible at all
 - [ ] Authorization test suite for every API endpoint
 - [ ] End-to-end browser tests for critical flows
 - [ ] Mobile viewport tests
@@ -28,7 +28,7 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 ## Correctness invariants
 
 - [x] No known booking race — `EXCLUDE` constraint, tested for overlap, containment, adjacency, cancellation, competing acceptance
-- [ ] Same, verified under genuine simultaneous transactions
+- [x] Same, verified under genuine simultaneous transactions — overlap, containment, adjacency and an eight-way race, on a real server
 - [x] No duplicate fee — three independent guards, tested including retries
 - [x] Debt logic correct — signed immutable ledger, balance is `SUM`, no mutable balance column
 - [x] Reviews only from a completed rental, one per side
@@ -41,8 +41,8 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 - [x] Rate limiting on auth, messaging, booking
 - [x] CSRF protection (`SameSite=Lax` + `HttpOnly` + `Secure`; no state change on GET)
 - [x] Admin 2FA — enforced by withholding staff roles until a second factor is satisfied
-- [~] Upload validation — type and size are checked; **no re-encoding**, so EXIF and embedded payloads survive
-- [ ] Secure headers and CSP
+- [~] Upload validation — magic-byte sniffing, server-generated keys, EXIF/XMP/IPTC stripped, dimension cap against decompression bombs. **Still no re-encoding**, so a malformed image reaches the browser's decoder
+- [x] Secure headers and CSP — CSP with a per-request nonce; `style-src` keeps `'unsafe-inline'` for the inline style blocks
 - [x] Secrets managed outside the repository — validated at startup, only `.env.example` is tracked
 - [~] Dependency vulnerability scan in CI — `npm audit` runs, advisory only; no SAST
 - [x] Identity documents structurally unreachable by `SUPPORT`
@@ -75,7 +75,7 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 
 - [ ] Reproducible deployment — no Dockerfile, no hosting target (blocked on LEGAL-003)
 - [x] Environment/configuration documented — every variable the code reads is in `.env.example`
-- [~] Structured logs and health endpoints — API errors log as JSON with a correlation id; the scheduler prints one JSON line per job; **no health endpoint**
+- [x] Structured logs and health endpoints — `/api/health` touches the database and reports job status and notification backlog; API errors log as JSON with a correlation id; the scheduler prints one JSON line per job
 - [ ] Error tracking
 - [~] Background job monitoring — `job_run` records every run and `/admin/notifications/backlog` reports the queue; nothing watches either
 - [ ] Alerts on failed fee accrual, stuck completions, notification backlog
@@ -105,6 +105,6 @@ What remains is not mostly feature work. It is four things the codebase cannot d
    in-app inbox reaches anybody. Needs credentials and a client.
 2. **An accrued fee cannot be paid.** No payment provider is connected. The 5% is calculated,
    recorded and enforced as a restriction — and there is no way to settle it through the platform.
-3. **The real-server concurrency run** (no Docker, no PostgreSQL server available here).
+3. ~~The real-server concurrency run~~ — **done**: 1100 tests on PostgreSQL 16.14, and a production build verified against it end to end.
 4. **Every legal question**, which needs a Belarus-qualified lawyer — hosting region above all,
    because it decides where the database may physically live.

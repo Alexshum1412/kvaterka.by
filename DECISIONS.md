@@ -1168,3 +1168,51 @@ That is **at-least-once, said plainly**. No provider this will ever talk to can 
 **So the pages describe behaviour and mark the gap.** Each opens with a panel saying the formal document is in preparation and why we are not publishing a substitute. Everything below is a factual account of the software, including the uncomfortable parts — that erasure is not built, that the platform cannot return money it never held, that moderation checks the listing and not the flat.
 
 **Revisit when.** A Belarus-qualified lawyer drafts either document. These pages then become the plain-language companion to it, not a replacement.
+
+---
+
+## DEC-060 — Photographs are scrubbed, and there is one door for bytes
+
+**Question.** The upload endpoint stored what it was given. What has to come off a picture before it is published, and how many ways in should there be?
+
+**The defect that forced both halves.** This product withholds a flat's exact position until a booking is confirmed — `public_latitude` sits beside the real one for that reason, and `/listings/:id/address` exists to release it deliberately. A phone photograph carries the true coordinates in its EXIF to five decimal places. The bytes were written verbatim, so the address the product refuses to show was published inside the first photo of every listing, to anonymous visitors. Nothing was wrong; something was absent, and its absence undid a decision made three migrations earlier.
+
+**Chosen.** Strip metadata by hand; refuse absurd dimensions; delete the second door.
+
+**Why not an image library.** Re-encoding strips metadata as a side effect and caps bombs. It is also a native dependency on the exact path where untrusted bytes arrive, in a project whose dependency list is five packages long on purpose. Removing metadata does not require decoding: all three accepted formats are containers of length-prefixed segments, and the metadata lives in segments that can be dropped. The route already walked JPEG segments to read dimensions; this walks the same structures with intent.
+
+**What that leaves undone, stated.** No re-encoding means no defence against a malformed image attacking a decoder — the browser's, since nothing here decodes. Decompression bombs are handled bluntly instead, by refusing dimensions before storing: a 30000×30000 PNG is 25 KB compressed and 3.6 GB decoded.
+
+**The second door.** DEC-029 states the client never influences the storage key. That was true of `/api/uploads` and false of the product: `POST /listings/:id/photos` accepted `storageKey`, `width`, `height` and `byteSize` from the client, with no sniffing and no requirement that any bytes exist. A documented guarantee with a registered bypass is worse than no guarantee. No UI called it — only tests, one with a key named `evil.jpg` — so the suite certified the bypass and never opened the door it bypassed. Removed. `addPhoto` additionally requires the key to sit under `listings/<propertyId>/`, which matters most once a real bucket exists, because `/media` redirects without consulting the database.
+
+**Trade-off.** Fixtures across ten suites went through that route; they now attach through the service. That is a truer fixture, and the endpoint itself finally has tests.
+
+---
+
+## DEC-061 — The scheduler gets a machine credential; enrolment gets a password
+
+Two corrections to DEC-054, both found by asking who can actually reach a thing.
+
+**A machine cannot answer a TOTP challenge.** Withholding staff roles until a second factor is satisfied is right for people and fatal for cron: `lifecycle.run`, `retention.run` and `notifications.run` were held by ADMIN, so after DEC-054 nothing automated could run any background job — and every test passed, because every test logs in as a person. DEC-058 records the machine principal that resolves it.
+
+**A stolen session could enrol its own authenticator.** Disabling a second factor already required a current code. Enrolling required nothing but a session. On an account that had not yet enrolled — every staff account the day 0014 landed — a stolen PASSWORD-level session could register its own authenticator and thereafter hold the factor; the owner could not disable it, lacking a code, and would need an administrator. The weaker credential bought durable control of a privileged identity.
+
+Enrolment now asks for the account password. A session token is what a borrowed browser or an XSS bug yields; the password is what distinguishes the owner from somebody at their unlocked laptop. Any operation that converts a session into DURABLE control has to ask for the stronger credential — the same reasoning `changePassword` already applied, extracted so both use it.
+
+**And the way back in.** Because roles are withheld, every staff link disappears on a fresh login and every staff page answers 404. Correct, and it left the person looking at an ordinary tenant's site with no route to the page that resolves it. The header now carries one link driven by roles that are ABSENT rather than present — the only one in the product, which is why it sits outside the permission chain.
+
+---
+
+## DEC-062 — The concurrency gate had never run, and could not have
+
+**Question.** `MVP_RELEASE_CHECKLIST.md` has carried "suite run against a real PostgreSQL server" as an unchecked gate since the first commit, annotated "not possible in the current environment". Was that true?
+
+**No.** A PostgreSQL 16 service was running locally the whole time. Pointing the suite at it produced 503 failures against 1034 passes on PGlite, and not one was a product defect.
+
+**The cause was the harness.** Under PGlite every `createTestDb()` builds a private in-process database, so test files are isolated for free and nobody had to think about it. Against a real server they share one database, and each file's `truncateAll()` takes an ACCESS EXCLUSIVE lock on every table. Twenty-seven files doing that at once deadlock and delete each other's fixtures mid-assertion.
+
+So the mode that exists precisely to be more truthful than PGlite could not run, and the gate was unfalsifiable rather than merely unmet — the worst state for a release gate, because it looks like diligence. Each test file now gets its own schema, created on connect and dropped on close.
+
+**What the gate then bought.** Twenty assertions that PGlite cannot make, because it serialises connections: eight simultaneous acceptances of one week leaving exactly one CONFIRMED, adjacency succeeding where overlap fails, both sides confirming completion at the same instant accruing one fee, four workers never claiming one notification twice, four schedulers leaving one RUNNING row, a nested savepoint rolling back without taking its parent.
+
+It **skips loudly** under PGlite rather than passing. A concurrency test that quietly runs serialised reports success for a property it did not examine, which is the exact failure this file exists to end.

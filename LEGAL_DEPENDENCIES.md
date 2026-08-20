@@ -62,7 +62,9 @@ This is the operational companion to [LEGAL_RISK_REGISTER.md](LEGAL_RISK_REGISTE
 
 **Current assumption.** It is treated as a contractual debt arising on completion — an assumption, not a finding.
 
-**Built now.** Flag `fee.enforcement` (default `true`). The fee is always *calculated and recorded* — that part is a factual record of a transaction and is safe regardless. What the flag controls is *consequence*: with it off, `FinanceService.restrictionsFor()` returns no restrictions, so the fee becomes informational rather than something that limits an account.
+**Built now.** Flag `fee.enforcement` (default `true`). The fee is always *calculated and recorded* — that part is a factual record of a transaction and is safe regardless. What the flag controls is *consequence*: with it off, `FinanceService.restrictionsFor()` returns no restrictions, so an unpaid fee stops limiting the account.
+
+> This register was right and the flag's own `description` column was not: it said disabling would record the fee "as informational only", which `accrueServiceFee()` never did — it reads no flag and always writes a PAYABLE row. That text is served verbatim by `GET /admin/feature-flags` to the administrator most likely to switch the flag off after legal advice, so somebody could have disabled it believing the platform had stopped creating debts. Migration 0015 corrects it where they read it.
 
 Ledger entries are append-only, so if the answer is unfavourable, historical fees are waived or written off with new compensating rows. **Nothing has to be deleted or rewritten.**
 

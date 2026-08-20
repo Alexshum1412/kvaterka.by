@@ -62,8 +62,10 @@ The control is not a check. A session that has not satisfied its second factor i
 
 | Control | Design | Status |
 |---|---|---|
-| Upload safety | type/size validation, image re-encoding to strip payloads and EXIF, content hashing, no execution from the media bucket | NOT STARTED — uploads are size- and type-checked; no re-encoding |
-| Secure headers / CSP | strict CSP, HSTS, `X-Content-Type-Options`, frame denial | NOT STARTED |
+| Upload safety | magic-byte sniffing, server-generated keys, metadata stripping, dimension cap | IMPLEMENTED — `domain/image.ts`, `api/uploads`; **not** re-encoded, so a malformed image still reaches the browser's decoder |
+| Secure headers | HSTS, `X-Content-Type-Options`, frame denial, Referrer-Policy, Permissions-Policy | IMPLEMENTED — `next.config.ts` |
+| CSP | per-request nonce, `strict-dynamic` | IMPLEMENTED — `src/middleware.ts`. `style-src` keeps `'unsafe-inline'`: 55 components carry inline `<style>` blocks and React does not nonce them. Stated rather than hidden — inline STYLE cannot exfiltrate a session the way inline SCRIPT can |
+| Health and readiness | `/api/health` touches the database and reports job status and queue depth | IMPLEMENTED |
 | Encryption at rest | no column is encrypted; the TOTP secret is the first that should be | NOT STARTED — DEC-055 |
 | Secrets management | env vars validated at startup; never in the repository | partially |
 | SSRF | no user-supplied URL is ever fetched server-side; if that changes, allowlist only | policy |
@@ -83,7 +85,9 @@ The control is not a check. A session that has not satisfied its second factor i
 
 ## Known gaps
 
-1. **Concurrency verified by constraint, not yet by race.** PGlite serialises connections. The `EXCLUDE` constraint is a PostgreSQL guarantee and the tests prove it rejects overlaps, but a genuine simultaneous-transaction test requires a real server (`TEST_DATABASE_URL`). A CI job that stands one up now exists (`.github/workflows/verify.yml`) and **has never been run**, because this environment has no Docker and no server.
+1. **Concurrency is now verified by race, not only by constraint.** `tests/concurrency.postgres.test.ts` runs against a real PostgreSQL 16 and asserts what PGlite cannot: eight simultaneous acceptances of one week leave exactly one CONFIRMED; both sides confirming completion at the same instant accrue one fee and one ledger row; four delivery workers never claim the same notification; four schedulers leave one RUNNING job. The suite skips loudly under PGlite rather than passing.
+
+   Getting there required fixing the harness: every test file shared one database and each `truncateAll()` took an ACCESS EXCLUSIVE lock on every table, so the first real run produced 503 failures against 1034 PGlite passes — none of them a product defect. Each file now gets its own schema.
 2. **The TOTP secret is stored in plaintext.** The second factor defends against a stolen password, not against an attacker holding the database. DEC-055.
 3. **No secure headers or CSP.**
 4. **Uploads are not re-encoded**, so EXIF and any embedded payload survive.

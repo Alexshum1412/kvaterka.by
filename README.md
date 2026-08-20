@@ -50,7 +50,11 @@ TEST_DATABASE_URL=postgres://user:pass@localhost:5432/kvaterka_test npm test
 | Scheduled jobs | Built — one job runner, a machine credential, and a scheduler script; needs a deployment to run against |
 | Payments | **Not started** — an accrued fee cannot be paid through the platform |
 
-**1034 tests passing.** `npm test` is the source of truth for that number.
+**1099 tests passing on PGlite; 1100 on a real PostgreSQL 16**, including 20 genuine-concurrency assertions that PGlite cannot make. `npm test` is the source of truth for those numbers.
+
+```bash
+TEST_DATABASE_URL=postgres://user:pass@localhost:5432/kvaterka_test npm test
+```
 
 ## Layout
 
