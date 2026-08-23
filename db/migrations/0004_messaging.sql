@@ -28,7 +28,7 @@ CREATE TABLE conversation (
 );
 
 CREATE TRIGGER conversation_updated_at BEFORE UPDATE ON conversation
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+  FOR EACH ROW EXECUTE PROCEDURE set_updated_at();
 
 -- One thread per (property, tenant) pair keeps history in one place instead of
 -- fragmenting it across repeated enquiries.
@@ -88,4 +88,4 @@ CREATE TABLE message_moderation_event (
 
 CREATE INDEX message_moderation_event_message_idx ON message_moderation_event (message_id, occurred_at);
 CREATE TRIGGER message_moderation_event_append_only BEFORE UPDATE OR DELETE ON message_moderation_event
-  FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+  FOR EACH ROW EXECUTE PROCEDURE forbid_mutation();

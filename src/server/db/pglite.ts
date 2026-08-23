@@ -2,10 +2,14 @@
  * PGlite adapter — a real PostgreSQL 18 engine compiled to WebAssembly, running
  * in-process.
  *
- * Used for tests. This is not a stub: EXCLUDE constraints, constraint triggers,
- * generated columns, daterange operators and the Russian text-search
- * configuration all behave exactly as they do on a server, so a test that
- * proves double booking is impossible is proving it about the real mechanism.
+ * Used for tests. This is not a stub: triggers, primary keys, daterange
+ * operators and the Russian text-search configuration all behave exactly as
+ * they do on a server, so a test that proves double booking is impossible is
+ * proving it about the real mechanism.
+ *
+ * NOTE: this engine is PostgreSQL 18 while production is PostgreSQL 10.23, so it
+ * cannot prove version compatibility either — that is what the real-PG10 suite
+ * is for (tests/pg10-compatibility.test.ts and the postgres:10.23 CI job).
  *
  * LIMITATION (recorded honestly, see REPO_AUDIT.md): PGlite serialises all work
  * onto a single connection, so it cannot exercise *simultaneous* transactions.
@@ -14,11 +18,6 @@
  */
 
 import { PGlite } from '@electric-sql/pglite';
-import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist';
-import { citext } from '@electric-sql/pglite/contrib/citext';
-import { cube } from '@electric-sql/pglite/contrib/cube';
-import { earthdistance } from '@electric-sql/pglite/contrib/earthdistance';
-import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 import type { Db, QueryResult, Sql } from './sql.ts';
 
 /**
@@ -28,9 +27,15 @@ import type { Db, QueryResult, Sql } from './sql.ts';
  * id on screen.
  */
 export async function createPgliteDb(dataDir?: string): Promise<Db> {
+  /* NO EXTENSIONS LOADED, ON PURPOSE.
+     Five used to be: btree_gist, pg_trgm, citext, cube, earthdistance. PGlite
+     offers them and loading them costs nothing, which is precisely the problem —
+     production runs on shared hosting where CREATE EXTENSION is refused, so a
+     test database that has them can prove a query works when the real one
+     cannot run it at all. Withholding them here is what makes the fast test
+     mode honest about the target. */
   const pg = new PGlite({
     ...(dataDir ? { dataDir } : {}),
-    extensions: { btree_gist, pg_trgm, citext, cube, earthdistance },
   });
   await pg.waitReady;
 

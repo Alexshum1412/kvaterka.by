@@ -72,7 +72,7 @@ CREATE INDEX listing_moderation_review_moderator_idx
 /* History that can be edited is not history. */
 CREATE TRIGGER listing_moderation_review_append_only
   BEFORE UPDATE OR DELETE ON listing_moderation_review
-  FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+  FOR EACH ROW EXECUTE PROCEDURE forbid_mutation();
 
 /* Submission time, so the queue can be ordered by how long a landlord
    has actually been waiting rather than by when the listing was first

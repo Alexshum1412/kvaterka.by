@@ -40,4 +40,4 @@ DROP TRIGGER IF EXISTS listing_moderation_review_append_only ON listing_moderati
 
 CREATE TRIGGER listing_moderation_review_append_only
   BEFORE UPDATE OR DELETE ON listing_moderation_review
-  FOR EACH ROW EXECUTE FUNCTION forbid_review_mutation();
+  FOR EACH ROW EXECUTE PROCEDURE forbid_review_mutation();

@@ -222,6 +222,19 @@ export const RETENTION_CATALOGUE: readonly TablePolicy[] = [
   { table: 'property_amenity', dataClass: 'REFERENCE', subject: null, purpose: 'Удобства объявления', onErasure: 'CASCADE_WITH_PARENT', window: { kind: 'TECHNICAL', why: 'Живёт ровно столько, сколько объявление' } },
   { table: 'pricing_rule', dataClass: 'OPERATIONAL', subject: null, purpose: 'Правила цены', onErasure: 'CASCADE_WITH_PARENT', window: { kind: 'TECHNICAL', why: 'Живёт ровно столько, сколько объявление' } },
   { table: 'calendar_block', dataClass: 'OPERATIONAL', subject: null, purpose: 'Занятость календаря', onErasure: 'CASCADE_WITH_PARENT', window: { kind: 'TECHNICAL', why: 'Живёт ровно столько, сколько объявление' } },
+  {
+    table: 'property_occupancy',
+    dataClass: 'OPERATIONAL',
+    subject: null,
+    purpose: 'Занятые ночи: одна строка — одна ночь. Здесь живёт запрет двойного бронирования',
+    onErasure: 'CASCADE_WITH_PARENT',
+    /* Ничего своего не хранит: ни имён, ни сумм, ни текста — только id объекта,
+       дата и id того, кто занял ночь. Строки пишутся исключительно триггерами и
+       исчезают вместе с бронью, блокировкой или объявлением (ON DELETE CASCADE),
+       поэтому отдельного срока хранения у таблицы нет и быть не может: она не
+       переживает своего родителя ни на одну строку. */
+    window: { kind: 'TECHNICAL', why: 'Живёт ровно столько, сколько бронь или блокировка, породившая строку' },
+  },
 
   /* -- bookings ---------------------------------------------------- */
   {

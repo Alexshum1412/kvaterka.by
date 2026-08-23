@@ -168,7 +168,13 @@ export const searchRoutes: AnyRoute[] = [
         `SELECT city, district, count(*)::int AS listings
            FROM property
           WHERE status='PUBLISHED' AND deleted_at IS NULL
-            AND (city ILIKE $1 || '%' OR district ILIKE $1 || '%' OR city % $1)
+            -- Prefix matching only. There was a third branch here using
+            -- pg_trgm's similarity operator on city; the extension needs a
+            -- superuser the production host does not grant, and an undefined
+            -- operator does not degrade — it aborts the statement, so every
+            -- suggestion request would have returned 500 rather than fewer
+            -- suggestions. Prefix matching is what an autocomplete wants anyway.
+            AND (city ILIKE $1 || '%' OR district ILIKE $1 || '%')
           GROUP BY city, district
           ORDER BY listings DESC
           LIMIT 10`,

@@ -112,17 +112,38 @@ CREATE TABLE property (
 );
 
 CREATE TRIGGER property_updated_at BEFORE UPDATE ON property
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+  FOR EACH ROW EXECUTE PROCEDURE set_updated_at();
 
 CREATE INDEX property_owner_idx  ON property (owner_id) WHERE deleted_at IS NULL;
 CREATE INDEX property_status_idx ON property (status)   WHERE deleted_at IS NULL;
 CREATE INDEX property_city_idx   ON property (lower(city)) WHERE status = 'PUBLISHED';
--- Radius search without PostGIS; the public (blurred) point is what search uses.
-CREATE INDEX property_geo_idx ON property
-  USING gist (ll_to_earth(public_latitude, public_longitude)) WHERE status = 'PUBLISHED';
+/* Radius search without PostGIS and without earthdistance. The query narrows to
+   a latitude/longitude rectangle first — which this index serves — and only then
+   computes the exact great-circle distance, which no index can help with. The
+   public (blurred) point is what search uses; the exact one never leaves the row.
+
+   Latitude leads because it is the selective half: a 10 km band of latitude is
+   the same 0.09 degrees everywhere, while the longitude that 10 km spans widens
+   towards the poles. Belarus sits at 51-56 degrees north, where a degree of
+   longitude is roughly 62-70 km. */
+CREATE INDEX property_geo_idx ON property (public_latitude, public_longitude)
+  WHERE status = 'PUBLISHED';
 CREATE INDEX property_price_idx ON property (base_price_minor) WHERE status = 'PUBLISHED';
 CREATE INDEX property_freshness_idx ON property (calendar_updated_at DESC) WHERE status = 'PUBLISHED';
-CREATE INDEX property_title_trgm_idx ON property USING gin (title gin_trgm_ops);
+
+/* Full-text search over the three columns the search query concatenates. The
+   expression here must match src/server/services/search-service.ts character for
+   character, or the planner will not use the index — see the PG10 index-usage
+   test in tests/pg10-compatibility.test.ts, which asserts that it does.
+
+   This replaced a gin (title gin_trgm_ops) index. Trigram search needs pg_trgm,
+   which needs a superuser to install. What was lost with it is typo tolerance;
+   what is gained is that the full-text branch, which was doing the real work all
+   along and was previously unindexed, is now indexed. All three columns are
+   NOT NULL, so no coalesce is needed and none is present. */
+CREATE INDEX property_fts_idx ON property
+  USING gin (to_tsvector('russian', title || ' ' || description || ' ' || city))
+  WHERE status = 'PUBLISHED';
 
 /* -------------------------------------------------------------------- *
  * Photos
@@ -213,13 +234,18 @@ CREATE TABLE calendar_block (
   note        text,
   created_by  uuid REFERENCES app_user(id),
   created_at  timestamptz NOT NULL DEFAULT now(),
-  -- A landlord cannot block the same night twice; overlapping blocks are a
-  -- calendar bug waiting to happen.
-  CONSTRAINT calendar_block_no_overlap EXCLUDE USING gist (
-    property_id WITH =,
-    period WITH &&
-  ),
   CONSTRAINT calendar_block_non_empty CHECK (NOT isempty(period))
 );
 
-CREATE INDEX calendar_block_property_idx ON calendar_block USING gist (property_id, period);
+/* A landlord cannot block the same night twice, and cannot block a night that
+   is already booked. Both rules are enforced in 0003, by the shared
+   property_occupancy table: a block and a booking compete for the same night
+   row, so one mechanism settles both. It cannot live here because it also
+   references booking, which does not exist until 0003.
+
+   This replaced an EXCLUDE USING gist (property_id WITH =, period WITH &&)
+   constraint, which needs the btree_gist extension to put a uuid equality
+   column into a GiST index — and extensions require a superuser the target
+   host does not give us. */
+
+CREATE INDEX calendar_block_property_idx ON calendar_block (property_id, lower(period));

@@ -1,14 +1,16 @@
 /**
  * Calendar and availability.
  *
- * The API can express only states the database already permits. Overlapping
- * blocks are rejected by an EXCLUDE constraint, and a block cannot be placed
- * over a confirmed booking — checked here so the landlord gets an explanation
- * rather than a constraint error, but the constraint remains the guarantee.
+ * The API can express only states the database already permits. A block cannot
+ * overlap another block, and cannot be placed over a booked night: both are the
+ * same rule, that a night on a property can be spoken for once, and both are
+ * enforced by property_occupancy's primary key. This service checks first so
+ * the landlord gets an explanation rather than a constraint error — but the
+ * check is the explanation and the key is the guarantee.
  */
 
 import { uuidv7 } from '../../lib/id.ts';
-import { hasErrorCode, PG_ERROR, type Db } from '../db/sql.ts';
+import { isBookedNightViolation, isOverlapViolation, type Db } from '../db/sql.ts';
 import { DomainError, forbidden, invalid, notFound } from './errors.ts';
 import { writeAudit } from './audit.ts';
 
@@ -149,13 +151,17 @@ export class AvailabilityService {
       if (!rows[0]) throw notFound('Объявление');
       if (rows[0].owner_id !== ownerId) throw forbidden('Это не ваше объявление');
 
-      // Checked explicitly so the landlord gets a message naming the conflict,
-      // rather than a raw constraint failure.
+      /* Checked up front so the landlord reads a sentence about their calendar
+         instead of a constraint name. This is courtesy, not safety: between
+         this SELECT and the INSERT below, a tenant's booking can be confirmed.
+         It used to be the only thing standing between those two transactions,
+         and both could win. Now the INSERT claims nights in property_occupancy
+         and the loser collides with a primary key, so the race below is closed
+         whatever this check happened to see. */
       const conflict = await tx.query<{ c: string }>(
-        `SELECT count(*)::text AS c FROM booking
-          WHERE property_id=$1
-            AND status IN ('CONFIRMED','CHECKED_IN','COMPLETION_PENDING','DISPUTED','COMPLETED')
-            AND stay_period && daterange($2::date,$3::date,'[)')`,
+        `SELECT count(*)::text AS c FROM property_occupancy
+          WHERE property_id=$1 AND booking_id IS NOT NULL
+            AND night >= $2::date AND night < $3::date`,
         [propertyId, from, to],
       );
       if (Number(conflict.rows[0]!.c) > 0) {
@@ -170,7 +176,11 @@ export class AvailabilityService {
           [id, propertyId, from, to, reason, note ?? null, ownerId],
         );
       } catch (e) {
-        if (hasErrorCode(e, PG_ERROR.EXCLUSION_VIOLATION)) {
+        // Which claimant holds the night decides which sentence is true.
+        if (isBookedNightViolation(e)) {
+          throw new DomainError('CONFLICT', 'На эти даты уже есть подтверждённое бронирование');
+        }
+        if (isOverlapViolation(e)) {
           throw new DomainError('CONFLICT', 'Эти даты уже заблокированы');
         }
         throw e;

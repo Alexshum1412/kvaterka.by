@@ -170,9 +170,16 @@ export class AuthService {
       status: string;
       email_verified_at: string | null;
     }>(
+      /* lower() on both sides rather than a bare `email = $1`, because the
+         column is plain text now. It was citext, whose whole purpose was to
+         make this comparison case-insensitive without anyone having to
+         remember; citext needs an extension the production host will not
+         install. This form reads app_user_email_lower_idx, the unique index
+         that carries the same guarantee, so the query is no slower and
+         Test@Email.com still signs in as test@email.com. */
       `SELECT id, password_hash, display_name, status, email_verified_at
          FROM app_user
-        WHERE (email = $1 OR phone = $1) AND deleted_at IS NULL`,
+        WHERE (lower(email) = lower($1) OR phone = $1) AND deleted_at IS NULL`,
       [identifier.trim()],
     );
 
@@ -364,7 +371,7 @@ export class AuthService {
 
   async requestPasswordReset(identifier: string): Promise<string | null> {
     const { rows } = await this.db.query<{ id: string }>(
-      `SELECT id FROM app_user WHERE (email = $1 OR phone = $1) AND deleted_at IS NULL`,
+      `SELECT id FROM app_user WHERE (lower(email) = lower($1) OR phone = $1) AND deleted_at IS NULL`,
       [identifier.trim()],
     );
     const user = rows[0];

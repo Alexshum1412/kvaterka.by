@@ -123,7 +123,7 @@ CREATE INDEX verification_event_applicant_idx ON verification_event (request_id,
   WHERE visibility = 'APPLICANT';
 
 CREATE TRIGGER verification_event_append_only BEFORE UPDATE OR DELETE ON verification_event
-  FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+  FOR EACH ROW EXECUTE PROCEDURE forbid_mutation();
 
 /* -- 4. Documents keep their private namespace ------------------------ *
  *

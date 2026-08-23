@@ -9,11 +9,59 @@
 --     adding a value is an ordinary migration rather than a lock-heavy ALTER TYPE.
 --   * every table that a human can change carries created_at/updated_at.
 
-CREATE EXTENSION IF NOT EXISTS btree_gist;   -- EXCLUDE (uuid =, daterange &&)
-CREATE EXTENSION IF NOT EXISTS pg_trgm;      -- typo-tolerant search
-CREATE EXTENSION IF NOT EXISTS citext;       -- case-insensitive email
-CREATE EXTENSION IF NOT EXISTS cube;         -- required by earthdistance
-CREATE EXTENSION IF NOT EXISTS earthdistance;-- radius search without PostGIS
+/* NO EXTENSIONS. This schema deploys onto shared hosting where CREATE EXTENSION
+   is refused — it needs a superuser, and the account is not one. Five were once
+   used here and each has been replaced by something core PostgreSQL already had:
+
+     btree_gist     -> property_occupancy, a primary key on (property_id, night)
+     pg_trgm        -> to_tsvector/plainto_tsquery, indexed with core GIN
+     citext         -> a unique index on lower(email)
+     cube           -> gone with earthdistance
+     earthdistance  -> a latitude/longitude rectangle, then plain-SQL haversine
+
+   The result runs unchanged on PostgreSQL 10, 16 and 18. Re-adding an extension
+   here is a deployment regression, and tests/pg10-compatibility.test.ts fails the
+   build if anyone does. */
+
+/* ------------------------------------------------------------------ *
+ * The database must be able to lower-case Cyrillic.
+ *
+ * This is not a formality. Under LC_CTYPE=C, lower('МИНСК') returns 'МИНСК'
+ * unchanged: city matching stops working, and the Russian text-search
+ * configuration stops folding case, so a tenant who types 'минск' finds nothing
+ * while one who types 'Минск' finds everything. Nothing else fails, no error is
+ * raised anywhere, and the search box simply appears to be broken for most of
+ * the people using it.
+ *
+ * Encoding must be UTF8 and LC_CTYPE must be a real locale — ru_RU.UTF-8,
+ * be_BY.UTF-8, en_US.UTF-8 and C.UTF-8 all fold Cyrillic correctly; plain C and
+ * POSIX do not. A misconfigured database now refuses to migrate instead of
+ * quietly serving a broken search.
+ * ------------------------------------------------------------------ */
+DO $$
+BEGIN
+  IF current_setting('server_encoding') <> 'UTF8' THEN
+    RAISE EXCEPTION
+      'Database encoding is %, expected UTF8. Recreate the database with ENCODING ''UTF8''.',
+      current_setting('server_encoding')
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  IF lower('МИНСК') <> 'минск' THEN
+    RAISE EXCEPTION
+      'This database cannot lower-case Cyrillic (LC_CTYPE=%). Russian search and city '
+      'matching would silently return nothing. Recreate it with a UTF-8 locale, '
+      'for example: CREATE DATABASE kvaterka ENCODING ''UTF8'' LC_COLLATE ''ru_RU.UTF-8'' '
+      'LC_CTYPE ''ru_RU.UTF-8'' TEMPLATE template0;',
+      current_setting('lc_ctype')
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_ts_config WHERE cfgname = 'russian') THEN
+    RAISE EXCEPTION 'The "russian" text-search configuration is missing; listing search cannot work.'
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+END $$;
 
 -- Keeps updated_at honest without trusting application code.
 CREATE OR REPLACE FUNCTION set_updated_at() RETURNS trigger
@@ -37,7 +85,10 @@ END $$;
 
 CREATE TABLE app_user (
   id                uuid PRIMARY KEY,
-  email             citext UNIQUE,
+  -- Uniqueness is case-insensitive and lives in app_user_email_lower_idx below,
+  -- not in a UNIQUE here. Two accounts differing only in capitalisation are an
+  -- account-takeover vector, not a cosmetic duplicate.
+  email             text,
   phone             text UNIQUE,
   password_hash     text,                       -- argon2id; NULL for not-yet-set
   display_name      text NOT NULL,
@@ -75,9 +126,27 @@ CREATE TABLE app_user (
 );
 
 CREATE TRIGGER app_user_updated_at BEFORE UPDATE ON app_user
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+  FOR EACH ROW EXECUTE PROCEDURE set_updated_at();
 
 CREATE INDEX app_user_active_idx ON app_user (status) WHERE deleted_at IS NULL;
+
+/* What `email citext UNIQUE` used to guarantee: Test@Email.com and
+   test@email.com cannot both exist. The type is gone — it needs an extension —
+   but the guarantee is not, and it is a security property rather than a tidiness
+   one. Every lookup compares lower(email) so it reads this index; see
+   src/server/auth/auth-service.ts.
+
+   NOT PARTIAL, AND THAT TOOK A TEST TO LEARN. The obvious form is
+   `WHERE email IS NOT NULL`, since an account may be reachable by phone alone
+   (app_user_has_contact above). It is also useless: to use a partial index the
+   planner must prove the query implies the predicate, and PostgreSQL 10 does
+   not derive `email IS NOT NULL` from `lower(email) = $1`. The login lookup
+   fell back to a sequential scan of every account, correctly and silently.
+
+   The predicate is unnecessary anyway. lower(NULL) is NULL, and a unique index
+   treats NULLs as distinct, so any number of accounts may have no email at all —
+   which is asserted in tests/pg10-compatibility.test.ts rather than assumed. */
+CREATE UNIQUE INDEX app_user_email_lower_idx ON app_user (lower(email));
 
 /* Roles are separate rows rather than a column: a user can be tenant AND
    landlord at once, and staff roles must be grantable independently. */
@@ -167,4 +236,4 @@ CREATE INDEX audit_log_correlation_idx ON audit_log (correlation_id) WHERE corre
 -- Audit rows may only ever be inserted. Nothing in the application, and no
 -- support operator, can rewrite history through ordinary SQL.
 CREATE TRIGGER audit_log_append_only BEFORE UPDATE OR DELETE ON audit_log
-  FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+  FOR EACH ROW EXECUTE PROCEDURE forbid_mutation();

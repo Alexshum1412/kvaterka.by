@@ -16,7 +16,16 @@ export interface Bounds {
   readonly west: number;
 }
 
-const EARTH_RADIUS_M = 6_371_000;
+/* Exported because the search query computes the same distance in SQL. It used
+   to call earthdistance's earth_distance(), which assumes the equatorial radius
+   (6 378 168 m) and disagreed with this file by about a tenth of a percent —
+   two answers to one question, differing by 5 m over a 5 km radius. The
+   extension is gone; the constant is now shared, so there is one answer. */
+export const EARTH_RADIUS_M = 6_371_000;
+
+/** Metres per degree of latitude — constant everywhere. Longitude is not. */
+export const METRES_PER_DEGREE_LAT = (EARTH_RADIUS_M * Math.PI) / 180;
+
 const toRadians = (deg: number): number => (deg * Math.PI) / 180;
 
 export function distanceMeters(a: LatLng, b: LatLng): number {

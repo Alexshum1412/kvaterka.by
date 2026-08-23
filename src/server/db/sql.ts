@@ -57,11 +57,34 @@ export function hasErrorCode(e: unknown, code: string): boolean {
   return isPgError(e) && e.code === code;
 }
 
-/** True when the error is the double-booking guard firing. */
+/**
+ * The calendar guard firing — a night that was already spoken for.
+ *
+ * The guarantee lives in property_occupancy's primary key, but the error the
+ * caller sees is still SQLSTATE 23P01 carrying one of these two names: the
+ * triggers in 0003_bookings.sql re-raise it that way deliberately, so that
+ * moving the mechanism did not move the contract. `undefined` is accepted
+ * because PGlite does not always surface the constraint name.
+ */
+const OVERLAP_CONSTRAINTS = ['booking_no_overlap', 'calendar_block_no_overlap'] as const;
+
 export function isOverlapViolation(e: unknown): boolean {
+  if (!hasErrorCode(e, PG_ERROR.EXCLUSION_VIOLATION)) return false;
+  const name = isPgError(e) ? e.constraint : undefined;
+  return name === undefined || (OVERLAP_CONSTRAINTS as readonly string[]).includes(name);
+}
+
+/**
+ * Narrower: the night is taken by a *booking* rather than by another block.
+ *
+ * Only the calendar service needs to tell these apart, and only so that a
+ * landlord reads "these dates are already booked" instead of "already blocked".
+ */
+export function isBookedNightViolation(e: unknown): boolean {
   return (
     hasErrorCode(e, PG_ERROR.EXCLUSION_VIOLATION) &&
-    (isPgError(e) ? e.constraint === 'booking_no_overlap' || e.constraint === undefined : false)
+    isPgError(e) &&
+    e.constraint === 'booking_no_overlap'
   );
 }
 

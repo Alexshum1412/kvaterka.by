@@ -261,7 +261,7 @@ async function lookupUserId(
   identifier: string,
 ): Promise<string | null> {
   const { rows } = await ctx.db.query(
-    `SELECT id FROM app_user WHERE (email = $1 OR phone = $1) AND deleted_at IS NULL`,
+    `SELECT id FROM app_user WHERE (lower(email) = lower($1) OR phone = $1) AND deleted_at IS NULL`,
     [identifier.trim()],
   );
   return (rows[0]?.id as string) ?? null;

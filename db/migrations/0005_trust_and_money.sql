@@ -142,7 +142,7 @@ CREATE UNIQUE INDEX ledger_entry_one_accrual_per_fee_idx ON ledger_entry (servic
 
 -- Money records are never edited or deleted. Corrections are new rows.
 CREATE TRIGGER ledger_entry_append_only BEFORE UPDATE OR DELETE ON ledger_entry
-  FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+  FOR EACH ROW EXECUTE PROCEDURE forbid_mutation();
 
 /* ==================================================================== *
  * Verification (spec §15–§17)
@@ -167,7 +167,7 @@ CREATE TABLE verification_request (
 );
 
 CREATE TRIGGER verification_request_updated_at BEFORE UPDATE ON verification_request
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+  FOR EACH ROW EXECUTE PROCEDURE set_updated_at();
 
 CREATE INDEX verification_request_queue_idx ON verification_request (status, created_at)
   WHERE status IN ('SUBMITTED', 'IN_REVIEW');
@@ -210,7 +210,7 @@ CREATE TABLE document_access_log (
 CREATE INDEX document_access_log_doc_idx ON document_access_log (document_id, accessed_at DESC);
 CREATE INDEX document_access_log_actor_idx ON document_access_log (actor_user_id, accessed_at DESC);
 CREATE TRIGGER document_access_log_append_only BEFORE UPDATE OR DELETE ON document_access_log
-  FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+  FOR EACH ROW EXECUTE PROCEDURE forbid_mutation();
 
 /* ==================================================================== *
  * Disputes (spec §38)
@@ -237,7 +237,7 @@ CREATE TABLE dispute_case (
 );
 
 CREATE TRIGGER dispute_case_updated_at BEFORE UPDATE ON dispute_case
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+  FOR EACH ROW EXECUTE PROCEDURE set_updated_at();
 
 CREATE INDEX dispute_case_status_idx ON dispute_case (status, created_at);
 CREATE INDEX dispute_case_booking_idx ON dispute_case (booking_id);
@@ -256,7 +256,7 @@ CREATE TABLE case_event (
 
 CREATE INDEX case_event_case_idx ON case_event (case_id, occurred_at);
 CREATE TRIGGER case_event_append_only BEFORE UPDATE OR DELETE ON case_event
-  FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+  FOR EACH ROW EXECUTE PROCEDURE forbid_mutation();
 
 /* ==================================================================== *
  * Fraud signals (spec §47) — signals, never a single opaque verdict

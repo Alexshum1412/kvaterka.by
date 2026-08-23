@@ -76,7 +76,7 @@ CREATE TABLE user_totp (
 );
 
 CREATE TRIGGER user_totp_updated_at BEFORE UPDATE ON user_totp
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+  FOR EACH ROW EXECUTE PROCEDURE set_updated_at();
 
 /* -- 3. Recovery codes -------------------------------------------------- *
  *

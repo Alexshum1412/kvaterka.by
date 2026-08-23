@@ -15,7 +15,13 @@
  */
 
 import { quote, type PricingRule } from '../domain/pricing.ts';
-import { boundsAreReasonable, normalizeBounds, type Bounds } from '../domain/geo.ts';
+import {
+  boundsAreReasonable,
+  normalizeBounds,
+  EARTH_RADIUS_M,
+  METRES_PER_DEGREE_LAT,
+  type Bounds,
+} from '../domain/geo.ts';
 import type { Db, Sql } from '../db/sql.ts';
 import { forbidden, invalid, notFound } from './errors.ts';
 
@@ -145,16 +151,48 @@ export class SearchService {
     // reuse them; looking them up by value later would break on duplicates.
     let distanceSelect = '';
     if (filters.near) {
-      // Bounding box first so the GiST index does the heavy lifting, then the
-      // exact distance. Doing only the distance test would scan every row.
       const lat = push(filters.near.latitude);
       const lng = push(filters.near.longitude);
       const radius = push(filters.near.radiusMeters);
+
+      /* Radius search without PostGIS and without earthdistance, which needs an
+         extension the production host will not install.
+
+         Two steps, and the order is the whole point. First a latitude/longitude
+         rectangle, which property_geo_idx can answer with an index scan. Only
+         then the exact great-circle distance on the handful of rows that
+         survived — a trigonometric expression no index can help with, so
+         running it first would mean evaluating it against every published
+         listing in the country.
+
+         The rectangle is deliberately the loose test: it always contains the
+         circle, so it can over-select but never under-select, and the exact
+         test that follows removes the corners. A degree of latitude is the same
+         distance everywhere; a degree of longitude shrinks towards the poles by
+         cos(latitude), which is why the two deltas differ. The greatest(...)
+         floor keeps the longitude delta finite at the poles, where cos reaches
+         zero and the division would not — Belarus never goes near it, but a
+         search does not have to be in Belarus to avoid dividing by zero.
+
+         The distance itself is haversine, identical term for term to
+         distanceMeters() in src/server/domain/geo.ts, sharing its radius
+         constant. Public coordinates are blurred by 120-350 m before they are
+         ever stored (DEC-020), so arguing about metres here would be arguing
+         about a number the data does not carry. */
+      const lngScale = `greatest(cos(radians(${lat})), 0.01)`;
+      const distance = `(2 * ${EARTH_RADIUS_M} * asin(least(1, sqrt(
+             power(sin(radians(p.public_latitude - ${lat}) / 2), 2)
+           + power(sin(radians(p.public_longitude - ${lng}) / 2), 2)
+             * cos(radians(${lat})) * cos(radians(p.public_latitude))))))`;
+
       where.push(
-        `earth_box(ll_to_earth(${lat}, ${lng}), ${radius}) @> ll_to_earth(p.public_latitude, p.public_longitude)`,
-        `earth_distance(ll_to_earth(${lat}, ${lng}), ll_to_earth(p.public_latitude, p.public_longitude)) <= ${radius}`,
+        `p.public_latitude BETWEEN ${lat} - (${radius} / ${METRES_PER_DEGREE_LAT})
+                               AND ${lat} + (${radius} / ${METRES_PER_DEGREE_LAT})`,
+        `p.public_longitude BETWEEN ${lng} - (${radius} / (${METRES_PER_DEGREE_LAT} * ${lngScale}))
+                                AND ${lng} + (${radius} / (${METRES_PER_DEGREE_LAT} * ${lngScale}))`,
+        `${distance} <= ${radius}`,
       );
-      distanceSelect = `, earth_distance(ll_to_earth(${lat}, ${lng}), ll_to_earth(p.public_latitude, p.public_longitude)) AS distance_m`;
+      distanceSelect = `, ${distance} AS distance_m`;
     }
 
     if (filters.propertyTypes?.length) where.push(`p.property_type = ANY(${push(filters.propertyTypes)})`);
@@ -194,11 +232,34 @@ export class SearchService {
     }
 
     if (filters.query) {
-      // Stemmed match OR trigram similarity, so a typo still finds the listing.
+      /* Stemmed full-text match, or an exact city name.
+
+         WHAT WAS LOST HERE. There used to be a third branch, `p.title % $q`,
+         which was pg_trgm's similarity operator and made the search tolerant of
+         typos: "Немга" still found "Немига". pg_trgm needs a superuser to
+         install and the production host does not give us one, so that branch is
+         gone and typo tolerance with it. This is a real reduction in what the
+         search box does, not a refactor — a misspelt query now returns nothing
+         rather than the listing the tenant meant. It is recorded in
+         DECISIONS.md and comes back as a one-line migration on any server that
+         has the extension.
+
+         What replaced it is not a substitute but it is not nothing: the
+         full-text branch was doing the real work all along and had no index
+         behind it. It has one now (property_fts_idx), and this expression is
+         written to match that index character for character — change either and
+         the planner silently stops using it, which is why a test asserts on the
+         plan rather than only on the results.
+
+         Both branches are indexable, so the OR becomes a bitmap union rather
+         than a sequential scan. An ILIKE '%...%' branch was considered for
+         partial words and rejected for exactly that reason: it cannot use an
+         index, and one unindexable branch in an OR drags the whole query down
+         to a full scan of every published listing. */
       const q = push(filters.query);
       where.push(
         `(to_tsvector('russian', p.title || ' ' || p.description || ' ' || p.city) @@ plainto_tsquery('russian', ${q})
-          OR p.title % ${q} OR lower(p.city) = lower(${q}))`,
+          OR lower(p.city) = lower(${q}))`,
       );
     }
 
@@ -216,16 +277,18 @@ export class SearchService {
     if (filters.from && filters.to) {
       const from = push(filters.from);
       const to = push(filters.to);
+      /* Two subqueries became one. Bookings and blocks used to be asked
+         separately, each with a range-overlap test needing a GiST index; both
+         now claim their nights in property_occupancy, so "is this property free"
+         is a lookup on that table's primary key. Same answer — a night shared
+         with a '[)' range is exactly a night in [from, to) — fewer moving parts,
+         and an index that already exists. */
       where.push(
         `NOT EXISTS (
-           SELECT 1 FROM booking b
-            WHERE b.property_id = p.id
-              AND b.status IN ('CONFIRMED','CHECKED_IN','COMPLETION_PENDING','DISPUTED','COMPLETED')
-              AND b.stay_period && daterange(${from}::date, ${to}::date, '[)'))`,
-        `NOT EXISTS (
-           SELECT 1 FROM calendar_block cb
-            WHERE cb.property_id = p.id
-              AND cb.period && daterange(${from}::date, ${to}::date, '[)'))`,
+           SELECT 1 FROM property_occupancy po
+            WHERE po.property_id = p.id
+              AND po.night >= ${from}::date
+              AND po.night <  ${to}::date)`,
       );
     }
 
