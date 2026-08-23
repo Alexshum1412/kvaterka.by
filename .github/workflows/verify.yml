@@ -5,10 +5,12 @@
 # them except a person remembering to. This makes the gate mechanical.
 #
 # The suite needs no database server: PGlite runs a real PostgreSQL engine
-# in-process. That is also its limitation — it serialises connections, so the
-# concurrency invariants are proven by constraint rather than by race. The
-# genuine concurrency run needs TEST_DATABASE_URL against a real server and is
-# the second job below, which stays skipped until that secret exists.
+# in-process. It has two limitations, and both are why the second job exists.
+# It serialises connections, so concurrency invariants are proven by constraint
+# rather than by race; and it is PostgreSQL 18, while production is 10.23, so it
+# cannot tell you that a migration will apply at all. The second job runs the
+# identical suite against a real PostgreSQL 10.23 under an unprivileged role —
+# the same version and the same permissions the production host gives us.
 
 name: Verify
 
@@ -53,23 +55,42 @@ jobs:
 
   real-postgres:
     # The gate MVP_RELEASE_CHECKLIST.md calls "the only mode that exercises
-    # genuine concurrency". It runs a real PostgreSQL 18 with the extensions
-    # the schema needs, so EXCLUDE constraints, SKIP LOCKED claiming and the
-    # booking race are exercised under true simultaneity rather than under
-    # PGlite's single connection.
+    # genuine concurrency" — and, since the target host was pinned, the only
+    # mode that exercises the version we actually deploy to.
+    #
+    # THIS RUNS 10.23, NOT THE NEWEST POSTGRESQL, AND THAT IS THE POINT.
+    # It used to run postgres:18 with every extension installed, which is two
+    # steps removed from production: eight major versions newer, and holding
+    # five extensions the shared host will not install. A migration written with
+    # PG11+ syntax passed that job and failed on the first real deploy. Testing
+    # against something more capable than production proves the wrong thing.
+    #
+    # The role below is deliberately NOT a superuser. That is what makes
+    # `CREATE EXTENSION` fail here the same way it fails on the host, so nobody
+    # can reintroduce one and watch CI go green.
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     services:
       postgres:
-        image: postgres:18
+        image: postgres:10.23
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: kvaterka_test
+          # C.UTF-8 rather than plain C: under LC_CTYPE=C, lower('МИНСК') returns
+          # 'МИНСК' unchanged and every Russian search silently returns nothing.
+          # Migration 0001 refuses to run on such a database, so getting this
+          # wrong fails the job loudly instead of shipping a broken search box.
+          POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C.UTF-8'
+        # The data directory is a tmpfs. PostgreSQL 10 fsyncs on every
+        # TRUNCATE, and this suite truncates 45 tables before each of its 1100
+        # tests; on a real disk that is the whole runtime. Durability is the one
+        # property a throwaway CI database does not need — locking, MVCC and
+        # constraint behaviour are untouched.
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+          --mount type=tmpfs,destination=/var/lib/postgresql/data
         ports:
           - 5432:5432
     steps:
@@ -82,7 +103,52 @@ jobs:
 
       - run: npm ci
 
-      - name: Test against a real server
+      - name: Create an unprivileged role, as the host gives us
         env:
-          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/kvaterka_test
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+            CREATE ROLE kvaterka LOGIN PASSWORD 'kvaterka'
+              NOSUPERUSER NOCREATEROLE NOCREATEDB;
+            CREATE DATABASE kvaterka_test OWNER kvaterka;
+            CREATE DATABASE kvaterka_migrate OWNER kvaterka;
+          SQL
+
+      - name: Prove the role cannot install extensions
+        env:
+          PGPASSWORD: kvaterka
+        run: |
+          if psql -h localhost -U kvaterka -d kvaterka_test -c 'CREATE EXTENSION btree_gist' 2>/dev/null; then
+            echo "::error::The CI role installed an extension. It is too privileged to model the host."
+            exit 1
+          fi
+          echo "CREATE EXTENSION refused, as on the production host."
+
+      - name: Migrate from empty, as an unprivileged role
+        env:
+          DATABASE_URL: postgres://kvaterka:kvaterka@localhost:5432/kvaterka_migrate
+        run: npm run db:migrate
+
+      - name: Migrating again applies nothing
+        # Re-running a migration must be a no-op, not a second attempt. This is
+        # the property a deploy pipeline relies on when it runs the command on
+        # every release whether or not the schema moved.
+        env:
+          DATABASE_URL: postgres://kvaterka:kvaterka@localhost:5432/kvaterka_migrate
+        run: |
+          npm run db:migrate | tee /tmp/second.log
+          grep -q 'Schema is current' /tmp/second.log
+
+      - name: The migrated schema carries no extensions
+        env:
+          PGPASSWORD: kvaterka
+        run: |
+          COUNT=$(psql -h localhost -U kvaterka -d kvaterka_migrate -Atc \
+            "SELECT count(*) FROM pg_extension WHERE extname <> 'plpgsql'")
+          echo "extensions installed: $COUNT"
+          test "$COUNT" = "0"
+
+      - name: Test against a real PostgreSQL 10.23
+        env:
+          TEST_DATABASE_URL: postgres://kvaterka:kvaterka@localhost:5432/kvaterka_test
         run: npm test
