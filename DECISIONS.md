@@ -1216,3 +1216,71 @@ So the mode that exists precisely to be more truthful than PGlite could not run,
 **What the gate then bought.** Twenty assertions that PGlite cannot make, because it serialises connections: eight simultaneous acceptances of one week leaving exactly one CONFIRMED, adjacency succeeding where overlap fails, both sides confirming completion at the same instant accruing one fee, four workers never claiming one notification twice, four schedulers leaving one RUNNING row, a nested savepoint rolling back without taking its parent.
 
 It **skips loudly** under PGlite rather than passing. A concurrency test that quietly runs serialised reports success for a property it did not examine, which is the exact failure this file exists to end.
+
+---
+
+## DEC-063 — PostgreSQL 10.23 with no extensions, and the calendar guarantee that survived it
+
+**Question.** The production host offers PostgreSQL 10.23 on shared hosting, with no superuser and therefore no `CREATE EXTENSION`. The schema needed five extensions and two features newer than 10. Change the hosting, change the database engine, or change the schema?
+
+**Change the schema.** MySQL 8 and MariaDB 11.4 were both offered and both examined first. Neither has partial indexes, of which this schema has 49, eight of them unique and carrying business invariants — the job mutex, idempotency, one cover photo, one live offer, fee double-charge. Neither has range types, arrays, `jsonb`, or `UPDATE ... RETURNING`. Roughly four hundred queries and the entire PGlite test harness would have been rewritten in order to lose guarantees. Losing the extensions costs one feature; losing PostgreSQL costs the design.
+
+**What replaced what.**
+
+| Extension | Replacement | What it cost |
+|---|---|---|
+| `btree_gist` | `property_occupancy`, primary key `(property_id, night)` | one row per occupied night |
+| `pg_trgm` | `to_tsvector('russian', …)` with a core GIN index | **typo tolerance, entirely** |
+| `citext` | unique index on `lower(email)` | explicit `lower()` at three lookup sites |
+| `cube` + `earthdistance` | lat/lng rectangle, then haversine in plain SQL | the distance step is no longer index-assisted |
+
+Plus `EXECUTE FUNCTION` to `EXECUTE PROCEDURE` at eighteen sites, and the generated `nights` column to a `BEFORE` trigger.
+
+**The part that mattered.** Double booking was prevented by an `EXCLUDE USING gist` constraint, and DEC-010 is emphatic that the guarantee belongs in the database rather than in TypeScript. Three rules were enforced three ways — booking against booking, block against block, booking against block — and read together they are one rule: **a night on a property can be spoken for once.** Written that way it needs a primary key, not an extension.
+
+The error contract did not move with it. Both triggers re-raise as SQLSTATE 23P01 carrying the constraint name the application already caught, so every catch site, every domain error, and every test that asserted on the old constraint reads exactly what it read before. The mechanism changed; nothing above it noticed.
+
+**It also closed a race.** The cross-table rule was enforced on the booking side only. Placing a block over a booked night was checked by a `SELECT` and then an `INSERT` in the calendar service — a check, not a guarantee. A booking being confirmed and a block being placed could both pass their checks and both commit. They now collide on a primary key.
+
+**What was lost, stated plainly.** `pg_trgm` made "Немга" find "Немига". Nothing replaces it, and a misspelt query now returns nothing rather than the listing the tenant meant. The test that asserted typo tolerance was inverted rather than deleted, so whoever restores the extension on a future server is told which assertion to turn back around. Radius search still returns exactly the right rows, but the distance step scans whatever the rectangle admits; the rectangle is indexed, so this is a constant-factor cost, not a scaling one.
+
+**And what was gained without asking.** The full-text branch was doing the real work all along and had no index behind it; it has one now. The SQL and the TypeScript now compute distance with the same earth radius — `earth_distance` assumed the equatorial one and disagreed with `geo.ts` by a tenth of a percent, two answers to one question. Availability went from two range-overlap subqueries to one primary-key lookup.
+
+**Backwards compatibility is why this is cheap.** The result runs unchanged on PostgreSQL 10, 16 and 18. Moving to a better server later is a connection string, not a migration. Restoring `pg_trgm` on a server that has it is one index and one `OR` branch.
+
+---
+
+## DEC-064 — The database must be able to lower-case Cyrillic, and must refuse to start if it cannot
+
+**Question.** Which database-creation settings are load-bearing, as opposed to conventional?
+
+**One, and it has no symptoms.** Under `LC_CTYPE=C`, PostgreSQL's `lower('МИНСК')` returns `'МИНСК'` unchanged. Measured on a real PostgreSQL 10.23:
+
+| | `LC_CTYPE=C` | UTF-8 locale |
+|---|---|---|
+| `lower('МИНСК')` | `МИНСК` | `минск` |
+| `lower('Минск') = lower('МИНСК')` | **false** | true |
+| a search for `минск` finds `Минска` | **false** | true |
+| English search | works | works |
+
+Nothing errors. Every query succeeds, every English-language test passes, and the city filter and the Russian text search simply stop matching for everyone who does not capitalise — which is very nearly everyone. This is not a PostgreSQL 10 problem; it was always true, and it was never checked.
+
+**So migration `0001` refuses to apply** to a database that is not UTF8, whose `lower('МИНСК')` is not `'минск'`, or that lacks the `russian` text-search configuration. A defect with no symptoms has to be turned into one with a loud symptom at the earliest possible moment, and the earliest possible moment is before the schema exists.
+
+The locale cannot be changed in place afterwards. `CREATE DATABASE` is the only chance, which is exactly why the check belongs where it is rather than in a runbook nobody rereads.
+
+---
+
+## DEC-065 — The schema is rebuilt by migrations; the dump carries only data
+
+**Question.** How is this database backed up and restored, given that the host gives us no superuser?
+
+**Found by rehearsing rather than by reasoning.** A full `pg_restore` under the application role stops on `COMMENT ON EXTENSION plpgsql` — only its owner may issue it, and the owner is a superuser. PostgreSQL 10 has neither `pg_dump --no-comments` nor `pg_restore --no-comments`; both arrived in 11. There is nothing to flag around it.
+
+**So the schema is never carried in a dump.** `npm run db:migrate` builds it, and the dump is `--data-only`. Three further reasons this is the better shape regardless: the schema is in git and checksummed, so a dump of it is a second copy of the truth that will eventually disagree with the first; migrations are portable across major versions while a schema dump is not; and it removes every ownership question from the restore path.
+
+**Four tables are excluded from the data dump.** Three are populated by the migrations themselves (`schema_migration`, `amenity`, `feature_flag`). The fourth is `property_occupancy`, which is derived: inserting a booking fires the trigger that claims its nights, so a dump containing those rows collides with its own primary key on restore. Excluding it is not a workaround — it was verified end to end: 11 rows in the source, 0 in the dump, 11 in the restored database, fingerprints matching.
+
+**The rehearsal found a real bug.** `pg_restore` sets `search_path = ''` deliberately, so that a restore cannot be hijacked by objects in an unexpected schema. The occupancy trigger resolved its helper function against the caller's search path, could not find it, and the restore failed with a message about a missing function rather than about a search path. All four occupancy functions are now pinned to the schema they were created in — using `current_schema()` rather than a literal `public`, because the test harness gives every file its own schema.
+
+None of this was in the repository before. `MVP_RELEASE_CHECKLIST.md` asked for a rehearsed restore and `DEPLOYMENT.md` offered one untested line, while saying, correctly, that a backup nobody has restored is a hypothesis.

@@ -4,7 +4,15 @@ How Kvaterka.by is deployed, and what the first deployment must be: **closed sta
 domain**, not a launch.
 
 Nothing here was invented for a hypothetical platform. Every command was run against a real
-PostgreSQL 16 and a real production build of this application before being written down.
+PostgreSQL **10.23** — the version the target host offers — under a **non-superuser role with no
+extensions installed**, and against a real production build of this application, before being
+written down.
+
+> **This file was rewritten once already, and the reason is worth keeping.** It used to say the
+> application required PostgreSQL 16 with five extensions, and concluded that the purchased tariff
+> could not host it. That was true of the schema as it stood. The schema was then changed rather
+> than the hosting: every extension has been replaced by something core PostgreSQL already had, and
+> the whole suite now runs on 10.23. Where this document still says "16", it is wrong; report it.
 
 ---
 
@@ -12,7 +20,7 @@ PostgreSQL 16 and a real production build of this application before being writt
 
 | Requirement | Value | Why it is not negotiable |
 |---|---|---|
-| **PostgreSQL** | **16+**, with `btree_gist`, `pg_trgm`, `citext`, `cube`, `earthdistance` | `btree_gist` carries the `EXCLUDE USING gist` constraint that makes double booking impossible. Without these extensions the schema does not build — migration `0001` fails on line one. MySQL cannot run this schema at all. |
+| **PostgreSQL** | **10.23 or newer. No extensions. No superuser.** The database must be `UTF8` with a **UTF-8 locale** — `ru_RU.UTF-8`, `be_BY.UTF-8`, `en_US.UTF-8` or `C.UTF-8`. Plain `C` will not do. | The schema is verified by CI against a real 10.23 under an unprivileged role, and runs unchanged on 16 and 18. `LC_CTYPE=C` is the one setting that breaks the product without raising a single error: `lower('МИНСК')` returns `'МИНСК'`, and Russian search silently finds nothing. Migration `0001` refuses to apply to such a database. MySQL and MariaDB cannot run this schema at all — see DEC-062. |
 | **Node.js** | **20.11+** (developed and verified on 24) | `package.json` `engines`. The migration CLI needs `--experimental-transform-types`, which is Node 22.7+. |
 | **Process model** | one long-lived Node process | Next.js App Router with `force-dynamic` on every page. This is server-side rendering, not static files: there is no `out/` directory to upload. |
 | **Reverse proxy** | nginx or equivalent, terminating TLS | The app binds loopback; nginx is what the internet talks to. |
@@ -29,41 +37,46 @@ cron and Git — with PostgreSQL databases limited to ∞, 4 GB of memory and 15
 So shared hosting is **not** ruled out by inspection. Three questions decide it — and on the
 account as purchased, they have now been answered by looking:
 
-> ### VERDICT ON THE PURCHASED TARIFF (Cloud Бизнес, server `ultra.hostflyby.net`)
+> ### VERDICT ON THE PURCHASED TARIFF — REVISED, AND THE REVISION IS THE POINT
 >
-> **PostgreSQL is 9.6.22** — read from phpPgAdmin's own header while connected as the account user.
-> That version was released in 2016 and has been end-of-life since November 2021. This schema needs
-> **16+**, and it fails on 9.6 in two independent ways, neither of which is a permissions problem:
+> **This block used to end "this tariff cannot host Kvaterka.by". That is no longer true, and it
+> stopped being true because the schema changed, not because the hosting did.**
 >
-> 1. `db/migrations/0001_foundation.sql:12` — `CREATE EXTENSION btree_gist`. Trusted extensions,
->    which let a database owner create an extension without superuser rights, arrived in
->    **PostgreSQL 13**. On 9.6 an unprivileged account cannot create any extension at all.
-> 2. `db/migrations/0003_bookings.sql:49` — `nights integer GENERATED ALWAYS AS (...) STORED`. A
->    generated stored column is **PostgreSQL 12+** syntax. On 9.6 it is a parse error, and no
->    administrator can grant it away.
+> What was found by looking, and still stands: the account's default server `ultra.hostflyby.net`
+> runs **PostgreSQL 9.6.22**, read from phpPgAdmin's own header. Node.js is not a problem — the
+> cPanel selector offers **22.23.2 and 24.18.1**, both above the project's floor.
 >
-> The first could in principle be solved by asking support to install five extensions. **The second
-> cannot.** It needs a newer server.
+> What has changed: the two blockers were `CREATE EXTENSION` (needs a superuser the account is not)
+> and `GENERATED ALWAYS AS ... STORED` (PostgreSQL 12+). **Both are gone from the schema.** There
+> are no extensions at all, and `nights` is maintained by a trigger. The whole suite — 1135 tests —
+> now passes against a real **PostgreSQL 10.23** under a `NOSUPERUSER NOCREATEROLE NOCREATEDB`
+> role with zero extensions installed, and CI runs that configuration on every push.
 >
-> Node.js is not the problem: the cPanel selector offers **22.23.2 and 24.18.1**, both above the
-> project's floor and above the 22.7 the migration CLI wants.
+> **So the question to ask support is no longer "will you install five extensions". It is one
+> question: put this account on a server offering PostgreSQL 10.23 or newer.** The host has
+> confirmed 10.23 is available. Nothing else is needed from them.
 >
-> **Therefore: this tariff cannot host Kvaterka.by.** The route is either a HostFly Cloud VPS
-> (§2–§4), or shared hosting on a server whose PostgreSQL is 16 or newer — worth one question to
-> support before spending anything.
+> Whether **9.6.22** itself would work has **not been tested and is not claimed.** Nothing in the
+> schema obviously requires a feature newer than 9.6 — no generated columns, no identity columns, no
+> `MERGE`, no extensions — but "nothing obviously requires it" is not a test result, and this file
+> does not print guesses as facts. If 9.6 is the only option, that is a separate afternoon with a
+> 9.6 server and the existing test suite, which would answer it in an hour.
 
-For any other account, the same three questions, answered in five minutes from cPanel → Terminal:
+For any other account, the questions are now shorter, and answerable in five minutes from
+cPanel → Terminal:
 
 | Question | Why it decides everything |
 |---|---|
-| **PostgreSQL server version?** | The schema needs a server new enough to carry the extensions below. cPanel installations are often several major versions behind. |
-| **Can this account `CREATE EXTENSION`?** | `btree_gist`, `pg_trgm`, `citext`, `cube`, `earthdistance`. On PostgreSQL 13+ the first four are *trusted*, so a database owner may create them without superuser rights; `earthdistance` is **not** trusted and needs an administrator. Without `btree_gist` migration `0001` fails and there is no product. |
+| **PostgreSQL server version?** | 10.23 or newer. Verified by CI at exactly 10.23; runs unchanged on 16 and 18. |
+| **What is the database's `LC_CTYPE`?** | Must be a UTF-8 locale. Under plain `C` the database cannot lower-case Cyrillic, and Russian search silently returns nothing — with no error anywhere. Migration `0001` refuses such a database rather than let it ship. |
 | **Which Node.js versions does the selector offer?** | 20.11 minimum; 22.7+ for the migration CLI's `--experimental-transform-types`. |
+
+There is deliberately **no** question about `CREATE EXTENSION` any more. The schema uses none, and
+`tests/pg10-compatibility.test.ts` fails the build if one reappears.
 
 ```bash
 # cPanel → Terminal. Read-only; changes nothing.
 node -v; ls -d /opt/cpanel/ea-nodejs*/ 2>/dev/null
-psql --version
 free -m | head -2; nproc
 ```
 
@@ -71,13 +84,10 @@ Then, once a PostgreSQL database and user exist (cPanel → «Базы данн�
 
 ```bash
 psql -h localhost -U <db_user> -d <db_name> -c 'SHOW server_version'
-psql -h localhost -U <db_user> -d <db_name> -c 'CREATE EXTENSION IF NOT EXISTS btree_gist'
-psql -h localhost -U <db_user> -d <db_name> -c 'CREATE EXTENSION IF NOT EXISTS earthdistance CASCADE'
+# Must print a UTF-8 locale and 'минск' in lower case. If it prints 'МИНСК',
+# the database must be recreated — the locale cannot be changed in place.
+psql -h localhost -U <db_user> -d <db_name> -c "SELECT current_setting('lc_ctype'), lower('МИНСК')"
 ```
-
-If `btree_gist` succeeds, shared hosting is viable and §4bis applies. If it is refused, ask HostFly
-support to install the five extensions — this is a normal request, and they can do it in minutes. If
-they will not, the answer is a **Cloud VPS** and §4 applies unchanged.
 
 **A HostFly Cloud VPS runs all of it with no questions asked.** Root access, Ubuntu, 2–4 GB RAM,
 from 32.99 BYN/month. It is the certain path; shared hosting is the cheap one that has to be
@@ -170,7 +180,7 @@ of everything on that LAN — put it on an isolated VLAN or guest network if it 
         Next.js :3000 (loopback only, systemd: kvaterka.service)
                  │
                  ▼
-        PostgreSQL 16 (localhost, kvaterka_staging)
+        PostgreSQL 10.23+ (localhost, kvaterka_staging)
                  │
         systemd timer every 15 min ──▶ scripts/run-jobs.mjs
                                         (machine credential, three job routes)
@@ -239,17 +249,35 @@ sudo -u postgres createuser --pwprompt kvaterka
 sudo -u postgres createdb --owner=kvaterka kvaterka_staging
 ```
 
-The five extensions must be installed **into that database**, by a superuser:
+**No extensions are installed, and none may be.** The schema uses none, and
+`tests/pg10-compatibility.test.ts` fails the build if anyone reintroduces one.
+There is nothing to run here — which is the point of the whole exercise.
+
+Two properties of the database itself do matter, and both are set at creation
+time and cannot be changed afterwards without recreating it:
 
 ```bash
-sudo -u postgres psql -d kvaterka_staging -c 'CREATE EXTENSION IF NOT EXISTS btree_gist; CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS citext; CREATE EXTENSION IF NOT EXISTS cube; CREATE EXTENSION IF NOT EXISTS earthdistance;'
+sudo -u postgres createuser --pwprompt kvaterka
+sudo -u postgres createdb --owner=kvaterka   --encoding=UTF8 --lc-collate=ru_RU.UTF-8 --lc-ctype=ru_RU.UTF-8   --template=template0 kvaterka_staging
 ```
 
-Confirm PostgreSQL is 16 or newer:
+If `ru_RU.UTF-8` is not generated on the machine, `C.UTF-8` and `en_US.UTF-8`
+both work. Plain `C` does **not**: under it `lower('МИНСК')` returns `'МИНСК'`
+unchanged, nothing errors anywhere, and Russian search silently returns nothing
+for everyone who does not capitalise their city. Migration `0001` refuses to
+apply to such a database rather than let that ship.
+
+Confirm the version and the locale together:
 
 ```bash
 sudo -u postgres psql -tAc 'SHOW server_version'
+sudo -u postgres psql -d kvaterka_staging -tAc "SELECT current_setting('lc_ctype'), lower('МИНСК')"
+# must print a UTF-8 locale, and 'минск' in lower case
 ```
+
+Anything from **10.23** upwards will do. The role needs no special rights: it
+owns its own database and nothing else, which is exactly what shared hosting
+gives you, and what CI tests with.
 
 ### 4.3 The application user and the code
 
@@ -358,10 +386,22 @@ The same application, arranged the way cPanel expects. Nothing in the codebase c
    ```
 4. **Environment variables** go in the Node.js application screen, not in a file — cPanel injects
    them into the process. Same list as §5.
-5. **cPanel → «Задания cron»**, every 15 minutes:
+5. **cPanel → «Задания cron»**, every 15 minutes. **Both variables, spelled out, on the line:**
    ```
-   */15 * * * * cd ~/kvaterka && BASE_URL=http://127.0.0.1:$PORT /opt/cpanel/ea-nodejs22/bin/node scripts/run-jobs.mjs >> ~/jobs.log 2>&1
+   */15 * * * * cd ~/kvaterka && BASE_URL=http://127.0.0.1:3000 JOB_RUNNER_TOKEN=... /opt/cpanel/ea-nodejs22/bin/node scripts/run-jobs.mjs >> ~/jobs.log 2>&1
    ```
+   The version of this line that stood here before omitted `JOB_RUNNER_TOKEN`, and would have run
+   every fifteen minutes for ever without executing a single job. Two traps, both worth naming:
+
+   - **cron has almost no environment.** It does not inherit the variables cPanel injects into the
+     application process, so a line that works when you paste it into a shell can do nothing at all
+     under cron. `scripts/run-jobs.mjs` exits 2 and says which variable is missing rather than
+     reporting an empty queue — but only if somebody reads `~/jobs.log`.
+   - **`$PORT` is not set under cron either.** It was `http://127.0.0.1:$PORT`, which expands to
+     `http://127.0.0.1:` and connects to nothing. Write the number.
+
+   The token is a secret. It belongs in the cron line or a file only this account can read — never
+   in the repository, and never in a screenshot of the cron screen.
 6. **cPanel → SSL/TLS Certificates** — the account currently carries a **self-signed** certificate
    and cPanel itself warns «Your domain is at risk!». Issue the free AutoSSL/Let's Encrypt
    certificate before anything is exposed.
@@ -500,12 +540,39 @@ pull` does not touch it — which is the storage blocker in §8 wearing a differ
 HostFly includes backups of the **virtual machine**. That is not a database backup: restoring a
 whole VM to recover one table is not a procedure anybody wants at the moment they need it.
 
-```bash
-sudo -u postgres pg_dump -Fc kvaterka_staging > /var/backups/kvaterka-$(date +%F).dump
-```
-
 The release checklist asks for a **rehearsed restore**, not a taken backup. A backup nobody has
-restored is a hypothesis.
+restored is a hypothesis — and the one line that used to stand here was exactly that. It has been
+replaced by **[docs/DATABASE_MIGRATION.md](docs/DATABASE_MIGRATION.md)**, where every command has
+been run against a real PostgreSQL 10.23 under an unprivileged role and the result verified row by
+row.
+
+Three findings from that rehearsal belong here, because each one turns a backup into a
+non-backup:
+
+1. **A full `pg_restore` fails under a normal role.** It stops on
+   `COMMENT ON EXTENSION plpgsql`, which only a superuser may issue, and PostgreSQL 10 has neither
+   `pg_dump --no-comments` nor `pg_restore --no-comments` — those arrived in 11. So **the schema is
+   rebuilt by migrations and the dump carries only data.** That is the procedure, not a workaround.
+
+2. **`property_occupancy` is excluded from the dump**, along with the three tables the migrations
+   populate. Its rows are rebuilt by the triggers when the bookings land; including them makes the
+   restore collide with its own primary key. Verified: 11 rows in the source, 0 in the dump, 11 in
+   the restored database, fingerprints matching.
+
+3. **`pg_dump` must not be newer than the target server.** A dump taken with `pg_dump` 16 will not
+   load into PostgreSQL 10, and `pg_dump` 10 refuses to connect to a 16 server at all. Use the
+   version matching the target.
+
+```bash
+# The dump that can actually be restored. See DATABASE_MIGRATION.md §1.2.
+pg_dump "$DATABASE_URL" --format=custom --compress=9 --data-only   --exclude-table=schema_migration --exclude-table=amenity   --exclude-table=feature_flag --exclude-table=property_occupancy   --file="/var/backups/kvaterka-$(date +%F).dump"
+
+# Prove it is readable without restoring it.
+pg_restore --list "/var/backups/kvaterka-$(date +%F).dump" | wc -l
+
+# Prove a restore is faithful. Prints counts and hashes, never personal data.
+DATABASE_URL="<source>" npm run db:validate -- --compare "<target>" --fingerprint
+```
 
 ---
 
