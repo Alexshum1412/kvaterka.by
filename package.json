@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "db:migrate": "node --experimental-transform-types scripts/migrate.ts",
     "db:seed": "node --experimental-transform-types scripts/seed.ts",
-    "verify": "npm run typecheck && npm run lint && npm run test"
+    "verify": "npm run typecheck && npm run lint && npm run test",
+    "db:validate": "node --experimental-transform-types scripts/db-validate.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",

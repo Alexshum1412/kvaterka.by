@@ -1,0 +1,60 @@
+# PostgreSQL 10.23, as production has it.
+#
+#   docker compose up -d postgres
+#   DATABASE_URL=postgres://kvaterka:kvaterka@localhost:55432/kvaterka npm run db:migrate
+#   TEST_DATABASE_URL=postgres://kvaterka:kvaterka@localhost:55432/kvaterka_test npm test
+#
+# WHY THIS FILE EXISTS, AND WHY IT HOLDS ONLY A DATABASE
+#
+# The application does not need Docker: `npm run dev` starts it against an
+# in-process PostgreSQL with nothing to install. What could not be reproduced
+# locally was the *production database* — 10.23, no extensions, no superuser —
+# and that turned out to be the difference between a suite that passes and a
+# deployment that works. Migrations written with PostgreSQL 11 syntax passed
+# every test on this project for months.
+#
+# So this composes one service, and it is deliberately not a way to run the app.
+#
+# THE APPLICATION ROLE IS NOT A SUPERUSER. That is the point of it. `kvaterka`
+# cannot install an extension, exactly as on the shared host, so a query that
+# needs one fails here on your machine instead of on the server. Connect as
+# `postgres` only to create or drop databases.
+
+services:
+  postgres:
+    image: postgres:10.23
+    container_name: kvaterka-pg10
+    environment:
+      POSTGRES_PASSWORD: postgres
+      # UTF8 with a UTF-8 locale, not plain C. Under LC_CTYPE=C, lower('МИНСК')
+      # returns 'МИНСК' unchanged: no error anywhere, and Russian search quietly
+      # finds nothing for anyone who does not capitalise. Migration 0001 refuses
+      # to apply to such a database rather than let it happen silently.
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C.UTF-8'
+    ports:
+      # 55432, not 5432, so this never fights a PostgreSQL you already run.
+      - '55432:5432'
+    volumes:
+      - ./deploy/pg10-init.sql:/docker-entrypoint-initdb.d/10-kvaterka.sql:ro
+      - kvaterka-pg10-data:/var/lib/postgresql/data
+    # PostgreSQL 10 fsyncs on every TRUNCATE, and the suite truncates 45 tables
+    # before each of its 1100 tests. On a throwaway development database that
+    # cost buys nothing: durability is the only property given up, and locking,
+    # MVCC and constraint behaviour are untouched. It is the difference between
+    # a suite that finishes in a minute and one that finishes in twenty.
+    command: >-
+      postgres
+      -c fsync=off
+      -c synchronous_commit=off
+      -c full_page_writes=off
+      -c max_connections=300
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  # Named rather than a bind mount: a PostgreSQL data directory inside the
+  # working tree is one `git clean -xdf` away from being a bad afternoon.
+  kvaterka-pg10-data:
