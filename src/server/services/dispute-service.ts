@@ -30,6 +30,7 @@ import {
   isOverdue,
   PRIORITY_RANK_SQL,
   PRIORITY_SQL,
+  SEVERE_CATEGORIES,
   SLA_HOURS,
   type DisputeAction,
   type DisputeCategory,
@@ -759,7 +760,7 @@ export class DisputeService {
          (SELECT count(*)::int FROM dispute_case dc
             LEFT JOIN booking b ON b.id = dc.booking_id
            WHERE dc.status NOT IN ('RESOLVED','CLOSED')
-             AND (dc.category IN ('SAFETY_CONCERN','SUSPECTED_FRAUD')
+             AND (dc.category = ANY($2::text[])
                   OR b.status IN ('CONFIRMED','CHECKED_IN'))) AS pressing_cases,
          (SELECT count(*)::int FROM property WHERE status = 'PENDING_MODERATION' AND deleted_at IS NULL) AS pending_listings,
          (SELECT count(*)::int FROM report WHERE status IN ('OPEN','REVIEWING')) AS open_reports,
@@ -767,7 +768,12 @@ export class DisputeService {
          (SELECT count(*)::int FROM verification_request WHERE status IN ('SUBMITTED','IN_REVIEW')) AS pending_verifications,
          (SELECT count(*)::int FROM booking WHERE status = 'DISPUTED') AS frozen_bookings,
          (SELECT count(*)::int FROM service_fee WHERE status = 'PAYABLE' AND due_at < now()) AS overdue_fees`,
-      [staff.userId],
+      /* SEVERE_CATEGORIES rather than the literal list this used to inline.
+         The constant lives in ../domain/dispute.ts beside the priority rule that
+         defines what "severe" means, and it was the only definition anyone would
+         think to edit — while this query, which decides what the staff console
+         calls pressing, kept its own private copy. Two lists, one name. */
+      [staff.userId, [...SEVERE_CATEGORIES]],
     );
 
     const c = rows[0] ?? {};

@@ -21,6 +21,7 @@ import { DomainError, forbidden, invalid, notFound } from './errors.ts';
 import { writeAudit } from './audit.ts';
 import { recordCaseEvent } from './dispute-service.ts';
 import type { DisputeCategory } from '../domain/dispute.ts';
+import { DEBT_GRACE_DAYS } from './finance-service.ts';
 
 export interface BookingRow {
   id: string;
@@ -91,8 +92,9 @@ export class BookingService {
    * Create a booking request, or complete an instant booking.
    *
    * Concurrency: two tenants instant-booking the same nights at the same moment
-   * both reach the INSERT; the EXCLUDE constraint lets exactly one commit and
-   * the loser gets DATES_UNAVAILABLE. No advisory locks, no read-then-write gap.
+   * both reach the INSERT; the occupancy trigger claims a row per night and the
+   * primary key on property_occupancy lets exactly one commit, so the loser gets
+   * DATES_UNAVAILABLE. No advisory locks, no read-then-write gap.
    */
   async requestBooking(input: RequestBookingInput): Promise<BookingRow> {
     const { propertyId, tenantId, from, to } = input;
@@ -1284,11 +1286,27 @@ export async function accrueServiceFee(tx: Sql, booking: BookingRow): Promise<bo
 
   const feeId = uuidv7();
   const inserted = await tx.query<{ id: string }>(
+    /* The grace period is a parameter, not the literal `interval '14 days'` it
+       used to be. DEBT_GRACE_DAYS is exported from finance-service.ts and is
+       what every other part of the product means by "the grace period" — but
+       nothing read it here, so changing the constant moved the restriction
+       date, the dashboard copy and the debt page while leaving the actual due
+       date on every new fee at fourteen days. A constant that one caller
+       ignores is worse than no constant, because it reads as the single source
+       of truth. */
     `INSERT INTO service_fee (id, booking_id, landlord_id, base_minor, bps, fee_minor, due_at)
-     VALUES ($1,$2,$3,$4,$5,$6, now() + interval '14 days')
+     VALUES ($1,$2,$3,$4,$5,$6, now() + ($7::int * interval '1 day'))
      ON CONFLICT (booking_id) DO NOTHING
      RETURNING id`,
-    [feeId, booking.id, booking.landlord_id, toStorage(feeBase), booking.service_fee_bps, toStorage(fee)],
+    [
+      feeId,
+      booking.id,
+      booking.landlord_id,
+      toStorage(feeBase),
+      booking.service_fee_bps,
+      toStorage(fee),
+      DEBT_GRACE_DAYS,
+    ],
   );
 
   if (inserted.rows.length === 0) return false; // already accrued
