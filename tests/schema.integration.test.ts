@@ -9,7 +9,8 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '@/server/db/testing.ts';
-import { PG_ERROR, hasErrorCode } from '@/server/db/sql.ts';
+import { PG_ERROR, hasErrorCode, isOverlapViolation } from '@/server/db/sql.ts';
+import { EARTH_RADIUS_M, METRES_PER_DEGREE_LAT, distanceMeters } from '@/server/domain/geo.ts';
 import { humanReference, uuidv7 } from '@/lib/id.ts';
 
 let db: TestDb;
@@ -110,8 +111,14 @@ async function makeBooking(
 
 describe('migrations', () => {
   it('build the whole schema from a clean database', async () => {
+    /* current_schema(), not the literal 'public'. Against a real server every
+       test file gets its own schema so that files can run in parallel without
+       truncating each other's fixtures (see src/server/db/testing.ts); asking
+       about 'public' there returns an empty list and this test asserts nothing
+       at all. Under PGlite current_schema() *is* public, so one query is right
+       in both modes. */
     const { rows } = await db.query<{ tablename: string }>(
-      `SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename`,
+      `SELECT tablename FROM pg_tables WHERE schemaname = current_schema() ORDER BY tablename`,
     );
     const tables = rows.map((r) => r.tablename);
     for (const expected of [
@@ -139,10 +146,16 @@ describe('migrations', () => {
     expect(Number(rows[0]!.count)).toBeGreaterThanOrEqual(5);
   });
 
-  it('install every extension the schema depends on', async () => {
+  /* This assertion used to be its own opposite: it required btree_gist,
+     pg_trgm, citext, cube and earthdistance to be present. Production runs on
+     shared hosting where CREATE EXTENSION is refused — it needs a superuser the
+     account is not — so a schema depending on any of them cannot be deployed at
+     all. Every one has been replaced by something core PostgreSQL already had,
+     and this test now guards the replacement rather than the dependency. */
+  it('depends on no extension at all', async () => {
     const { rows } = await db.query<{ extname: string }>('SELECT extname FROM pg_extension');
-    const names = rows.map((r) => r.extname);
-    expect(names).toEqual(expect.arrayContaining(['btree_gist', 'pg_trgm', 'citext', 'cube', 'earthdistance']));
+    const names = rows.map((r) => r.extname).filter((n) => n !== 'plpgsql');
+    expect(names, `extensions must stay empty, found: ${names.join(', ')}`).toEqual([]);
   });
 });
 
@@ -266,9 +279,15 @@ describe('calendar blocks', () => {
        VALUES ($1,$2, daterange('2026-11-01','2026-11-10','[)'), 'MAINTENANCE')`,
       [uuidv7(), property],
     );
+    /* Asserted on the error contract rather than on the sentence. The wording
+       moved when the cross-table constraint trigger was replaced by the shared
+       occupancy table; SQLSTATE 23P01 and the constraint name did not, because
+       that is what every catch site in the application actually reads. */
     await expect(
       makeBooking(property, tenant, landlord, { from: '2026-11-05', to: '2026-11-07' }),
-    ).rejects.toThrow(/calendar block/i);
+    ).rejects.toSatisfy(
+      (e: unknown) => hasErrorCode(e, PG_ERROR.EXCLUSION_VIOLATION) && isOverlapViolation(e),
+    );
   });
 
   it('allow a booking outside the blocked dates', async () => {
@@ -578,14 +597,43 @@ describe('geo search', () => {
     await makeProperty(landlord, { public_latitude: 53.9145, public_longitude: 27.5815 });
     await makeProperty(landlord, { public_latitude: 52.0976, public_longitude: 23.7341 });
 
+    /* Was earth_box/earth_distance from the earthdistance extension. Now the
+       rectangle-then-haversine pair the search service builds, written the same
+       way here so this test fails if the two ever drift apart. */
     const { rows } = await db.query<{ count: string }>(
       `SELECT count(*)::text AS count FROM property
        WHERE status='PUBLISHED'
-         AND earth_box(ll_to_earth($1,$2), $3) @> ll_to_earth(public_latitude, public_longitude)
-         AND earth_distance(ll_to_earth($1,$2), ll_to_earth(public_latitude, public_longitude)) <= $3`,
+         AND public_latitude  BETWEEN $1 - ($3 / ${METRES_PER_DEGREE_LAT})
+                                  AND $1 + ($3 / ${METRES_PER_DEGREE_LAT})
+         AND public_longitude BETWEEN $2 - ($3 / (${METRES_PER_DEGREE_LAT} * greatest(cos(radians($1)), 0.01)))
+                                  AND $2 + ($3 / (${METRES_PER_DEGREE_LAT} * greatest(cos(radians($1)), 0.01)))
+         AND (2 * ${EARTH_RADIUS_M} * asin(least(1, sqrt(
+               power(sin(radians(public_latitude - $1) / 2), 2)
+             + power(sin(radians(public_longitude - $2) / 2), 2)
+               * cos(radians($1)) * cos(radians(public_latitude)))))) <= $3`,
       [53.9045, 27.5615, 5000],
     );
     expect(rows[0]!.count).toBe('2');
+  });
+
+  /* The SQL and the TypeScript must agree about how far apart two points are.
+     They did not before: earth_distance assumed the equatorial radius while
+     geo.ts uses the mean one. Same question, two answers. Now one constant. */
+  it('computes the same distance in SQL as distanceMeters does in TypeScript', async () => {
+    const minsk = { latitude: 53.9045, longitude: 27.5615 };
+    const other = { latitude: 53.9145, longitude: 27.5815 };
+
+    const { rows } = await db.query<{ d: string }>(
+      // Every operand is a parameter here, unlike the service query where the
+      // column types settle it, so each one says what it is.
+      `SELECT (2 * ${EARTH_RADIUS_M} * asin(least(1, sqrt(
+                power(sin(radians($3::float8 - $1::float8) / 2), 2)
+              + power(sin(radians($4::float8 - $2::float8) / 2), 2)
+                * cos(radians($1::float8)) * cos(radians($3::float8))))))::text AS d`,
+      [minsk.latitude, minsk.longitude, other.latitude, other.longitude],
+    );
+
+    expect(Number(rows[0]!.d)).toBeCloseTo(distanceMeters(minsk, other), 6);
   });
 });
 
@@ -598,8 +646,23 @@ describe('Russian full-text search', () => {
     expect(rows[0]!.m).toBe(true);
   });
 
-  it('tolerates a typo through trigram similarity', async () => {
-    const { rows } = await db.query<{ s: number }>(`SELECT similarity($1,$2) AS s`, ['Минск', 'Минкс']);
-    expect(Number(rows[0]!.s)).toBeGreaterThan(0.3);
+  /* HONEST RECORD OF A LOST FEATURE.
+     This test used to assert that similarity('Минск','Минкс') > 0.3 — pg_trgm
+     made the search forgive a typo. The extension needs a superuser the
+     production host does not grant, so the capability is gone, and pretending
+     otherwise by deleting the test quietly would hide a real reduction in what
+     the product does. It is inverted instead: it now asserts the gap exists, so
+     that whoever restores pg_trgm on a future server is told exactly which
+     assertion to turn back around. See DECISIONS.md. */
+  it('no longer tolerates a typo — pg_trgm is gone and nothing replaces it', async () => {
+    await expect(
+      db.query(`SELECT similarity($1,$2) AS s`, ['Минск', 'Минкс']),
+    ).rejects.toThrow(/similarity/i);
+
+    const { rows } = await db.query<{ m: boolean }>(
+      `SELECT to_tsvector('russian', $1) @@ plainto_tsquery('russian', $2) AS m`,
+      ['Квартира в центре Минска', 'Минкс'],
+    );
+    expect(rows[0]!.m, 'a misspelt query finds nothing; this is the cost').toBe(false);
   });
 });

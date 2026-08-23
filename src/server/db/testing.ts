@@ -48,7 +48,20 @@ export async function createTestDb(): Promise<TestDb> {
     await admin.query(`CREATE SCHEMA ${schema}`);
     await admin.close();
 
-    const db = createPostgresDb({ connectionString: url, max: 8, schema });
+    /* The production default is 15 s, and it stays 15 s in production: a query
+       that slow is a bug, and cutting it off is the point. A test run is a
+       different shape of load — thirty-one files migrating and truncating
+       forty-five tables at once, against one server, often a laptop's — and
+       there the timeout stops measuring query quality and starts measuring how
+       busy the machine is. TEST_STATEMENT_TIMEOUT_MS raises it for that case
+       only; nothing outside the harness reads it. */
+    const timeout = Number(process.env.TEST_STATEMENT_TIMEOUT_MS ?? 15_000);
+    const db = createPostgresDb({
+      connectionString: url,
+      max: 8,
+      schema,
+      statementTimeoutMs: timeout,
+    });
     await migrate(db);
     return withHelpers(db, 'postgres', schema, url);
   }

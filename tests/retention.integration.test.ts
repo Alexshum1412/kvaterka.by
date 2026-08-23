@@ -119,7 +119,7 @@ describe('the retention catalogue', () => {
 
   it('names no table that does not exist', async () => {
     const { rows } = await db.query<{ tablename: string }>(
-      `SELECT tablename FROM pg_tables WHERE schemaname='public'`,
+      `SELECT tablename FROM pg_tables WHERE schemaname = current_schema()`,
     );
     const real = new Set(rows.map((r) => r.tablename));
     const { RETENTION_CATALOGUE } = await import('@/server/domain/retention.ts');
