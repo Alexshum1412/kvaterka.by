@@ -50,7 +50,7 @@ TEST_DATABASE_URL=postgres://user:pass@localhost:5432/kvaterka_test npm test
 | Scheduled jobs | Built — one job runner, a machine credential, and a scheduler script; needs a deployment to run against |
 | Payments | **Not started** — an accrued fee cannot be paid through the platform |
 
-**1099 tests passing on PGlite; 1100 on a real PostgreSQL 16**, including 20 genuine-concurrency assertions that PGlite cannot make. `npm test` is the source of truth for those numbers.
+**1134 tests passing on PGlite (one skipped); 1135 on a real PostgreSQL 10.23** — the version production runs, under a non-superuser role with no extensions installed — including 20 genuine-concurrency assertions that PGlite cannot make. `npm test` is the source of truth for those numbers.
 
 ```bash
 TEST_DATABASE_URL=postgres://user:pass@localhost:5432/kvaterka_test npm test
@@ -79,7 +79,7 @@ The dependency arrow points one way: `services → domain`. Domain modules do no
 
 ## Design principles
 
-**Invariants live in the database.** Application checks produce good error messages; the database constraint is the guarantee. Double booking is prevented by an `EXCLUDE USING gist` constraint, not a check-then-insert. The service fee cannot be charged twice because three independent constraints say so. Financial and audit records cannot be updated or deleted by anyone, including an administrator.
+**Invariants live in the database.** Application checks produce good error messages; the database constraint is the guarantee. Double booking is prevented by a primary key on `property_occupancy (property_id, night)` — one row per occupied night, written only by triggers — not by a check-then-insert. The service fee cannot be charged twice because three independent constraints say so. Financial and audit records cannot be updated or deleted by anyone, including an administrator.
 
 **Money is never a float.** All amounts are integer kopecks in `bigint`. The fee stores its base, rate and result so it can be re-derived and verified years later.
 

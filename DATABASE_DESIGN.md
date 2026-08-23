@@ -1,6 +1,6 @@
 # DATABASE_DESIGN.md
 
-PostgreSQL 16+ (tested against 18.3). Schema defined by the SQL files in `db/migrations/`, applied verbatim and in order by `src/server/db/migrator.ts`.
+PostgreSQL 10.23+ (CI runs a real 10.23 under a non-superuser role; PGlite runs 18.3). No extensions. Schema defined by the SQL files in `db/migrations/`, applied verbatim and in order by `src/server/db/migrator.ts`.
 
 ## Conventions
 
@@ -15,10 +15,10 @@ PostgreSQL 16+ (tested against 18.3). Schema defined by the SQL files in `db/mig
 
 | Extension | Purpose |
 |---|---|
-| `btree_gist` | `EXCLUDE (uuid =, daterange &&)` — the double-booking guard |
-| `pg_trgm` | typo-tolerant search |
-| `citext` | case-insensitive email, so one address cannot be registered twice |
-| `cube` + `earthdistance` | radius search without a PostGIS dependency |
+| ~~`btree_gist`~~ | replaced by `property_occupancy` — one row per occupied night, guarded by its primary key |
+| ~~`pg_trgm`~~ | replaced by core `to_tsvector`/`plainto_tsquery` with a GIN index. **Typo tolerance was lost, not replaced** |
+| ~~`citext`~~ | replaced by a unique index on `lower(email)` — the same guarantee, no extension |
+| ~~`cube` + `earthdistance`~~ | replaced by a lat/lng rectangle on a btree index, then haversine in plain SQL |
 
 ## Entities
 
@@ -26,7 +26,7 @@ PostgreSQL 16+ (tested against 18.3). Schema defined by the SQL files in `db/mig
 
 | Table | Notes |
 |---|---|
-| `app_user` | Email is `citext`. `CHECK` requires email or phone. A `COMPANY` account must carry a company name — agencies may not pose as private individuals (§4.2). `verification_level` 0–2 is *identity* assurance only. |
+| `app_user` | Email is `text`, with case-insensitive uniqueness enforced by a unique index on `lower(email)`. `CHECK` requires email or phone. A `COMPANY` account must carry a company name — agencies may not pose as private individuals (§4.2). `verification_level` 0–2 is *identity* assurance only. |
 | `user_role` | Roles are rows, not a column: a person is routinely both tenant and landlord, and staff roles must be grantable independently. `TENANT`, `LANDLORD`, `SUPPORT`, `MODERATOR`, `VERIFIER`, `FINANCE`, `ADMIN`. |
 | `user_session` | Stores a **SHA-256 of the token**, never the token. `previous_id` forms a rotation chain so replay of a rotated token is detectable. IP is stored hashed. |
 | `auth_token` | Single-use tokens for verification, reset, OTP, Telegram linking. |
@@ -58,16 +58,43 @@ Indexes: partial by status for the published set; GiST over `ll_to_earth(public_
 | `total_expected_minor` | what the tenant commits to — excludes deposit and metered utilities |
 | `fee_base_minor`, `service_fee_bps` | stored so the fee stays reproducible even if pricing changes later |
 | `terms_frozen_at` | a `CHECK` ties it to `confirmed_at`: a confirmed booking with unfrozen terms cannot exist |
-| `nights` | `GENERATED ALWAYS AS (upper - lower) STORED` — computed, never trusted from the caller |
+| `nights` | maintained by the `booking_nights` BEFORE trigger — computed, never trusted from the caller. Was a generated column, which is PostgreSQL 12+ |
 
 **The constraint that matters most:**
 
 ```sql
-CONSTRAINT booking_no_overlap EXCLUDE USING gist (
-  property_id WITH =,
-  stay_period WITH &&
-) WHERE (status IN ('CONFIRMED','CHECKED_IN','COMPLETION_PENDING','DISPUTED','COMPLETED'))
+CREATE TABLE property_occupancy (
+  property_id uuid NOT NULL REFERENCES property(id)       ON DELETE CASCADE,
+  night       date NOT NULL,
+  booking_id  uuid          REFERENCES booking(id)        ON DELETE CASCADE,
+  block_id    uuid          REFERENCES calendar_block(id) ON DELETE CASCADE,
+  PRIMARY KEY (property_id, night),
+  CONSTRAINT property_occupancy_one_claimant CHECK (
+    (booking_id IS NOT NULL AND block_id IS NULL) OR
+    (booking_id IS NULL     AND block_id IS NOT NULL))
+);
 ```
+
+One row per occupied night, written only by the two triggers in
+`0003_bookings.sql`. No service inserts here and none may: a service changes a
+booking's status or inserts a block, and the database decides whether that was
+allowed.
+
+This replaced two `EXCLUDE USING gist` constraints and a cross-table constraint
+trigger. They needed `btree_gist` — a GiST index over a uuid equality column has
+no operator class in core PostgreSQL — and extensions need a superuser the
+production host does not grant. Read together the three rules were one rule:
+**a night on a property can be spoken for once.** Written that way it needs a
+primary key.
+
+The error did not change with the mechanism. Both triggers re-raise as SQLSTATE
+`23P01` (`exclusion_violation`) carrying the constraint name the application
+already caught, so every catch site and every existing test reads what it read
+before. See DEC-063.
+
+It also closed a race: placing a block over a booked night used to be checked by
+a `SELECT` and then an `INSERT` in the calendar service, so a confirmation and a
+block could both pass their checks and both commit. They now collide on a key.
 
 Two concurrent transactions confirming overlapping dates cannot both commit; the loser gets SQLSTATE `23P01`, which the service translates into "these dates are taken". `REQUESTED` is absent from the predicate on purpose (DEC-007).
 

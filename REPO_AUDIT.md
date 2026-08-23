@@ -72,7 +72,9 @@ No Docker and no local PostgreSQL means the usual "spin up a container for integ
 2. **SQLite for tests, PostgreSQL for production.** Rejected: SQLite has no `EXCLUDE` constraint, no `daterange`, no partial indexes with the same semantics. The tests would pass while production behaved differently — the worst possible outcome.
 3. **PGlite** — real PostgreSQL compiled to WebAssembly, in-process. **Chosen.**
 
-PGlite was validated before committing to it. Verified working: **PostgreSQL 18.3**, `btree_gist`, `pg_trgm`, `citext`, `cube`, `earthdistance`, `EXCLUDE USING gist` over `(uuid =, daterange &&)`, constraint triggers, generated columns, Russian full-text search, and `BEFORE UPDATE OR DELETE` immutability triggers.
+PGlite was validated before committing to it. Verified working: **PostgreSQL 18.3**, triggers, partial and expression indexes, `daterange` operators, Russian full-text search, and `BEFORE UPDATE OR DELETE` immutability triggers.
+
+**It now loads no extensions at all**, deliberately. PGlite offers them and loading them costs nothing, which is exactly the problem: production is PostgreSQL 10.23 on shared hosting where `CREATE EXTENSION` is refused, so a test database that has them can prove a query works when the real one cannot run it. Withholding them is what makes the fast mode honest about the target — and PGlite still cannot prove version compatibility, since it is eight major versions newer than production. That is what the `postgres:10.23` CI job is for (DEC-063).
 
 **Honest limitation:** PGlite serialises everything onto one connection, so it proves *constraint enforcement* but cannot exercise two genuinely simultaneous transactions. The same suite runs unchanged against a real server via `TEST_DATABASE_URL`; that mode is required in CI before release, and it is the mode that tests true concurrency. **This has not been run in this environment** — there is no server here to run it against. See [MVP_RELEASE_CHECKLIST.md](MVP_RELEASE_CHECKLIST.md).
 
@@ -105,7 +107,7 @@ These are the failure modes the spec calls out. Each is answered structurally �
 
 | Risk | Structural answer | Proven by |
 |---|---|---|
-| Double booking under concurrency (§63) | `EXCLUDE USING gist (property_id WITH =, stay_period WITH &&)` partial on the blocking states. There is no check-then-insert anywhere. | 10 tests in `tests/schema.integration.test.ts`, 5 in the lifecycle suite |
+| Double booking under concurrency (§63) | `PRIMARY KEY (property_id, night)` on `property_occupancy`, maintained only by triggers. There is no check-then-insert anywhere. | 10 tests in `tests/schema.integration.test.ts`, 11 in `tests/pg10-compatibility.test.ts`, 5 in the lifecycle suite |
 | Duplicate service fee (§12, §63) | `service_fee.booking_id UNIQUE` + a unique partial index for one `FEE_ACCRUED` ledger row per fee + the state machine refusing a second exit from `COMPLETION_PENDING` — three independent guards | `the service fee can never be charged twice` (4 tests) |
 | Float money bugs (user brief §17) | `bigint` kopecks end to end; `money()` throws on a non-integer `number`; `pg` int8 parser left as string so no lossy conversion | 46 tests in `money.test.ts` |
 | Mutable financial history (§52) | `BEFORE UPDATE OR DELETE` triggers on `ledger_entry`, `audit_log`, `booking_event`, `listing_snapshot`, `case_event`, `document_access_log`, `message_moderation_event` | `financial records are immutable` (4 tests) |

@@ -13,14 +13,14 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 
 - [x] Migrations build the full schema from empty
 - [x] Migrations refuse to run if an applied file was edited
-- [ ] Backup and restore procedure documented and rehearsed
+- [x] **Backup and restore procedure documented and rehearsed** — `docs/DATABASE_MIGRATION.md`. Every command run against a real PostgreSQL 10.23 under a non-superuser role: dump, list, restore into a freshly migrated database, and a row-count-plus-fingerprint comparison that came back identical. The rehearsal found two things reasoning had not: a full `pg_restore` is impossible without a superuser (`COMMENT ON EXTENSION plpgsql`), and `property_occupancy` must be excluded from the dump so its triggers can rebuild it. `npm run db:validate` is the check
 - [ ] Indexes reviewed against real query plans on representative data
 
 ## Tests
 
 - [x] Test suite passes — 1034 tests (`npm test` is the source of truth for the number)
 - [x] Typecheck clean
-- [x] **Suite run against a real PostgreSQL server** — 1100 tests pass on PostgreSQL 16.14, including 20 genuine-concurrency assertions that cannot run under PGlite. The harness needed a schema per test file before this was possible at all
+- [x] **Suite run against a real PostgreSQL server** — 1135 tests pass on **PostgreSQL 10.23**, the version production runs, under a `NOSUPERUSER` role with **zero extensions installed**; 1134 pass on PGlite with one skipped. Includes 20 genuine-concurrency assertions that cannot run under PGlite. The harness needed a schema per test file before this was possible at all, and CI now runs `postgres:10.23` rather than `postgres:18` — testing against something more capable than production proves the wrong thing
 - [ ] Authorization test suite for every API endpoint
 - [ ] End-to-end browser tests for critical flows
 - [ ] Mobile viewport tests
@@ -105,6 +105,6 @@ What remains is not mostly feature work. It is four things the codebase cannot d
    in-app inbox reaches anybody. Needs credentials and a client.
 2. **An accrued fee cannot be paid.** No payment provider is connected. The 5% is calculated,
    recorded and enforced as a restriction — and there is no way to settle it through the platform.
-3. ~~The real-server concurrency run~~ — **done**: 1100 tests on PostgreSQL 16.14, and a production build verified against it end to end.
+3. ~~The real-server concurrency run~~ — **done**: 1135 tests on PostgreSQL 10.23 with no extensions, and a production build verified against it end to end, including search, radius search, availability, the calendar and case-insensitive login.
 4. **Every legal question**, which needs a Belarus-qualified lawyer — hosting region above all,
    because it decides where the database may physically live.

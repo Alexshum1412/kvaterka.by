@@ -27,9 +27,9 @@ One deployable Next.js application, one PostgreSQL database, and scheduled work 
                     │   - no I/O, no clock, no randomness  │
                     └───────────────┬──────────────────────┘
                     ┌───────────────▼──────────────────────┐
-                    │  PostgreSQL 16+                      │
-                    │  btree_gist · pg_trgm · citext       │
-                    │  cube · earthdistance                │
+                    │  PostgreSQL 10.23+                   │
+                    │  no extensions · no superuser        │
+                    │  UTF8 + a UTF-8 locale (DEC-064)     │
                     │   - the invariants live HERE         │
                     └──────────────────────────────────────┘
         ┌─────────────────┐   ┌──────────────┐   ┌──────────────┐
@@ -62,9 +62,9 @@ Application checks are advisory — they produce good error messages. The databa
 
 | Invariant | Enforced by |
 |---|---|
-| No overlapping confirmed bookings | `EXCLUDE USING gist` on `booking` |
+| No overlapping confirmed bookings | `PRIMARY KEY (property_id, night)` on `property_occupancy` |
 | No booking on landlord-blocked dates | constraint trigger `booking_calendar_block_guard` |
-| No overlapping calendar blocks | `EXCLUDE USING gist` on `calendar_block` |
+| No overlapping calendar blocks | the same primary key — blocks and bookings claim the same nights |
 | One service fee per booking | `service_fee.booking_id UNIQUE` |
 | One fee accrual per fee | unique partial index on `ledger_entry` |
 | Money records never change | `forbid_mutation()` trigger |
@@ -171,8 +171,8 @@ A provider returns one of three outcomes. `DELIVERED` is the only route to `SENT
 
 Deliberately no search cluster (spec §53 warns against it). PostgreSQL provides everything the MVP needs:
 
-- **Geo**: `earthdistance` over `ll_to_earth(public_latitude, public_longitude)` with a GiST index — bounding box first (index-assisted), then exact distance. No PostGIS dependency.
-- **Text**: `to_tsvector('russian', …)` plus `pg_trgm` for typo tolerance (both verified working).
+- **Geo**: a latitude/longitude rectangle served by a plain btree index, then haversine in plain SQL sharing its earth radius with `src/server/domain/geo.ts`. No PostGIS and no `earthdistance` dependency (DEC-063).
+- **Text**: `to_tsvector('russian', …)` with a core GIN index. Typo tolerance is **gone** with `pg_trgm`, which needs a superuser the host does not grant (DEC-063).
 - **Filters**: ordinary indexed columns, because amenities and rules are structured values rather than free text.
 
 Search always queries `public_latitude/longitude` — the deterministic blurred point. The exact address is exposed only after `CONFIRMED`.

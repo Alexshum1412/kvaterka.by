@@ -146,7 +146,7 @@ Traceability from the master specification to implementation. Status vocabulary 
 
 | ID | Requirement | Acceptance criteria | Status |
 |---|---|---|---|
-| SEARCH-001 | Radius/geo search | `earthdistance` + GiST; correct inclusion/exclusion | TESTED (query level) |
+| SEARCH-001 | Radius/geo search | lat/lng rectangle on a btree index, then haversine in plain SQL; correct inclusion/exclusion | TESTED (query level, and end to end on PostgreSQL 10.23) |
 | SEARCH-002 | Russian full-text with typo tolerance | Stemming + trigram similarity | TESTED (query level) |
 | SEARCH-003 | Structured filters | Amenities, rules, price, duration, verification | NOT STARTED |
 | SEARCH-004 | Map search with clustering and bounds | Mobile-first | NOT STARTED |

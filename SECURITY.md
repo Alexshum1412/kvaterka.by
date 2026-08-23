@@ -23,7 +23,7 @@ The platform is financial-adjacent even though rent never flows through it. The 
 | Financial history cannot be altered | `forbid_mutation()` on `ledger_entry`, `service_fee` accrual guards | tests assert `UPDATE`/`DELETE` are rejected |
 | Audit log cannot be rewritten | same trigger on `audit_log` | tested |
 | Booking events cannot be back-dated | same trigger on `booking_event` | tested |
-| Double booking impossible | `EXCLUDE USING gist` | 10+ tests |
+| Double booking impossible | `PRIMARY KEY (property_id, night)` on `property_occupancy` | 10+ tests |
 | Duplicate fee impossible | 3 independent guards | tested |
 | Privilege boundaries in the booking lifecycle | actor permissions in the transition table; actor resolved from the DB row, never from request input | 13 authorization tests |
 | SQL injection | every query parameterised; no string interpolation of user input anywhere | reviewed; enforced by convention and review |
@@ -85,7 +85,7 @@ The control is not a check. A session that has not satisfied its second factor i
 
 ## Known gaps
 
-1. **Concurrency is now verified by race, not only by constraint.** `tests/concurrency.postgres.test.ts` runs against a real PostgreSQL 16 and asserts what PGlite cannot: eight simultaneous acceptances of one week leave exactly one CONFIRMED; both sides confirming completion at the same instant accrue one fee and one ledger row; four delivery workers never claim the same notification; four schedulers leave one RUNNING job. The suite skips loudly under PGlite rather than passing.
+1. **Concurrency is now verified by race, not only by constraint.** `tests/concurrency.postgres.test.ts` runs against a real PostgreSQL 10.23 — the production version — and asserts what PGlite cannot: eight simultaneous acceptances of one week leave exactly one CONFIRMED; both sides confirming completion at the same instant accrue one fee and one ledger row; four delivery workers never claim the same notification; four schedulers leave one RUNNING job. The suite skips loudly under PGlite rather than passing.
 
    Getting there required fixing the harness: every test file shared one database and each `truncateAll()` took an ACCESS EXCLUSIVE lock on every table, so the first real run produced 503 failures against 1034 PGlite passes — none of them a product defect. Each file now gets its own schema.
 2. **The TOTP secret is stored in plaintext.** The second factor defends against a stolen password, not against an attacker holding the database. DEC-055.
