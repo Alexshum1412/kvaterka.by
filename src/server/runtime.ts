@@ -49,6 +49,15 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   SMTP_URL: z.string().optional(),
   /**
+   * From: header for outbound mail, e.g. "Кватэрка.by <noreply@kvaterka.by>".
+   *
+   * Meaningless without SMTP_URL — there is no sender identity to validate
+   * against, just a string nothing sends. Checked here alongside SMTP_URL so
+   * a deployment with mail half-configured fails at boot, not the first time
+   * someone tries to send a message.
+   */
+  MAIL_FROM: z.string().optional(),
+  /**
    * Shared secret a scheduler presents to run the three background jobs.
    *
    * Optional, and absent means there is no machine principal at all — the jobs
@@ -63,6 +72,9 @@ const envSchema = z.object({
   /** Object storage: listing media and identity documents live in SEPARATE buckets. */
   MEDIA_BUCKET_URL: z.string().optional(),
   DOCUMENTS_BUCKET_URL: z.string().optional(),
+}).refine((v) => !v.SMTP_URL || !!v.MAIL_FROM, {
+  message: 'MAIL_FROM is required when SMTP_URL is set — configure both or neither.',
+  path: ['MAIL_FROM'],
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -135,7 +147,7 @@ export async function ready(): Promise<Db> {
     await migrate(instance);
     await seedDemoData(instance);
     cachedDb = instance;
-    cachedServices = createServices(instance);
+    cachedServices = createServices(instance, config.PUBLIC_BASE_URL);
     return instance;
   })();
 
@@ -143,13 +155,13 @@ export async function ready(): Promise<Db> {
 }
 
 export function services(): Services {
-  cachedServices ??= createServices(db());
+  cachedServices ??= createServices(db(), env().PUBLIC_BASE_URL);
   return cachedServices;
 }
 
 export async function readyServices(): Promise<Services> {
   await ready();
-  cachedServices ??= createServices(cachedDb!);
+  cachedServices ??= createServices(cachedDb!, env().PUBLIC_BASE_URL);
   return cachedServices;
 }
 

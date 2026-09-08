@@ -44,7 +44,10 @@ export class ApiTestClient {
   readonly errors: unknown[] = [];
 
   constructor(private readonly db: TestDb) {
-    this.services = createServices(db);
+    // No suite here cares what a verification/reset link's origin is — just a
+    // fixed, valid value, not this project's `PUBLIC_BASE_URL` default
+    // duplicated a second time.
+    this.services = createServices(db, 'http://localhost:3000');
   }
 
   async request<T = any>(

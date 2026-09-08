@@ -58,14 +58,33 @@ export interface DeliveryReport {
 
 export class DeliveryService {
   private readonly providers: ProviderSet;
+  /**
+   * Origin used for the two links this service ever writes into a message body
+   * (email verification, password reset). Read once, here, the same way
+   * `resolveProviders()` reads its channel credentials — never inside
+   * `renderBody()` itself, so a mid-run environment change cannot make one
+   * batch's links inconsistent with the next.
+   *
+   * NOT a second default: `runtime.ts` already validates and defaults
+   * `PUBLIC_BASE_URL` (`z.string().url().default('http://localhost:3000')`),
+   * and a malformed value stops the process at boot everywhere else in this
+   * codebase. `container.ts` passes that already-resolved value straight
+   * through, so a bad URL fails the same way here instead of quietly
+   * producing a broken verification link. The literal below exists only for
+   * the two test call sites that construct this class directly and have no
+   * reason to care what the link's origin is.
+   */
+  private readonly publicBaseUrl: string;
 
   constructor(
     private readonly db: Db,
     private readonly notifications: NotificationService,
     private readonly jobs: RetentionService,
     providers?: ProviderSet,
+    publicBaseUrl = 'http://localhost:3000',
   ) {
     this.providers = providers ?? resolveProviders();
+    this.publicBaseUrl = publicBaseUrl.replace(/\/$/, '');
   }
 
   /** What this deployment can actually reach. Shown in the console. */
@@ -206,7 +225,7 @@ export class DeliveryService {
       address,
       category: item.category,
       subject: NOTIFICATION_CATEGORY_TITLE[item.category] ?? 'Кватэрка.by',
-      body: renderBody(item.category, item.payload),
+      body: renderBody(item.category, item.payload, this.publicBaseUrl),
     });
 
     if (result.status === 'DELIVERED') {
@@ -246,8 +265,27 @@ export class DeliveryService {
  * happened and where to look, and nothing about who, which flat, or how much.
  * The detail lives behind a login, which is also where the person can see it
  * in context rather than as a fragment in a notification.
+ *
+ * EMAIL_VERIFICATION and PASSWORD_RESET are the one exception, not a crack in
+ * that rule. There is no account detail to leak in either — the entire message
+ * IS a one-time token, and without it the feature does not work at all. Both
+ * are still SECURITY, still spare, still second person; they just carry the
+ * link the whole notification exists to deliver. Everything else falls
+ * through to the generic body unchanged.
+ *
+ * Exported only so a test can call it directly rather than driving a whole
+ * `DeliveryService` through a database to observe one string.
  */
-function renderBody(category: string, payload: Record<string, unknown>): string {
+export function renderBody(category: string, payload: Record<string, unknown>, publicBaseUrl: string): string {
+  const token = typeof payload.token === 'string' ? payload.token : null;
+
+  if (token && payload.kind === 'EMAIL_VERIFICATION') {
+    return `Подтвердите почту, перейдя по ссылке: ${publicBaseUrl}/verify-email?token=${token}`;
+  }
+  if (token && payload.kind === 'PASSWORD_RESET') {
+    return `Чтобы задать новый пароль, перейдите по ссылке: ${publicBaseUrl}/password-reset?token=${token}`;
+  }
+
   const title = NOTIFICATION_CATEGORY_TITLE[category] ?? 'Обновление';
   const where = typeof payload.bookingId === 'string' ? '/trips' : '/dashboard';
   return `${title}. Откройте Кватэрка.by, чтобы посмотреть: ${where}`;

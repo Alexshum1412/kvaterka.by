@@ -37,6 +37,8 @@
  * the feature.
  */
 
+import nodemailer, { type NodemailerError, type Transporter } from 'nodemailer';
+
 import type { Channel } from '../services/notification-service.ts';
 
 export type DeliveryStatus = 'DELIVERED' | 'TRANSIENT' | 'PERMANENT';
@@ -149,6 +151,94 @@ export function recordingProvider(channel: Channel, sink: RecordedDelivery[]): D
   };
 }
 
+/**
+ * EMAIL, for real.
+ *
+ * `nodemailer.createTransport(smtpUrl)` already understands `smtp://user:pass@host:port`
+ * and `smtps://...` on its own; hand-parsing that URL here would just be a second,
+ * worse copy of logic nodemailer gets right, and a second place for a stray
+ * character in a password to go silently mangled. The transport is built once,
+ * when the provider is constructed, and reused for every send — nodemailer owns
+ * the connection lifecycle from there.
+ *
+ * WHY THE ERROR MAPPING LOOKS LIKE THIS
+ *
+ * A thrown error from `sendMail()` is nodemailer's word for "the server did not
+ * accept it," and the shape of that error is the only signal available for
+ * sorting it into TRANSIENT or PERMANENT:
+ *
+ *   `responseCode` is the SMTP status the *server itself* replied with, so it is
+ *   checked first. 5xx is the server refusing this message on its own terms —
+ *   an unknown mailbox, a policy rule — and will refuse it identically on retry:
+ *   PERMANENT. 4xx is the server saying "not now": a full mailbox, greylisting,
+ *   a momentary block. TRANSIENT.
+ *
+ *   `code` is nodemailer's own classification for failures that never reached an
+ *   SMTP conversation to get a response code from. EAUTH means the credentials
+ *   embedded in `smtpUrl` are wrong — retrying with the same wrong password
+ *   produces the same wrong password, so PERMANENT, and this is exactly the kind
+ *   of failure that will sit retrying forever if it is misjudged. ECONNECTION and
+ *   ETIMEDOUT mean the network or the remote host was unreachable for *this*
+ *   attempt, which says nothing about the next one: TRANSIENT.
+ *
+ * Anything else defaults to TRANSIENT, per this file's own rule at the top: an
+ * unexpected throw is not evidence that trying again is futile, only that this
+ * attempt did not go as planned.
+ *
+ * `detail` is built from the error's own `message`/`code`, which is safe to
+ * store — nodemailer does not echo the auth password back into its errors. What
+ * must never happen, and is why `host` is computed once via `new URL(smtpUrl)`
+ * up front, is `smtpUrl` itself reaching `detail` or `describe()`: that string
+ * carries the password and this file's job is to make sure nothing here ever
+ * writes it anywhere.
+ *
+ * `transporter` defaults to the real one built from `smtpUrl` — every call site
+ * in this codebase omits it and gets exactly that. The parameter exists so a
+ * test can hand in nodemailer's own `jsonTransport: true` double (never touches
+ * the network, deterministic) and exercise the actual `send()`/error-mapping
+ * logic above instead of re-implementing it against a mock.
+ */
+export function smtpProvider(
+  smtpUrl: string,
+  mailFrom: string,
+  transporter: Transporter = nodemailer.createTransport(smtpUrl),
+): DeliveryProvider {
+  const host = new URL(smtpUrl).hostname;
+
+  return {
+    channel: 'EMAIL',
+    configured: true,
+    describe: () => `EMAIL: SMTP настроен (${host})`,
+    async send(message) {
+      try {
+        const info = await transporter.sendMail({
+          from: mailFrom,
+          to: message.address,
+          subject: message.subject,
+          text: message.body,
+        });
+        return delivered(info.messageId ?? 'sent', info.messageId);
+      } catch (err) {
+        const error = err as NodemailerError;
+        const reason = error.message || error.code || 'unknown SMTP error';
+
+        if (error.responseCode !== undefined) {
+          return error.responseCode >= 500
+            ? permanent(`SMTP ${error.responseCode}: ${reason}`)
+            : transient(`SMTP ${error.responseCode}: ${reason}`);
+        }
+        if (error.code === 'EAUTH') {
+          return permanent(`SMTP отклонил учётные данные: ${reason}`);
+        }
+        if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
+          return transient(`SMTP недоступен: ${reason}`);
+        }
+        return transient(`SMTP: ${reason}`);
+      }
+    },
+  };
+}
+
 /* ================================================================== *
  * Resolution
  * ================================================================== */
@@ -162,15 +252,22 @@ export interface ProviderSet {
 /**
  * The providers this deployment has.
  *
- * Reads the same names `runtime.ts` validates. There is no client behind either
- * external channel yet, so both refuse — and they refuse differently depending
- * on whether the address is missing or the client is unimplemented, because an
- * operator who has set SMTP_URL and still sees failures needs to know the
- * address arrived and the code did not.
+ * Reads the same names `runtime.ts` validates. EMAIL turns real once both
+ * SMTP_URL and MAIL_FROM are set — `runtime.ts` already refuses to boot with
+ * one and not the other, but this function checks both anyway rather than
+ * trusting that upstream validation always ran, because a provider that reads
+ * `env.MAIL_FROM` as a non-null string it never confirmed is one bad
+ * deployment script away from mailing from `"undefined"`. TELEGRAM has no
+ * client yet, so it refuses regardless of its token — and refuses with a
+ * message that says whether the token is missing or the client merely isn't
+ * built, because an operator who has set the token and still sees failures
+ * needs to know the credential arrived and the code did not.
  */
 export function resolveProviders(env: NodeJS.ProcessEnv = process.env): ProviderSet {
   const email: DeliveryProvider = env.SMTP_URL
-    ? unconfiguredProvider('EMAIL', 'адрес SMTP задан, но клиент не реализован')
+    ? env.MAIL_FROM
+      ? smtpProvider(env.SMTP_URL, env.MAIL_FROM)
+      : unconfiguredProvider('EMAIL', 'адрес SMTP задан, но MAIL_FROM отсутствует')
     : unconfiguredProvider('EMAIL', 'SMTP_URL не задан');
 
   const telegram: DeliveryProvider = env.TELEGRAM_BOT_TOKEN

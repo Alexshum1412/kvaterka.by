@@ -43,7 +43,16 @@ export interface Services {
   readonly delivery: DeliveryService;
 }
 
-export function createServices(db: Db): Services {
+/**
+ * `publicBaseUrl` is a parameter, not a default read from `process.env` in
+ * here: `runtime.ts` already validates and defaults `PUBLIC_BASE_URL`
+ * (`env().PUBLIC_BASE_URL`), and this container has no reason to know that
+ * variable's name or keep its own copy of its default. Every real caller is
+ * `runtime.ts` itself; passing the already-resolved value keeps a bad URL a
+ * boot-time failure everywhere, DeliveryService's verification links
+ * included, rather than a second place it could quietly diverge.
+ */
+export function createServices(db: Db, publicBaseUrl: string): Services {
   // Two services are named before the literal because the delivery worker
   // composes them: it drains the outbox NotificationService owns, under the
   // job mutex RetentionService owns. Building a third copy of either would be
@@ -67,6 +76,6 @@ export function createServices(db: Db): Services {
     finance: new FinanceService(db),
     verification: new VerificationService(db),
     retention,
-    delivery: new DeliveryService(db, notifications, retention),
+    delivery: new DeliveryService(db, notifications, retention, undefined, publicBaseUrl),
   };
 }
