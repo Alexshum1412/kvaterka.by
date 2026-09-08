@@ -18,6 +18,14 @@
         "start"
       ],
       "port": 3000
+    },
+    {
+      "name": "kvaterka-server-js",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "server.js"
+      ],
+      "port": 3000
     }
   ]
 }

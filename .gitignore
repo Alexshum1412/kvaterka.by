@@ -40,3 +40,8 @@ ruvector.db
 *.dump
 *.sql.gz
 /backups/
+
+# Scratch output from packaging a build for upload to shared hosting —
+# regenerated on demand, not a source artifact.
+deploy/upload-stage/
+deploy/*.zip
