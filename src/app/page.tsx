@@ -3,6 +3,8 @@ import { SearchForm } from '@/ui/search-form.tsx';
 import { ListingCard, type ListingCardData } from '@/ui/listing-card.tsx';
 import { EmptyState } from '@/ui/primitives.tsx';
 import { Icon, type IconName } from '@/ui/icons.tsx';
+import { CornflowerField, CornflowerMark } from '@/ui/brand.tsx';
+import { Reveal } from '@/ui/reveal.tsx';
 import { ready } from '@/server/runtime.ts';
 import { SearchService } from '@/server/services/search-service.ts';
 
@@ -79,10 +81,19 @@ export default async function HomePage() {
   return (
     <>
       <section className="home-hero">
-        <div className="container home-hero__inner">
-          <h1 className="display home-hero__title">Найдите квартиру на нужный срок</h1>
-          <p className="home-hero__sub">На сутки, на месяц или на год — по всей Беларуси.</p>
+        <div className="home-hero__band">
+          <CornflowerField className="home-hero__field" />
+          <div className="container home-hero__inner">
+            <span className="home-hero__kicker">
+              <CornflowerMark size={16} />
+              Беларусь, без сюрпризов
+            </span>
+            <h1 className="display home-hero__title">Найдите квартиру на нужный срок</h1>
+            <p className="home-hero__sub">На сутки, на месяц или на год — по всей Беларуси.</p>
+          </div>
+        </div>
 
+        <div className="container home-hero__search">
           <SearchForm />
 
           <nav className="scroll-x home-cities" aria-label="Популярные города">
@@ -125,7 +136,7 @@ export default async function HomePage() {
         )}
       </section>
 
-      <section className="container home-trust" aria-labelledby="trust-heading">
+      <Reveal as="section" className="container home-trust">
         <hr className="hairline" />
         <h2 id="trust-heading" className="title-lg">
           Почему Кватэрка
@@ -141,9 +152,9 @@ export default async function HomePage() {
             </article>
           ))}
         </div>
-      </section>
+      </Reveal>
 
-      <section className="home-host" aria-labelledby="host-heading">
+      <Reveal as="section" className="home-host">
         <div className="container home-host__inner">
           <div className="home-host__copy">
             <h2 id="host-heading" className="title-md">
@@ -158,22 +169,42 @@ export default async function HomePage() {
             Разместить объявление
           </Link>
         </div>
-      </section>
+      </Reveal>
 
       <style>{`
-        /* The hero carries no ground and no wash. Its height budget is spent on
-           the H1, one line of orientation and the search module — anything else
-           pushes inventory off a 900px-tall screen. */
-        .home-hero { padding-block: var(--space-4) var(--space-3); }
-        .home-hero__inner { display: flex; flex-direction: column; }
-        .home-hero__title { max-width: 46rem; }
-        .home-hero__sub {
-          margin-top: var(--space-2);
-          margin-bottom: var(--space-4);
-          max-width: 44rem;
-          font-size: var(--text-base);
-          color: var(--text-secondary);
+        /* The hero now carries a ground — a deep cornflower band with the mark
+           scattered across it — and the search module floats half over its
+           lower edge. That overlap is the one deliberate elevation above the
+           grid on this page: everything else still sits flat. */
+        .home-hero { padding-bottom: var(--space-4); }
+        .home-hero__band {
+          position: relative;
+          overflow: hidden;
+          background: var(--gradient-hero);
+          padding-block: var(--space-6) var(--space-7);
         }
+        .home-hero__field { z-index: 0; }
+        .home-hero__inner { position: relative; z-index: 1; display: flex; flex-direction: column; }
+        .home-hero__kicker {
+          display: inline-flex; align-items: center; gap: 0.4rem;
+          align-self: flex-start;
+          margin-bottom: var(--space-3);
+          padding: 0.3rem 0.7rem 0.3rem 0.55rem;
+          border-radius: var(--radius-full);
+          background: rgb(255 255 255 / 0.12);
+          color: var(--color-corn-100);
+          font-size: var(--text-xs);
+          font-weight: 600;
+        }
+        .home-hero__title { max-width: 40rem; color: #fff; }
+        .home-hero__sub {
+          margin-top: var(--space-3);
+          max-width: 34rem;
+          font-size: var(--text-lg);
+          color: var(--color-corn-100);
+        }
+
+        .home-hero__search { margin-top: calc(-1 * var(--space-7)); position: relative; z-index: 2; }
 
         /* Scrolls on a phone and bleeds to the screen edge, so a half-visible
            chip reads as "more to the right" instead of as a clipped row. The
@@ -184,7 +215,7 @@ export default async function HomePage() {
         }
         .home-cities .chip { min-height: 2.5rem; padding-inline: 0.85rem; }
 
-        .home-listings { margin-top: var(--space-4); }
+        .home-listings { margin-top: var(--space-6); }
         .home-head {
           display: flex;
           align-items: center;
@@ -218,7 +249,14 @@ export default async function HomePage() {
           gap: var(--space-5) var(--space-6);
           grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
         }
-        .home-trust__glyph { display: block; margin-bottom: var(--space-3); color: var(--primary); }
+        .home-trust__glyph {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 2.75rem; height: 2.75rem;
+          margin-bottom: var(--space-3);
+          border-radius: var(--radius-full);
+          background: var(--primary-soft);
+          color: var(--primary);
+        }
         .home-trust__title { font-size: var(--text-base); font-weight: 600; margin-bottom: var(--space-2); }
         .home-trust__body { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; }
 
@@ -237,8 +275,7 @@ export default async function HomePage() {
         }
 
         @media (min-width: 768px) {
-          .home-hero { padding-block: var(--space-6) var(--space-5); }
-          .home-hero__sub { font-size: var(--text-lg); }
+          .home-hero__band { padding-block: var(--space-7) calc(var(--space-7) + var(--space-3)); }
           .home-cities { margin-inline: -1.5rem; padding-inline: 1.5rem; }
         }
         @media (min-width: 840px) {

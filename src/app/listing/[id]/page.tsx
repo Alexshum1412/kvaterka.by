@@ -11,6 +11,7 @@ import { MapPanel } from '@/ui/map-panel.tsx';
 import { Amenities, type AmenityRow } from '@/ui/amenities.tsx';
 import { FavouriteButton } from '@/ui/favourite-button.tsx';
 import { Icon, type IconName } from '@/ui/icons.tsx';
+import { CornflowerMark } from '@/ui/brand.tsx';
 import {
   FreshnessIndicator,
   Money,
@@ -138,13 +139,68 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
     return entry ? { ...d, value: entry.average, count: entry.count } : null;
   }).filter(Boolean) as { key: string; label: string; value: number; count: number }[];
 
+  // LodgingBusiness structured data. Every field below reads an existing
+  // property of `listing` — nothing here is invented. No street address is
+  // sent (the platform never exposes one before a booking is confirmed,
+  // DEC-020), geo is the same blurred public point already sent to the
+  // client for the map, and the rating only appears once there is at least
+  // one real review behind it.
+  const jsonLd: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'LodgingBusiness',
+    name: listing.title,
+    description: listing.description ? String(listing.description).slice(0, 300) : undefined,
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: listing.city,
+      addressRegion: listing.district || undefined,
+      addressCountry: 'BY',
+    },
+    ...(listing.location?.latitude != null && listing.location?.longitude != null
+      ? {
+          geo: {
+            '@type': 'GeoCoordinates',
+            latitude: Number(listing.location.latitude),
+            longitude: Number(listing.location.longitude),
+          },
+        }
+      : {}),
+    ...(Number(listing.reviewCount) > 0 && listing.rating != null
+      ? {
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: Number(listing.rating).toFixed(1),
+            reviewCount: Number(listing.reviewCount),
+          },
+        }
+      : {}),
+    priceRange: formatMoney(fromStorage(pricing.basePriceMinor!)),
+  };
+
   return (
     <div className="container lst">
-      <nav className="lst__back" aria-label="Навигация">
-        <Link href={`/search?city=${encodeURIComponent(String(listing.city))}`} className="lst__backLink">
-          <Icon name="arrowLeft" size={16} />
+      {/* Static JSON-LD built entirely from this page's own fetched data. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
+      />
+
+      <nav className="lst__crumbs" aria-label="Хлебные крошки">
+        <Link href="/" className="lst__crumbLink">
+          <Icon name="home" size={14} />
+          Главная
+        </Link>
+        <Icon name="chevronRight" size={13} className="lst__crumbSep" />
+        <Link
+          href={`/search?city=${encodeURIComponent(String(listing.city))}`}
+          className="lst__crumbLink"
+        >
           {listing.city}
         </Link>
+        <Icon name="chevronRight" size={13} className="lst__crumbSep" />
+        <span className="lst__crumbCurrent truncate" aria-current="page">
+          {listing.title}
+        </span>
       </nav>
 
       {/* The apartment identifies itself before the photographs, so the
@@ -397,13 +453,16 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
 
       <style>{`
         .lst { padding-block: var(--space-4) var(--space-8); }
-        .lst__back { margin-bottom: var(--space-3); }
-        .lst__backLink {
-          display: inline-flex; align-items: center; gap: 0.35rem;
-          min-height: 2.25rem;
+        .lst__crumbs {
+          display: flex; align-items: center; gap: 0.4rem;
+          min-width: 0;
+          margin-bottom: var(--space-3);
           font-size: var(--text-sm); color: var(--text-secondary);
         }
-        .lst__backLink:hover { color: var(--text-primary); }
+        .lst__crumbLink { display: inline-flex; align-items: center; gap: 0.3rem; flex: 0 0 auto; min-height: 1.5rem; }
+        .lst__crumbLink:hover { color: var(--primary); }
+        .lst__crumbSep { flex: 0 0 auto; color: var(--text-tertiary); }
+        .lst__crumbCurrent { flex: 1 1 auto; min-width: 0; color: var(--text-primary); font-weight: 500; }
 
         .lst__head {
           display: flex; align-items: flex-start; gap: var(--space-4);
@@ -528,6 +587,9 @@ export default async function ListingPage({ params }: { params: Promise<{ id: st
           padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
           background: var(--surface);
           border-top: 1px solid var(--border);
+          /* Same tinted-navy shadow family as --shadow-raised, flipped
+             upward — the bar sits over the page, not on it. */
+          box-shadow: 0 -6px 20px rgb(11 37 69 / 0.08);
         }
         .lst__dockPrice { display: flex; align-items: baseline; gap: 0.35rem; min-width: 0; }
         .lst__dockPrice strong { font-size: var(--text-lg); font-weight: 650; letter-spacing: -0.02em; }
@@ -554,17 +616,20 @@ function Gallery({ photos, title }: { photos: { id: string; storageKey: string }
   if (photos.length === 0) {
     return (
       <div className="gal gal--empty">
-        <Icon name="image" size={28} />
+        <span className="gal__emptyMark" aria-hidden="true">
+          <CornflowerMark size={64} />
+        </span>
         <span>Фотографий пока нет</span>
         <style>{`
           .gal--empty {
             aspect-ratio: 16 / 7;
-            display: grid; place-items: center; align-content: center; gap: var(--space-2);
+            display: grid; place-items: center; align-content: center; gap: var(--space-3);
             background: var(--surface-sunken);
             border-radius: var(--radius-lg);
             color: var(--text-tertiary);
             font-size: var(--text-sm);
           }
+          .gal__emptyMark { color: var(--accent); opacity: 0.5; }
         `}</style>
       </div>
     );
@@ -575,15 +640,18 @@ function Gallery({ photos, title }: { photos: { id: string; storageKey: string }
   return (
     <div className="gal">
       {shown.map((photo, index) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <span
           key={photo.id}
-          src={`/media/${photo.storageKey}`}
-          alt={index === 0 ? `${title} — основное фото` : `${title} — фото ${index + 1}`}
-          className={index === 0 ? 'gal__main' : 'gal__thumb'}
-          loading={index === 0 ? 'eager' : 'lazy'}
-          decoding="async"
-        />
+          className={`media-zoom ${index === 0 ? 'gal__mainWrap' : 'gal__thumbWrap'}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`/media/${photo.storageKey}`}
+            alt={index === 0 ? `${title} — основное фото` : `${title} — фото ${index + 1}`}
+            loading={index === 0 ? 'eager' : 'lazy'}
+            decoding="async"
+          />
+        </span>
       ))}
       {photos.length > shown.length && (
         // Information, not a control: there is no gallery viewer yet, and a
@@ -609,8 +677,11 @@ function Gallery({ photos, title }: { photos: { id: string; storageKey: string }
           object-fit: cover; display: block;
           background: var(--surface-sunken);
         }
-        .gal__main { aspect-ratio: 3 / 2; }
-        .gal__thumb { display: none; }
+        /* .media-zoom (globals.css) needs an overflow-hidden parent per
+           image — these wrappers are that parent, one per grid cell, so the
+           hover scale never bleeds into a neighbouring photo. */
+        .gal__mainWrap { display: block; aspect-ratio: 3 / 2; }
+        .gal__thumbWrap { display: none; }
         .gal__more {
           position: absolute; right: var(--space-3); bottom: var(--space-3);
           padding: 0.25rem 0.6rem;
@@ -621,8 +692,8 @@ function Gallery({ photos, title }: { photos: { id: string; storageKey: string }
         }
         @media (min-width: 760px) {
           .gal { grid-template-columns: 2fr 1fr 1fr; grid-template-rows: 1fr 1fr; height: 26rem; }
-          .gal__main { grid-row: span 2; height: 100%; aspect-ratio: auto; }
-          .gal__thumb { display: block; }
+          .gal__mainWrap { grid-row: span 2; height: 100%; aspect-ratio: auto; }
+          .gal__thumbWrap { display: block; }
         }
       `}</style>
     </div>

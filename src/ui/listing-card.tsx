@@ -85,7 +85,7 @@ export function ListingCard({
 
   return (
     <article className="lc">
-      <div className="lc__media">
+      <div className="lc__media media-zoom">
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -193,6 +193,10 @@ export function ListingCard({
           background: var(--surface-sunken);
         }
         .lc__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        /* .media-zoom's own :hover only fires over the photo itself; tying the
+           scale to the whole card instead keeps it in step with the shadow and
+           lift below, which already react to any hover on the card. */
+        .lc:hover .lc__media img { transform: scale(1.05); }
         .lc__nophoto {
           display: grid; place-items: center;
           width: 100%; height: 100%;

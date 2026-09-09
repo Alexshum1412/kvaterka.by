@@ -55,7 +55,9 @@ export function PasswordResetRequest({ deliverable }: { deliverable: boolean }) 
   if (sent) {
     return (
       <div className="pr__done">
-        <Icon name="check" size={20} />
+        <span className="pr__icon pr__icon--success">
+          <Icon name="check" size={20} />
+        </span>
         <div>
           <h2>Запрос принят</h2>
           <p>
@@ -146,7 +148,9 @@ export function PasswordResetConfirm({ token }: { token: string }) {
   if (done) {
     return (
       <div className="pr__done">
-        <Icon name="check" size={20} />
+        <span className="pr__icon pr__icon--success">
+          <Icon name="check" size={20} />
+        </span>
         <div>
           <h2>Пароль изменён</h2>
           {/* The server revokes every session on reset, which is the point: a
@@ -199,8 +203,13 @@ const FORM_CSS = `
   .pr__error { font-size: var(--text-sm); color: var(--error); }
   .pr__links { font-size: var(--text-sm); }
 
-  .pr__done { display: flex; align-items: flex-start; gap: var(--space-3); }
-  .pr__done > svg { color: var(--success); flex: 0 0 auto; margin-top: 0.15rem; }
+  .pr__done { display: flex; align-items: flex-start; gap: var(--space-4); }
+  .pr__icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 2.75rem; height: 2.75rem; flex: 0 0 auto;
+    border-radius: var(--radius-full);
+  }
+  .pr__icon--success { background: var(--success-soft); color: var(--success); }
   .pr__done h2 { font-size: var(--text-base); font-weight: 600; }
   .pr__done p { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; margin-top: var(--space-2); }
   .pr__done .btn { margin-top: var(--space-3); }

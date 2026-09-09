@@ -51,7 +51,9 @@ export function VerifyEmail({ token }: { token: string }) {
   if (status === 'success') {
     return (
       <div className="ve__done">
-        <Icon name="check" size={20} style={{ color: 'var(--success)' }} />
+        <span className="ve__icon ve__icon--success">
+          <Icon name="check" size={20} />
+        </span>
         <div>
           <h2>Почта подтверждена</h2>
           <p>Адрес привязан к аккаунту.</p>
@@ -66,7 +68,9 @@ export function VerifyEmail({ token }: { token: string }) {
 
   return (
     <div className="ve__done">
-      <Icon name="alert" size={20} style={{ color: 'var(--error)' }} />
+      <span className="ve__icon ve__icon--error">
+        <Icon name="alert" size={20} />
+      </span>
       <div>
         <h2>Не получилось подтвердить</h2>
         <p role="alert">{error}</p>
@@ -82,8 +86,14 @@ export function VerifyEmail({ token }: { token: string }) {
 const VE_CSS = `
   .ve__busy p { font-size: var(--text-sm); color: var(--text-secondary); }
 
-  .ve__done { display: flex; align-items: flex-start; gap: var(--space-3); }
-  .ve__done > svg { flex: 0 0 auto; margin-top: 0.15rem; }
+  .ve__done { display: flex; align-items: flex-start; gap: var(--space-4); }
+  .ve__icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 2.75rem; height: 2.75rem; flex: 0 0 auto;
+    border-radius: var(--radius-full);
+  }
+  .ve__icon--success { background: var(--success-soft); color: var(--success); }
+  .ve__icon--error { background: var(--error-soft); color: var(--error); }
   .ve__done h2 { font-size: var(--text-base); font-weight: 600; }
   .ve__done p { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; margin-top: var(--space-2); }
   .ve__done .btn { margin-top: var(--space-3); }

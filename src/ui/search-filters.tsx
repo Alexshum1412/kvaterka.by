@@ -549,6 +549,13 @@ export function SearchFilters({
         .fl { display: grid; gap: var(--space-3); }
         .fl__bar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
         .fl__toggle { gap: 0.4rem; }
+        /* Same pressed language as .chip[aria-pressed] — the button that
+           opens the panel should look "on" while the panel is open. */
+        .fl__toggle[aria-expanded='true'] {
+          background: var(--primary-soft);
+          border-color: var(--primary);
+          color: var(--primary);
+        }
         .fl__count {
           display: inline-grid; place-items: center;
           min-width: 1.25rem; height: 1.25rem; padding-inline: 0.25rem;

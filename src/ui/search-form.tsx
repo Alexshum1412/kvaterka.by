@@ -398,7 +398,7 @@ export function SearchForm({
         .sf--full {
           background: var(--surface);
           border-radius: var(--radius-lg);
-          box-shadow: var(--shadow-raised);
+          box-shadow: var(--shadow-float);
           padding: var(--space-4);
         }
 

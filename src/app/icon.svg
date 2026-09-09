@@ -1,12 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <rect width="32" height="32" rx="7" fill="#3557bd"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="32" height="32">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3f8ae8"/>
+      <stop offset="1" stop-color="#164b96"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="24" fill="url(#g)"/>
   <g fill="#ffffff">
-    <path d="M16 5.4 L18.4 9.2 L17.3 10.6 L18.1 12.6 L16 14 L13.9 12.6 L14.7 10.6 L13.6 9.2 Z"/>
-    <path d="M16 5.4 L18.4 9.2 L17.3 10.6 L18.1 12.6 L16 14 L13.9 12.6 L14.7 10.6 L13.6 9.2 Z" transform="rotate(72 16 16)"/>
-    <path d="M16 5.4 L18.4 9.2 L17.3 10.6 L18.1 12.6 L16 14 L13.9 12.6 L14.7 10.6 L13.6 9.2 Z" transform="rotate(144 16 16)"/>
-    <path d="M16 5.4 L18.4 9.2 L17.3 10.6 L18.1 12.6 L16 14 L13.9 12.6 L14.7 10.6 L13.6 9.2 Z" transform="rotate(216 16 16)"/>
-    <path d="M16 5.4 L18.4 9.2 L17.3 10.6 L18.1 12.6 L16 14 L13.9 12.6 L14.7 10.6 L13.6 9.2 Z" transform="rotate(288 16 16)"/>
+    <path d="M50 6 L53.2 11 L57 7.5 L58.5 13 C61 18 63 21 61 26 C58 34 54 40 50 48 C46 40 42 34 39 26 C37 21 39 18 41.5 13 L43 7.5 L46.8 11 Z"/>
+    <path d="M50 6 L53.2 11 L57 7.5 L58.5 13 C61 18 63 21 61 26 C58 34 54 40 50 48 C46 40 42 34 39 26 C37 21 39 18 41.5 13 L43 7.5 L46.8 11 Z" transform="rotate(60 50 50)"/>
+    <path d="M50 6 L53.2 11 L57 7.5 L58.5 13 C61 18 63 21 61 26 C58 34 54 40 50 48 C46 40 42 34 39 26 C37 21 39 18 41.5 13 L43 7.5 L46.8 11 Z" transform="rotate(120 50 50)"/>
+    <path d="M50 6 L53.2 11 L57 7.5 L58.5 13 C61 18 63 21 61 26 C58 34 54 40 50 48 C46 40 42 34 39 26 C37 21 39 18 41.5 13 L43 7.5 L46.8 11 Z" transform="rotate(180 50 50)"/>
+    <path d="M50 6 L53.2 11 L57 7.5 L58.5 13 C61 18 63 21 61 26 C58 34 54 40 50 48 C46 40 42 34 39 26 C37 21 39 18 41.5 13 L43 7.5 L46.8 11 Z" transform="rotate(240 50 50)"/>
+    <path d="M50 6 L53.2 11 L57 7.5 L58.5 13 C61 18 63 21 61 26 C58 34 54 40 50 48 C46 40 42 34 39 26 C37 21 39 18 41.5 13 L43 7.5 L46.8 11 Z" transform="rotate(300 50 50)"/>
   </g>
-  <circle cx="16" cy="16" r="3.1" fill="#ffffff"/>
-  <circle cx="16" cy="16" r="3.1" fill="none" stroke="#3557bd" stroke-width="1.3"/>
+  <circle cx="50" cy="50" r="7" fill="#ffffff"/>
 </svg>

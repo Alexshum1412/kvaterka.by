@@ -1,8 +1,25 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { SiteHeader } from '@/ui/site-header';
 import { SiteFooter } from '@/ui/site-footer';
+import { ConsoleEasterEgg } from '@/ui/console-easter-egg.tsx';
 import { currentUser } from '@/server/session.ts';
+
+/**
+ * Display face for large headings only (see the `--font-display` comment in
+ * globals.css). `next/font` downloads and self-hosts the files at BUILD
+ * time and serves them from this origin — the "costs a round trip" concern
+ * that originally kept every face on the system stack does not apply to a
+ * font that never asks fonts.googleapis.com for anything at runtime.
+ * `cyrillic` + `cyrillic-ext` cover ў and і the same as the system stack.
+ */
+const displayFont = Inter({
+  subsets: ['latin', 'cyrillic', 'cyrillic-ext'],
+  weight: ['600', '700', '800'],
+  variable: '--font-display-loaded',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: {
@@ -41,8 +58,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const viewer = await currentUser();
 
   return (
-    <html lang="ru">
+    <html lang="ru" className={displayFont.variable}>
       <body data-auth={viewer ? 'user' : 'anon'}>
+        <ConsoleEasterEgg />
         <a className="skip-link" href="#main">
           Перейти к содержимому
         </a>

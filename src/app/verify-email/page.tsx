@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { VerifyEmail } from '@/ui/verify-email.tsx';
+import { CornflowerMark } from '@/ui/brand.tsx';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,10 +28,13 @@ export default async function VerifyEmailPage({
   return (
     <div className="container ve">
       <header className="ve__head">
+        <span className="ve__mark">
+          <CornflowerMark size={44} />
+        </span>
         <h1>Подтверждение почты</h1>
       </header>
 
-      <section className="card">
+      <section className="card ve__card">
         {token ? (
           <VerifyEmail token={token} />
         ) : (
@@ -46,9 +50,25 @@ export default async function VerifyEmailPage({
       </section>
 
       <style>{`
-        .ve { max-width: 26rem; padding-block: var(--space-6) var(--space-8); }
-        .ve__head { margin-bottom: var(--space-4); }
+        .ve { max-width: 26rem; padding-block: clamp(2rem, 6vh, 3.5rem) var(--space-8); }
+
+        .ve__head {
+          display: flex; flex-direction: column; align-items: center;
+          gap: 0.5rem; text-align: center;
+          margin-bottom: var(--space-5);
+        }
+        .ve__mark { display: inline-flex; color: var(--primary); }
         .ve__head h1 { font-size: var(--text-2xl); font-weight: 600; }
+
+        /* Same elevation as the login and password-reset cards, so the three
+           screens read as one flow rather than three different experiments. */
+        .ve__card {
+          padding: var(--space-5);
+          border-radius: var(--radius-lg);
+          box-shadow: var(--shadow-raised);
+        }
+        @media (min-width: 480px) { .ve__card { padding: var(--space-6); } }
+
         .ve__missing p { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; }
         .ve__links { margin-top: var(--space-3); }
       `}</style>

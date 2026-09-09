@@ -64,7 +64,9 @@ export function Amenities({
               const fact = facts[item.code];
               return (
                 <li key={item.code} className="amn__item">
-                  <Icon name={amenityIcon(item.icon)} size={20} className="amn__icon" />
+                  <span className="amn__iconWrap" aria-hidden="true">
+                    <Icon name={amenityIcon(item.icon)} size={18} />
+                  </span>
                   <span className="amn__body">
                     <span className="amn__name">{item.name_ru}</span>
                     {fact && fact.total > 0 && (
@@ -104,8 +106,14 @@ export function Amenities({
           padding: 0;
           list-style: none;
         }
-        .amn__item { display: flex; gap: 0.625rem; align-items: flex-start; min-width: 0; }
-        .amn__icon { color: var(--text-tertiary); margin-top: 0.125rem; }
+        .amn__item { display: flex; gap: 0.75rem; align-items: center; min-width: 0; }
+        .amn__iconWrap {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 2.25rem; height: 2.25rem; flex: 0 0 auto;
+          border-radius: var(--radius-full);
+          background: var(--primary-soft);
+          color: var(--primary);
+        }
         .amn__body { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
         .amn__name { font-size: var(--text-sm); line-height: 1.4; }
         .amn__confirm {

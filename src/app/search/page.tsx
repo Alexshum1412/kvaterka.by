@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { SearchForm } from '@/ui/search-form.tsx';
 import { SearchFilters, type AmenityOption } from '@/ui/search-filters.tsx';
 import { ListingCard, type ListingCardData } from '@/ui/listing-card.tsx';
 import { MapPanel } from '@/ui/map-panel.tsx';
 import { CardSkeleton, EmptyState, ErrorState, formatNights, plural } from '@/ui/primitives.tsx';
+import { Icon } from '@/ui/icons.tsx';
 import { ready, readyServices } from '@/server/runtime.ts';
 import { currentUser } from '@/server/session.ts';
 
@@ -36,6 +38,15 @@ const num = (v: string | string[] | undefined): number | undefined => {
   const n = s === undefined ? NaN : Number(s);
   return Number.isFinite(n) ? n : undefined;
 };
+
+/** "12 июля – 19 июля", for the one-line summary in the header band. */
+function formatDateRange(from: string, to: string): string | undefined {
+  const fromDate = new Date(`${from}T00:00:00Z`);
+  const toDate = new Date(`${to}T00:00:00Z`);
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return undefined;
+  const fmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+  return `${fmt.format(fromDate)} – ${fmt.format(toDate)}`;
+}
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
@@ -108,8 +119,32 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     if (typeof value === 'string' && value.length > 0) appliedQuery[key] = value;
   }
 
+  // One-line summary for the header band. Built straight from what was
+  // actually searched on, same as the filter chips below — never invented.
+  const guestsParam = str(params.guests);
+  const summaryLine = [
+    city,
+    params.from && params.to && typeof params.from === 'string' && typeof params.to === 'string'
+      ? formatDateRange(params.from, params.to)
+      : undefined,
+    guestsParam ? `${guestsParam} ${plural(Number(guestsParam), 'гость', 'гостя', 'гостей')}` : undefined,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(' · ');
+
   return (
     <div className="container srch">
+      <nav className="srch__crumbs" aria-label="Хлебные крошки">
+        <Link href="/" className="srch__crumbLink">
+          <Icon name="home" size={14} />
+          Главная
+        </Link>
+        <Icon name="chevronRight" size={13} className="srch__crumbSep" />
+        <span className="srch__crumbCurrent" aria-current="page">
+          Поиск
+        </span>
+      </nav>
+
       <SearchForm
         compact
         initial={{
@@ -121,20 +156,23 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         }}
       />
 
-      <div className="srch__head">
-        <h1 className="srch__count">
-          {failure ? (
-            'Поиск'
-          ) : (
-            <>
-              {result.total} {plural(result.total, 'вариант', 'варианта', 'вариантов')}
-              {city && ` в городе ${city}`}
-            </>
+      <div className="srch__band panel panel-soft">
+        <div className="srch__head">
+          <h1 className="srch__count">
+            {failure ? (
+              'Поиск'
+            ) : (
+              <>
+                {result.total} {plural(result.total, 'вариант', 'варианта', 'вариантов')}
+                {city && ` в городе ${city}`}
+              </>
+            )}
+          </h1>
+          {nights !== undefined && nights > 0 && (
+            <span className="srch__duration">на {formatNights(nights)}</span>
           )}
-        </h1>
-        {nights !== undefined && nights > 0 && (
-          <span className="srch__duration">на {formatNights(nights)}</span>
-        )}
+        </div>
+        {summaryLine && <p className="srch__summary">{summaryLine}</p>}
       </div>
 
       <SearchFilters amenities={amenityRows.rows} applied={appliedQuery} />
@@ -184,9 +222,24 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
       <style>{`
         .srch { padding-block: var(--space-4) var(--space-7); display: grid; gap: var(--space-4); }
+
+        .srch__crumbs {
+          display: flex; align-items: center; gap: 0.4rem;
+          font-size: var(--text-sm); color: var(--text-secondary);
+        }
+        .srch__crumbLink { display: inline-flex; align-items: center; gap: 0.3rem; min-height: 1.5rem; }
+        .srch__crumbLink:hover { color: var(--primary); }
+        .srch__crumbSep { color: var(--text-tertiary); }
+        .srch__crumbCurrent { color: var(--text-primary); font-weight: 500; }
+
+        /* A real header band: a quiet sunken ground under the count and the
+           one-line summary of what was actually searched, so the results
+           read as an answer to a specific question rather than a bare list. */
+        .srch__band { display: grid; gap: 0.375rem; }
         .srch__head { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
         .srch__count { font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.018em; }
         .srch__duration { font-size: var(--text-sm); color: var(--text-secondary); }
+        .srch__summary { font-size: var(--text-sm); color: var(--text-secondary); }
 
         .srch__layout { display: grid; gap: var(--space-5); }
         .srch__results {

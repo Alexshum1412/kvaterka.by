@@ -86,6 +86,17 @@
     ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
     'Noto Sans', 'Liberation Sans', Arial, sans-serif;
 
+  /* Display face for the handful of large-scale headings that carry a
+     page's whole first impression (H1s, the hero, section openers) — self-
+     hosted by `next/font` in `layout.tsx`, which resolves the original
+     objection to a webfont here: no runtime request leaves the origin, so
+     there is no round trip to pay for, and Inter's Cyrillic Extended subset
+     covers ў and і the same as the system stack does. Falls back to
+     `--font-sans` until the font variable lands on `<html>`, and body copy
+     stays on the system stack everywhere — this is a display treatment,
+     not a face change for reading. */
+  --font-display: var(--font-display-loaded, var(--font-sans));
+
   /* One hierarchy, deliberately far apart at the top and tight at the
      bottom. H1 40 / H2 28 / H3 20 / body 16 / small 14, per the brief. */
   --text-2xs: 0.6875rem;                                        /* 11 */
@@ -169,11 +180,24 @@
      is not a pile of floating cards. */
   --shadow-none: none;
   --shadow-subtle: 0 1px 2px rgb(11 37 69 / 0.05);
-  --shadow-raised: 0 2px 4px rgb(11 37 69 / 0.04), 0 8px 20px rgb(11 37 69 / 0.08);
-  --shadow-overlay: 0 4px 8px rgb(11 37 69 / 0.06), 0 16px 40px rgb(11 37 69 / 0.12);
+  --shadow-raised: 0 3px 6px rgb(11 37 69 / 0.05), 0 10px 24px rgb(11 37 69 / 0.09);
+  --shadow-overlay: 0 6px 14px rgb(11 37 69 / 0.08), 0 24px 56px rgb(11 37 69 / 0.16);
+  /* Reserved for the one or two surfaces per page allowed to float free of
+     the grid — the hero search card, a modal. Stronger than --shadow-overlay
+     because it has to hold its own over a photograph or a gradient, not a
+     white page. */
+  --shadow-float: 0 12px 24px rgb(6 20 40 / 0.14), 0 32px 72px rgb(6 20 40 / 0.22);
   /* Aliases kept so no component breaks mid-migration. */
   --shadow-card: var(--shadow-none);
   --shadow-sm: var(--shadow-subtle);
+
+  /* --- gradients ---------------------------------------------------
+   * Two, and both stay inside the AA-checked range above: every stop of
+   * --gradient-brand falls between --primary (5.28:1) and --primary-hover
+   * (7.06:1), so white text laid over any part of it still passes. Used
+   * sparingly — the primary button and the hero band, not general wallpaper. */
+  --gradient-brand: linear-gradient(135deg, var(--color-corn-500) 0%, var(--color-corn-700) 100%);
+  --gradient-hero: linear-gradient(160deg, var(--color-corn-700) 0%, var(--color-corn-900) 78%);
 
   --header-height: 4rem;
 }
@@ -208,6 +232,7 @@ h1, h2, h3, h4 {
 /* Only the page's single most important line gets display treatment.
    Weight is a resource; spending it everywhere buys nothing. */
 .display {
+  font-family: var(--font-display);
   font-size: var(--text-3xl);
   font-weight: 700;
   letter-spacing: -0.03em;
@@ -319,7 +344,12 @@ img { max-width: 100%; }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-.btn-primary { background: var(--primary); color: var(--text-on-primary); }
+/* Every stop of --gradient-brand sits between --primary and --primary-hover
+   in the contrast table above, so this is not a departure from the AA
+   budget — it is the same button with more depth. Hover swaps to the flat,
+   already-darker --primary-hover rather than a second gradient: two
+   competing gradients on one control reads as a glitch, not as feedback. */
+.btn-primary { background: var(--gradient-brand); color: var(--text-on-primary); }
 .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
 .btn-primary:active:not(:disabled) { background: var(--primary-active); }
 
@@ -486,6 +516,34 @@ a.card:active, .card--interactive:active { transform: translateY(0); }
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* ==================================================================== *
+ * Motion — scroll reveal, media zoom
+ *
+ * The default state of everything on this site is fully visible — no
+ * element is ever hidden by CSS alone. `<Reveal>` (src/ui/reveal.tsx) is a
+ * client component that, ONLY after it confirms JS ran and the element
+ * starts below the fold, adds `.reveal-init` and then swaps it for
+ * `.reveal-in` via IntersectionObserver the first time the element crosses
+ * the viewport (once, never reversing). A crawler, a no-JS visitor, or a
+ * paint that lands before hydration all see ordinary, fully-opaque content
+ * — there is no window in which real content is hidden behind a script
+ * that might not run.
+ * ==================================================================== */
+
+.reveal-init {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 520ms cubic-bezier(0.16, 1, 0.3, 1), transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-init.reveal-in { opacity: 1; transform: none; }
+
+/* A photo that grows slightly inside a fixed, overflow-hidden frame reads
+   as depth rather than as the image itself moving. Pair with a parent that
+   sets `overflow: hidden` — .lc__media and .card--media already do. */
+.media-zoom { overflow: hidden; }
+.media-zoom img { transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1); }
+.media-zoom:hover img, a:hover > .media-zoom img { transform: scale(1.05); }
 
 .alert {
   display: flex; gap: 0.75rem;

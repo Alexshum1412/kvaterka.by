@@ -68,6 +68,16 @@ export function SiteFooter() {
             <h2 className="ftr__head">Платформа</h2>
             <ul className="ftr__list">
               <li>
+                <Link href="/about" className="ftr__link">
+                  О нас
+                </Link>
+              </li>
+              <li>
+                <Link href="/faq" className="ftr__link">
+                  Вопросы и ответы
+                </Link>
+              </li>
+              <li>
                 <Link href="/terms" className="ftr__link">
                   Условия использования
                 </Link>
@@ -93,7 +103,25 @@ export function SiteFooter() {
           сделки.
         </p>
 
-        <p className="ftr__copy">© {new Date().getFullYear()} Кватэрка.by · Беларусь</p>
+        <div className="ftr__bottom">
+          <p className="ftr__copy">© {new Date().getFullYear()} Кватэрка.by · Беларусь</p>
+
+          {/* Honest about what exists: only Russian is actually wired up.
+              BE/EN are shown so people know it's coming, not so they can click
+              it — faking a working switcher would be worse than saying nothing. */}
+          <div className="ftr__lang" aria-label="Язык интерфейса">
+            <span className="ftr__lang-pill ftr__lang-pill--active" aria-current="true">
+              RU
+            </span>
+            <span className="ftr__lang-pill ftr__lang-pill--soon" title="Скоро">
+              BE
+            </span>
+            <span className="ftr__lang-pill ftr__lang-pill--soon" title="Скоро">
+              EN
+            </span>
+            <span className="ftr__lang-note">скоро</span>
+          </div>
+        </div>
       </div>
 
       <style>{`
@@ -151,9 +179,51 @@ export function SiteFooter() {
           line-height: 1.6;
           color: var(--text-tertiary);
         }
-        .ftr__copy {
+
+        .ftr__bottom {
           margin-top: var(--space-3);
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: var(--space-3);
+          justify-content: space-between;
+        }
+        .ftr__copy {
           font-size: var(--text-xs);
+          color: var(--text-tertiary);
+        }
+
+        .ftr__lang {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.3rem;
+        }
+        .ftr__lang-pill {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 1.75rem;
+          padding: 0.2rem 0.4rem;
+          border-radius: var(--radius-sm);
+          font-size: var(--text-2xs);
+          font-weight: 650;
+          letter-spacing: 0.02em;
+        }
+        .ftr__lang-pill--active {
+          background: var(--primary-soft);
+          color: var(--primary);
+        }
+        /* Not a control: reduced opacity and a not-allowed cursor say plainly
+           that these two don't do anything yet, rather than dressing up an
+           inert label as a button. */
+        .ftr__lang-pill--soon {
+          color: var(--text-tertiary);
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+        .ftr__lang-note {
+          margin-left: 0.125rem;
+          font-size: var(--text-2xs);
           color: var(--text-tertiary);
         }
 

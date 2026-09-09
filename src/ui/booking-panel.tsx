@@ -327,7 +327,9 @@ function PanelStyles() {
         gap: var(--space-4);
         background: var(--surface);
         border-radius: var(--radius-md);
-        box-shadow: var(--shadow-raised);
+        /* The one element per page allowed to float free of the grid — it
+           has to hold its own while the page scrolls past underneath it. */
+        box-shadow: var(--shadow-float);
         padding: var(--space-5) var(--space-4);
       }
       @media (min-width: 400px) { .bp { padding: var(--space-5); } }

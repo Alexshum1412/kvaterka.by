@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { readyServices } from '@/server/runtime.ts';
 import { PasswordResetConfirm, PasswordResetRequest } from '@/ui/password-reset.tsx';
+import { CornflowerMark } from '@/ui/brand.tsx';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,9 @@ export default async function PasswordResetPage({
   return (
     <div className="container pr">
       <header className="pr__head">
+        <span className="pr__mark">
+          <CornflowerMark size={44} />
+        </span>
         <h1>{token ? 'Новый пароль' : 'Забыли пароль?'}</h1>
         <p className="pr__lede">
           {token
@@ -45,7 +49,7 @@ export default async function PasswordResetPage({
         </p>
       </header>
 
-      <section className="card">
+      <section className="card pr__card">
         {token ? <PasswordResetConfirm token={token} /> : <PasswordResetRequest deliverable={deliverable} />}
       </section>
 
@@ -59,11 +63,27 @@ export default async function PasswordResetPage({
       )}
 
       <style>{`
-        .pr { max-width: 26rem; padding-block: var(--space-6) var(--space-8); }
-        .pr__head { margin-bottom: var(--space-4); }
+        .pr { max-width: 26rem; padding-block: clamp(2rem, 6vh, 3.5rem) var(--space-8); }
+
+        .pr__head {
+          display: flex; flex-direction: column; align-items: center;
+          gap: 0.5rem; text-align: center;
+          margin-bottom: var(--space-5);
+        }
+        .pr__mark { display: inline-flex; color: var(--primary); }
         .pr__head h1 { font-size: var(--text-2xl); font-weight: 600; }
-        .pr__lede { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; margin-top: var(--space-2); }
-        .pr__foot { font-size: var(--text-sm); color: var(--text-secondary); margin-top: var(--space-4); }
+        .pr__lede { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; max-width: 32ch; }
+
+        /* Same elevation as the login card, so the flow reads as one screen
+           the user has left rather than a different corner of the site. */
+        .pr__card {
+          padding: var(--space-5);
+          border-radius: var(--radius-lg);
+          box-shadow: var(--shadow-raised);
+        }
+        @media (min-width: 480px) { .pr__card { padding: var(--space-6); } }
+
+        .pr__foot { font-size: var(--text-sm); color: var(--text-secondary); text-align: center; margin-top: var(--space-4); }
       `}</style>
     </div>
   );
