@@ -107,9 +107,13 @@ export default function middleware(request: NextRequest): NextResponse {
 
 export const config = {
   matcher: [
-    /* Everything except the static assets handled above and the API, which
+    /* Everything except the static assets handled above, the API (which
        returns JSON: a policy on a payload no browser renders is noise, and the
-       API's own error envelope is what governs there. */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+       API's own error envelope is what governs there), and /media — the photo
+       route lives outside the [locale] segment on purpose (a photograph is not
+       localized content), so letting next-intl see it here would rewrite every
+       image request to a /<locale>/media/... URL with no matching route,
+       404ing every photo on the site. */
+    '/((?!api|_next/static|_next/image|favicon.ico|media).*)',
   ],
 };
