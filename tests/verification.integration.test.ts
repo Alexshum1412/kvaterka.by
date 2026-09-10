@@ -748,6 +748,51 @@ describe('rejection and resubmission', () => {
 });
 
 /* ================================================================== *
+ * Document retention follows the decision, not the review
+ * ================================================================== */
+
+describe('document retention on decision', () => {
+  it('marks attached documents for purge once a decision lands, but not on REQUEST_INFO', async () => {
+    await enableCollection();
+    const applicant = await api.signUp();
+    const id = await submitIdentity(applicant.token);
+    await attachEvidence(id, ['PASSPORT', 'SELFIE']);
+    const verifier = await staffWith('VERIFIER');
+
+    await api.post(`/admin/verification/requests/${id}/actions`, { action: 'TAKE' }, { token: verifier.token });
+    await api.post(
+      `/admin/verification/requests/${id}/actions`,
+      { action: 'REQUEST_INFO', reasonCodes: ['DOCUMENT_MISSING'], applicantMessage: 'Приложите ещё раз.' },
+      { token: verifier.token },
+    );
+
+    // Not a decision — the applicant may still attach more, so nothing is
+    // marked for purge yet.
+    const afterRequestInfo = await db.query<{ purge_after: string | null }>(
+      `SELECT purge_after FROM verification_document WHERE request_id=$1`,
+      [id],
+    );
+    expect(afterRequestInfo.rows).toHaveLength(2);
+    for (const row of afterRequestInfo.rows) expect(row.purge_after).toBeNull();
+
+    await api.post(`/admin/verification/requests/${id}/actions`, { action: 'TAKE' }, { token: verifier.token });
+    const decided = await api.post(
+      `/admin/verification/requests/${id}/actions`,
+      { action: 'APPROVE', internalNote: 'Документ читается, селфи совпадает.' },
+      { token: verifier.token },
+    );
+    expect(decided.status).toBe(200);
+
+    const afterApprove = await db.query<{ purge_after: string | null }>(
+      `SELECT purge_after FROM verification_document WHERE request_id=$1`,
+      [id],
+    );
+    expect(afterApprove.rows).toHaveLength(2);
+    for (const row of afterApprove.rows) expect(row.purge_after).not.toBeNull();
+  });
+});
+
+/* ================================================================== *
  * Privacy and enumeration
  * ================================================================== */
 

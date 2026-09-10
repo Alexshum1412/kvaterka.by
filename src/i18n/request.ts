@@ -74,6 +74,7 @@ const NAMESPACES = [
   'staff-verification',
   'staff-security',
   'staff-nav',
+  'boost',
 ] as const;
 
 export default getRequestConfig(async ({ requestLocale }) => {

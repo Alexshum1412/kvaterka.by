@@ -14,6 +14,7 @@ import {
   type ChannelInfo,
   type PreferenceRow,
 } from '@/ui/notification-preferences.tsx';
+import { TelegramLink } from '@/ui/telegram-link.tsx';
 import {
   MANDATORY_IN_APP,
   NOTIFICATION_CATEGORIES,
@@ -123,6 +124,7 @@ export default async function AccountPage() {
       {!status.closedAt && (
         <section className="card">
           <NotificationPreferences rows={preferenceRows} channels={channelInfo} />
+          <TelegramLink />
         </section>
       )}
 

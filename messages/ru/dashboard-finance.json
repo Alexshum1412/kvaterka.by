@@ -31,7 +31,8 @@
       "FEE_WAIVED": "Сбор списан платформой",
       "PAYMENT_RECEIVED": "Платёж зачтён",
       "ADJUSTMENT": "Корректировка",
-      "REFUND": "Возврат"
+      "REFUND": "Возврат",
+      "BOOST_CHARGED": "Поднятие объявления в ленте"
     },
     "feeStatus": {
       "PAYABLE": "К оплате",

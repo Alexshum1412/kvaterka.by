@@ -47,6 +47,18 @@ const envSchema = z.object({
     .default('false')
     .transform((v) => v === 'true'),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
+  /**
+   * The bot's public @username, e.g. "kvaterka_bot" — no leading @, matching
+   * what a `https://t.me/<username>?start=<token>` deep link expects. Unlike
+   * TELEGRAM_BOT_TOKEN this is not a secret: it is the same string visible to
+   * anyone who opens the bot in Telegram, which is why the linking route
+   * (`POST /notifications/telegram/link`) hands it straight to the browser.
+   * Optional, and independently of TELEGRAM_BOT_TOKEN — a deployment can have
+   * a token without yet knowing its bot's username, and the linking UI
+   * degrades to "not offered" rather than a broken `t.me` link when this is
+   * unset.
+   */
+  TELEGRAM_BOT_USERNAME: z.string().optional(),
   SMTP_URL: z.string().optional(),
   /**
    * From: header for outbound mail, e.g. "Кватэрка.by <noreply@kvaterka.by>".

@@ -34,7 +34,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
-const ENTRY_TYPE_KEYS = ['FEE_ACCRUED', 'FEE_WAIVED', 'PAYMENT_RECEIVED', 'ADJUSTMENT', 'REFUND'];
+const ENTRY_TYPE_KEYS = ['FEE_ACCRUED', 'FEE_WAIVED', 'PAYMENT_RECEIVED', 'ADJUSTMENT', 'REFUND', 'BOOST_CHARGED'];
 const RESTRICTION_KEYS = [
   'CANNOT_PUBLISH_NEW_LISTINGS',
   'CANNOT_ACCEPT_NEW_BOOKINGS',
@@ -77,7 +77,6 @@ export default async function FinancePage() {
     services.finance.listFees(user!.userId),
   ]);
 
-  const debtMinor = BigInt(balance.balanceMinor) < 0n ? (-BigInt(balance.balanceMinor)).toString() : '0';
   const payable = fees.filter((f) => f.status === 'PAYABLE');
 
   return (
@@ -98,7 +97,7 @@ export default async function FinancePage() {
         <div className="fin__figure">
           <span className="fin__figureLabel">{balance.hasDebt ? t('debtLabel') : t('balanceLabel')}</span>
           <strong className={balance.hasDebt ? 'fin__amount fin__amount--debt' : 'fin__amount'}>
-            <Money minor={balance.hasDebt ? debtMinor : balance.balanceMinor} />
+            <Money minor={balance.hasDebt ? balance.feeDebtMinor : balance.balanceMinor} />
           </strong>
           <span className="fin__figureHint">
             {balance.hasDebt ? t('unpaidFeesHint', { count: payable.length }) : t('noOpenCharges')}

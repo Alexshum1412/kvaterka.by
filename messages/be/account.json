@@ -59,7 +59,10 @@
       "lockedSuffix": " (адключыць нельга)",
       "channelInApp": "У кабінеце",
       "channelEmail": "Пошта",
-      "channelTelegram": "Telegram"
+      "channelTelegram": "Telegram",
+      "telegramConnectButton": "Падключыць Telegram",
+      "telegramConnectHint": "Адкрыецца Telegram — націсніце «Start», і прывязка пацвердзіцца аўтаматычна.",
+      "telegramConnectError": "Не ўдалося падрыхтаваць прывязку. Абнавіце старонку і паспрабуйце зноў."
     },
     "closeAccount": {
       "collapsedTitle": "Закрыць уліковы запіс",

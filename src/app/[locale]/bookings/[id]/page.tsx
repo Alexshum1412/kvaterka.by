@@ -10,7 +10,7 @@ import { BookingStages } from '@/ui/booking-stages.tsx';
 import { CompletionPanel } from '@/ui/completion-panel.tsx';
 import { Icon, type IconName } from '@/ui/icons.tsx';
 import { Money, formatNightsLocalized, bookingStatusLabel, bookingTone } from '@/ui/primitives.tsx';
-import { availableEvents, type BookingState } from '@/server/domain/booking/states.ts';
+import { availableEvents, blocksCalendar, type BookingState } from '@/server/domain/booking/states.ts';
 import type { AppLocale } from '@/i18n/routing.ts';
 
 export const dynamic = 'force-dynamic';
@@ -312,6 +312,12 @@ export default async function BookingDetailPage({
               </div>
             </dl>
             <p className="hint">{t('paymentDirectHint')}</p>
+            {blocksCalendar(status) && (
+              <a href={`/api/bookings/${id}/ical`} className="link bk__icalLink">
+                <Icon name="calendar" size={14} />
+                {t('addToCalendarButton')}
+              </a>
+            )}
           </section>
 
           {/* The fee is the landlord's business only: a tenant has no debt here
@@ -512,6 +518,7 @@ export default async function BookingDetailPage({
         .bk__row dd { margin: 0; }
         .bk__row--total { border-top: 1px solid var(--border); padding-top: var(--space-3); margin-top: var(--space-2); font-size: var(--text-base); }
         .bk__ledgerLink { display: inline-flex; align-items: center; gap: 0.3rem; font-size: var(--text-sm); }
+        .bk__icalLink { margin-top: var(--space-2); font-size: var(--text-sm); }
 
         .bk__caseLine { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); font-size: var(--text-sm); }
         .bk__caseText { max-width: 60ch; line-height: 1.55; }

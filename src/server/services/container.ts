@@ -10,6 +10,7 @@ import type { Db } from '../db/sql.ts';
 import { AuthService } from '../auth/auth-service.ts';
 import { AvailabilityService } from './availability-service.ts';
 import { BookingService } from './booking-service.ts';
+import { BoostService } from './boost-service.ts';
 import { DashboardService } from './dashboard-service.ts';
 import { DisputeService } from './dispute-service.ts';
 import { FavoriteService } from './favorite-service.ts';
@@ -27,6 +28,7 @@ import { VerificationService } from './verification-service.ts';
 export interface Services {
   readonly auth: AuthService;
   readonly listings: ListingService;
+  readonly boost: BoostService;
   readonly search: SearchService;
   readonly availability: AvailabilityService;
   readonly bookings: BookingService;
@@ -63,6 +65,7 @@ export function createServices(db: Db, publicBaseUrl: string): Services {
   return {
     auth: new AuthService(db),
     listings: new ListingService(db),
+    boost: new BoostService(db),
     search: new SearchService(db),
     availability: new AvailabilityService(db),
     bookings: new BookingService(db),

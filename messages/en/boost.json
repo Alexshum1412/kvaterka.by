@@ -1,0 +1,9 @@
+{
+  "Boost": {
+    "button": "Boost in search",
+    "boosting": "Boosting…",
+    "boostedUntil": "Boosted until {date}",
+    "badge": "Boosted",
+    "error": "Couldn't boost this listing"
+  }
+}

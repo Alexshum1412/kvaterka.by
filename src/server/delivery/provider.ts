@@ -40,6 +40,7 @@
 import nodemailer, { type NodemailerError, type Transporter } from 'nodemailer';
 
 import type { Channel } from '../services/notification-service.ts';
+import { telegramProvider } from './telegram.ts';
 
 export type DeliveryStatus = 'DELIVERED' | 'TRANSIENT' | 'PERMANENT';
 
@@ -73,6 +74,15 @@ export interface DeliveryMessage {
   readonly category: string;
   readonly subject: string;
   readonly body: string;
+  /**
+   * The branded HTML rendering of `body`, EMAIL only. Optional because
+   * TELEGRAM and IN_APP have no use for markup — Telegram's `sendMessage`
+   * takes plain text (or its own limited entity syntax, not HTML5), and
+   * IN_APP already renders `body` inside the inbox's own layout. Only
+   * `deliverOne` decides when to set it; a provider that ignores it for a
+   * non-EMAIL channel is doing the right thing, not skipping a feature.
+   */
+  readonly html?: string;
 }
 
 export interface DeliveryProvider {
@@ -216,6 +226,7 @@ export function smtpProvider(
           to: message.address,
           subject: message.subject,
           text: message.body,
+          html: message.html,
         });
         return delivered(info.messageId ?? 'sent', info.messageId);
       } catch (err) {
@@ -257,11 +268,11 @@ export interface ProviderSet {
  * one and not the other, but this function checks both anyway rather than
  * trusting that upstream validation always ran, because a provider that reads
  * `env.MAIL_FROM` as a non-null string it never confirmed is one bad
- * deployment script away from mailing from `"undefined"`. TELEGRAM has no
- * client yet, so it refuses regardless of its token — and refuses with a
- * message that says whether the token is missing or the client merely isn't
- * built, because an operator who has set the token and still sees failures
- * needs to know the credential arrived and the code did not.
+ * deployment script away from mailing from `"undefined"`. TELEGRAM turns real
+ * the same way EMAIL does — on the presence of its one credential — and
+ * refuses with a message that names the missing variable when it is absent,
+ * because an operator staring at a stalled backlog needs to know which env
+ * var to set.
  */
 export function resolveProviders(env: NodeJS.ProcessEnv = process.env): ProviderSet {
   const email: DeliveryProvider = env.SMTP_URL
@@ -271,7 +282,7 @@ export function resolveProviders(env: NodeJS.ProcessEnv = process.env): Provider
     : unconfiguredProvider('EMAIL', 'SMTP_URL не задан');
 
   const telegram: DeliveryProvider = env.TELEGRAM_BOT_TOKEN
-    ? unconfiguredProvider('TELEGRAM', 'токен задан, но клиент бота не реализован')
+    ? telegramProvider(env.TELEGRAM_BOT_TOKEN)
     : unconfiguredProvider('TELEGRAM', 'TELEGRAM_BOT_TOKEN не задан');
 
   const byChannel = { IN_APP: inAppProvider(), EMAIL: email, TELEGRAM: telegram } as const;

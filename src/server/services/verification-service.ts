@@ -877,6 +877,30 @@ export class VerificationService {
         await this.grantLevel(tx, current, staff.userId);
       }
 
+      /* `attachDocument` leaves `purge_after` NULL because no retention PERIOD
+       * is ours to invent — LEGAL-004 is exactly that unanswered question, and
+       * `retention.ts` treats NULL as «срок не установлен», never eligible for
+       * purge. A decision is a different thing from a period, though: once a
+       * moderator has approved or rejected the request, the document has done
+       * the one job it was collected for, and every day it sits retained past
+       * that is retention this product chose rather than retention the
+       * decision required. `now()` is the smallest possible answer — zero
+       * added retention — and, unlike any nonzero window, it needs no legal
+       * sign-off to be safe: `purgeEligibility()` still requires storage to be
+       * configured and no hold to apply before anything is actually destroyed,
+       * so this only arms the trigger for whenever collection is genuinely on.
+       * REQUEST_INFO and TAKE are not decisions — the applicant may still be
+       * asked to attach more, so `decided` (already computed above) gates this
+       * exactly as it gates `decided_at` on the request itself. */
+      if (decided) {
+        await tx.query(
+          `UPDATE verification_document
+              SET purge_after = now()
+            WHERE request_id = $1 AND purge_after IS NULL AND purged_at IS NULL`,
+          [requestId],
+        );
+      }
+
       /* Two events: the internal record with the note, and — for the moves the
          applicant is entitled to know about — an applicant-visible one carrying
          only the codes and the message written for them. The internal note is
@@ -889,7 +913,7 @@ export class VerificationService {
         note: internalNote || null,
         reasonCodes: codes,
         visibility: 'INTERNAL',
-        payload: { from: current.status, to: transition.to },
+        payload: { from: current.status, to: transition.to, documentsMarkedForPurge: decided },
       });
 
       if (['APPROVE', 'REJECT', 'REQUEST_INFO'].includes(action)) {

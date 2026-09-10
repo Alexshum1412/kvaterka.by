@@ -59,7 +59,10 @@
       "lockedSuffix": " (can't be turned off)",
       "channelInApp": "In your account",
       "channelEmail": "Email",
-      "channelTelegram": "Telegram"
+      "channelTelegram": "Telegram",
+      "telegramConnectButton": "Connect Telegram",
+      "telegramConnectHint": "Telegram will open — press Start, and the link confirms automatically.",
+      "telegramConnectError": "Couldn't prepare the link. Refresh the page and try again."
     },
     "closeAccount": {
       "collapsedTitle": "Close account",

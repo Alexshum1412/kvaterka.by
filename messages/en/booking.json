@@ -70,6 +70,7 @@
     "rentForNights": "Rent for {nights}",
     "totalToHost": "Total to host",
     "paymentDirectHint": "Rent payment happens directly between you and the host. The platform does not accept rent and is not a party to the agreement.",
+    "addToCalendarButton": "Add to calendar",
 
     "serviceFeeHeading": "Service fee",
     "feeBaseLabel": "Calculation base",

@@ -59,7 +59,10 @@
       "lockedSuffix": " (отключить нельзя)",
       "channelInApp": "В кабинете",
       "channelEmail": "Почта",
-      "channelTelegram": "Telegram"
+      "channelTelegram": "Telegram",
+      "telegramConnectButton": "Подключить Telegram",
+      "telegramConnectHint": "Откроется Telegram — нажмите «Start», и привязка подтвердится автоматически.",
+      "telegramConnectError": "Не удалось подготовить привязку. Обновите страницу и попробуйте снова."
     },
     "closeAccount": {
       "collapsedTitle": "Закрыть учётную запись",

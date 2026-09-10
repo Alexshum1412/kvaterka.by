@@ -27,6 +27,7 @@ export interface ListingCardData {
   propertyVerified: boolean;
   rating: number | null;
   reviewCount: number;
+  isBoosted?: boolean;
   distanceMeters?: number;
   stayTotalMinor?: string;
 }
@@ -60,6 +61,7 @@ export async function ListingCard({
 }) {
   const locale = (await getLocale()) as AppLocale;
   const t = await getTranslations('Listing');
+  const tBoost = await getTranslations('Boost');
 
   const cover = listing.photos.find((p) => p.isCover) ?? listing.photos[0];
   const instant = listing.bookingMode !== 'REQUEST';
@@ -117,6 +119,12 @@ export async function ListingCard({
       <FavouriteButton propertyId={listing.id} initial={initialFavourite} className="lc__fav" />
 
       <div className="lc__body">
+        {/* Paid placement is a claim about how the card got here, not about
+            the listing itself — it stays out of the photo overlay, which is
+            reserved for facts about the object (see lc__flag above). */}
+        {listing.isBoosted && (
+          <span className="badge badge-primary lc__boostBadge">{tBoost('badge')}</span>
+        )}
         <h3 className="lc__title clamp-2">
           <Link href={`/listing/${listing.id}`} className="lc__link">
             {listing.title}
@@ -237,6 +245,7 @@ export async function ListingCard({
           gap: 0.25rem;
           padding: var(--space-3) var(--space-3) var(--space-4);
         }
+        .lc__boostBadge { align-self: flex-start; }
 
         .lc__title {
           font-size: var(--text-base);

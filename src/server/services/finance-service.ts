@@ -34,11 +34,26 @@ import { writeAudit } from './audit.ts';
 export const DEBT_RESTRICTION_THRESHOLD_MINOR = 5000n; // 50.00 BYN
 export const DEBT_GRACE_DAYS = 14;
 
+/**
+ * Entry types that represent the collectable service-fee debt this module
+ * restricts accounts over. `ledger_entry` also carries entries a landlord
+ * chose to incur — BOOST_CHARGED being the first — and those must never
+ * count toward "debt": a landlord who paid for a promotion has done nothing
+ * that should risk CANNOT_PUBLISH_NEW_LISTINGS, and telling them a service
+ * fee is unpaid when it is not would be a false statement, not just an
+ * unhelpful one. Sum ONLY these types wherever "debt" gates a restriction or
+ * labels the headline balance as owed.
+ */
+const FEE_DEBT_ENTRY_TYPES = ['FEE_ACCRUED', 'PAYMENT_RECEIVED', 'FEE_WAIVED', 'FEE_WRITTEN_OFF', 'ADJUSTMENT'];
+
 export interface BalanceView {
   readonly userId: string;
   readonly balanceMinor: string;
   readonly balanceFormatted: string;
   readonly hasDebt: boolean;
+  /** The fee-specific debt hasDebt is computed from — never the raw ledger
+   *  sum, which now also includes non-debt spend like BOOST_CHARGED. */
+  readonly feeDebtMinor: string;
   readonly outstandingFees: number;
   readonly restrictions: readonly Restriction[];
   readonly entries: readonly LedgerEntryView[];
@@ -63,10 +78,15 @@ export class FinanceService {
   constructor(private readonly db: Db) {}
 
   async balance(userId: string): Promise<BalanceView> {
-    const [balanceRow, feeRow, entries] = await Promise.all([
+    const [balanceRow, feeDebtRow, feeRow, entries] = await Promise.all([
       this.db.query<{ balance: string }>(
         `SELECT COALESCE(SUM(amount_minor),0)::text AS balance FROM ledger_entry WHERE landlord_id=$1`,
         [userId],
+      ),
+      this.db.query<{ balance: string }>(
+        `SELECT COALESCE(SUM(amount_minor),0)::text AS balance FROM ledger_entry
+          WHERE landlord_id=$1 AND entry_type = ANY($2)`,
+        [userId, FEE_DEBT_ENTRY_TYPES],
       ),
       this.db.query<{ c: string }>(
         `SELECT count(*)::text AS c FROM service_fee WHERE landlord_id=$1 AND status='PAYABLE'`,
@@ -80,13 +100,16 @@ export class FinanceService {
     ]);
 
     const balanceMinor = BigInt(balanceRow.rows[0]!.balance);
+    const feeDebtMinor = BigInt(feeDebtRow.rows[0]!.balance);
     const balance: Money = money(balanceMinor);
 
     return {
       userId,
       balanceMinor: balanceMinor.toString(),
       balanceFormatted: formatMoney(balance),
-      hasDebt: balanceMinor < 0n,
+      // Fee-specific, not the raw ledger sum — see FEE_DEBT_ENTRY_TYPES.
+      hasDebt: feeDebtMinor < 0n,
+      feeDebtMinor: (feeDebtMinor < 0n ? -feeDebtMinor : 0n).toString(),
       outstandingFees: Number(feeRow.rows[0]!.c),
       restrictions: await this.restrictionsFor(userId),
       entries: entries.rows.map((r) => ({
@@ -112,10 +135,11 @@ export class FinanceService {
     if (!(await this.flagEnabled('fee.enforcement'))) return [];
 
     const { rows } = await this.db.query<{ balance: string; overdue: string }>(
-      `SELECT COALESCE((SELECT SUM(amount_minor) FROM ledger_entry WHERE landlord_id=$1),0)::text AS balance,
+      `SELECT COALESCE((SELECT SUM(amount_minor) FROM ledger_entry
+                          WHERE landlord_id=$1 AND entry_type = ANY($2)),0)::text AS balance,
               (SELECT count(*)::text FROM service_fee
                 WHERE landlord_id=$1 AND status='PAYABLE' AND due_at < now()) AS overdue`,
-      [userId],
+      [userId, FEE_DEBT_ENTRY_TYPES],
     );
 
     const balance = BigInt(rows[0]!.balance);

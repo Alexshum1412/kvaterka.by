@@ -32,6 +32,7 @@
 import { type Db } from '../db/sql.ts';
 import { NOTIFICATION_CATEGORY_TITLE, type Channel, type NotificationService } from './notification-service.ts';
 import { resolveProviders, type ProviderSet } from '../delivery/provider.ts';
+import { renderEmailHtml } from '../delivery/email-template.ts';
 import { writeAudit } from './audit.ts';
 import type { RetentionService } from './retention-service.ts';
 
@@ -218,14 +219,27 @@ export class DeliveryService {
       return 'SUPPRESSED';
     }
 
+    const subject = NOTIFICATION_CATEGORY_TITLE[item.category] ?? 'Кватэрка.by';
+    const body = renderBody(item.category, item.payload, this.publicBaseUrl);
+
+    /* HTML is EMAIL-only. TELEGRAM's Bot API takes plain text (its own
+       entity syntax, not HTML5), and IN_APP already renders `body` inside
+       the inbox's own layout — an `html` field on either would be either
+       ignored or, worse, shown as literal markup. */
+    const html =
+      item.channel === 'EMAIL'
+        ? renderEmailHtml(subject, body, emailCta(item.payload, this.publicBaseUrl))
+        : undefined;
+
     const result = await provider.send({
       notificationId: item.id,
       userId: item.user_id,
       channel: item.channel,
       address,
       category: item.category,
-      subject: NOTIFICATION_CATEGORY_TITLE[item.category] ?? 'Кватэрка.by',
-      body: renderBody(item.category, item.payload, this.publicBaseUrl),
+      subject,
+      body,
+      ...(html !== undefined ? { html } : {}),
     });
 
     if (result.status === 'DELIVERED') {
@@ -277,16 +291,57 @@ export class DeliveryService {
  * `DeliveryService` through a database to observe one string.
  */
 export function renderBody(category: string, payload: Record<string, unknown>, publicBaseUrl: string): string {
-  const token = typeof payload.token === 'string' ? payload.token : null;
-
-  if (token && payload.kind === 'EMAIL_VERIFICATION') {
-    return `Подтвердите почту, перейдя по ссылке: ${publicBaseUrl}/verify-email?token=${token}`;
+  const link = tokenLink(payload, publicBaseUrl);
+  if (link?.kind === 'EMAIL_VERIFICATION') {
+    return `Подтвердите почту, перейдя по ссылке: ${link.url}`;
   }
-  if (token && payload.kind === 'PASSWORD_RESET') {
-    return `Чтобы задать новый пароль, перейдите по ссылке: ${publicBaseUrl}/password-reset?token=${token}`;
+  if (link?.kind === 'PASSWORD_RESET') {
+    return `Чтобы задать новый пароль, перейдите по ссылке: ${link.url}`;
   }
 
   const title = NOTIFICATION_CATEGORY_TITLE[category] ?? 'Обновление';
   const where = typeof payload.bookingId === 'string' ? '/trips' : '/dashboard';
   return `${title}. Откройте Кватэрка.by, чтобы посмотреть: ${where}`;
+}
+
+/**
+ * The one-time link a token-carrying payload resolves to, if it has one.
+ *
+ * Factored out of `renderBody` so the HTML email's CTA button (`emailCta`
+ * below) builds the exact same URL from the exact same branch, rather than a
+ * second, slightly different copy of this logic that could point the button
+ * and the paragraph beside it at different links.
+ */
+function tokenLink(
+  payload: Record<string, unknown>,
+  publicBaseUrl: string,
+): { kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET'; url: string } | null {
+  const token = typeof payload.token === 'string' ? payload.token : null;
+  if (!token) return null;
+  if (payload.kind === 'EMAIL_VERIFICATION') {
+    return { kind: 'EMAIL_VERIFICATION', url: `${publicBaseUrl}/verify-email?token=${token}` };
+  }
+  if (payload.kind === 'PASSWORD_RESET') {
+    return { kind: 'PASSWORD_RESET', url: `${publicBaseUrl}/password-reset?token=${token}` };
+  }
+  return null;
+}
+
+/**
+ * The HTML email's call-to-action, when the category has one.
+ *
+ * Only EMAIL_VERIFICATION and PASSWORD_RESET carry a deep link today — the
+ * same exception `renderBody`'s own doc comment names. Everything else
+ * renders with no button, deliberately: inventing a per-category deep link
+ * here (say, a guess at a booking's URL) would be a second router this file
+ * has no business owning.
+ */
+function emailCta(
+  payload: Record<string, unknown>,
+  publicBaseUrl: string,
+): { ctaUrl?: string; ctaLabel?: string } {
+  const link = tokenLink(payload, publicBaseUrl);
+  if (link?.kind === 'EMAIL_VERIFICATION') return { ctaUrl: link.url, ctaLabel: 'Подтвердить' };
+  if (link?.kind === 'PASSWORD_RESET') return { ctaUrl: link.url, ctaLabel: 'Сбросить пароль' };
+  return {};
 }

@@ -31,7 +31,8 @@
       "FEE_WAIVED": "Збор спісаны платформай",
       "PAYMENT_RECEIVED": "Плацёж залічаны",
       "ADJUSTMENT": "Карэкціроўка",
-      "REFUND": "Вяртанне"
+      "REFUND": "Вяртанне",
+      "BOOST_CHARGED": "Падняцце аб'явы ў стужцы"
     },
     "feeStatus": {
       "PAYABLE": "Да аплаты",

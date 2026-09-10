@@ -200,6 +200,20 @@ export const listingRoutes: AnyRoute[] = [
     },
   }),
 
+  defineRoute({
+    method: 'POST',
+    path: '/listings/:id/boost',
+    summary: 'Pay to pin a published listing to the top of search results',
+    tags: ['listings'],
+    auth: 'required',
+    // Price and duration are server-side constants (BoostService), not
+    // client input — there is nothing for the caller to supply.
+    body: z.object({}),
+    async handler({ params, ctx, caller }) {
+      return ctx.services.boost.purchase(params.id!, caller.userId);
+    },
+  }),
+
   /* THERE IS DELIBERATELY NO JSON ROUTE FOR ATTACHING A PHOTO.
    *
    * `POST /listings/:id/photos` used to accept `storageKey`, `width`, `height`

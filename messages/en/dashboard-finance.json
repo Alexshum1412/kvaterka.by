@@ -31,7 +31,8 @@
       "FEE_WAIVED": "Fee waived by the platform",
       "PAYMENT_RECEIVED": "Payment applied",
       "ADJUSTMENT": "Adjustment",
-      "REFUND": "Refund"
+      "REFUND": "Refund",
+      "BOOST_CHARGED": "Listing boost"
     },
     "feeStatus": {
       "PAYABLE": "Payable",

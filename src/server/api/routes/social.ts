@@ -453,9 +453,18 @@ export const notificationRoutes: AnyRoute[] = [
     rateLimit: { limit: 10, windowSeconds: 3600, by: 'user', bucket: 'telegram:link' },
     async handler({ ctx, caller }) {
       const token = await ctx.services.notifications.beginTelegramLink(caller.userId);
-      // Returned to the user's own authenticated session so they can paste it
-      // into the bot. Telegram is never enabled without this deliberate step.
-      return { linkCode: token, expiresInSeconds: 900 };
+      // Returned to the user's own authenticated session so they can turn it
+      // into a t.me deep link. Telegram is never enabled without this
+      // deliberate step. botUsername is not a secret (same string anyone
+      // sees opening the bot in Telegram) — it rides along so the UI can
+      // build the link without a second request, and is null rather than
+      // omitted when this deployment has not set TELEGRAM_BOT_USERNAME, so
+      // the client can tell "not configured" apart from "still loading".
+      return {
+        linkCode: token,
+        expiresInSeconds: 900,
+        botUsername: process.env.TELEGRAM_BOT_USERNAME ?? null,
+      };
     },
   }),
 

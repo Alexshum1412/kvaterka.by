@@ -293,6 +293,15 @@ export const RETENTION_CATALOGUE: readonly TablePolicy[] = [
   },
   { table: 'service_fee', dataClass: 'FINANCIAL', subject: 'landlord_id', purpose: 'Начисленная комиссия 5%', onErasure: 'KEEP', window: { kind: 'UNKNOWN', blockedBy: 'LEGAL-002', why: 'Срок хранения финансовых записей не определён' } },
   { table: 'ledger_entry', dataClass: 'FINANCIAL', subject: 'landlord_id', purpose: 'Книга начислений и списаний', onErasure: 'KEEP_AS_AUDIT', window: { kind: 'UNKNOWN', blockedBy: 'LEGAL-002', why: 'Финансовая история; удалению не подлежит' }, appendOnly: true },
+  {
+    table: 'listing_boost',
+    dataClass: 'FINANCIAL',
+    subject: 'purchased_by',
+    purpose: 'Платное поднятие объявления в поиске',
+    onErasure: 'KEEP_AS_AUDIT',
+    window: { kind: 'UNKNOWN', blockedBy: 'LEGAL-002', why: 'Оплаченная запись; срок хранения финансовых записей не определён' },
+    note: 'Оплата отражена в ledger_entry как BOOST_CHARGED; сама строка — единственная запись о том, что именно было куплено и на какой срок.',
+  },
 
   /* -- verification ------------------------------------------------ */
   {

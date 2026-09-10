@@ -156,7 +156,9 @@ export class DashboardService {
                AND NOT EXISTS (SELECT 1 FROM review r
                                 WHERE r.booking_id=b.id AND r.author_role='LANDLORD')) AS reviews_pending,
            (SELECT count(*)::int FROM service_fee
-             WHERE landlord_id=$1 AND status='PAYABLE' AND due_at < now()) AS overdue_fees`,
+             WHERE landlord_id=$1 AND status='PAYABLE' AND due_at < now()) AS overdue_fees,
+           (SELECT COALESCE(SUM(fee_minor),0)::text FROM service_fee
+             WHERE landlord_id=$1 AND status='PAYABLE') AS payable_fees_minor`,
         [userId],
       ),
       this.db.query<{ balance: string }>(
@@ -168,6 +170,13 @@ export class DashboardService {
     const u = user.rows[0] ?? {};
     const c = counts.rows[0] ?? {};
     const balanceMinor = BigInt(balance.rows[0]?.balance ?? '0');
+    /* Deliberately NOT `balanceMinor` (the raw ledger sum): the ledger now also
+       carries debits a landlord chose to make — a boost purchase — and those
+       are not a debt needing attention, just a spend. Whether the "you owe a
+       fee" notice fires must track the fee itself (service_fee, PAYABLE),
+       exactly like `overdue_fees` above already does, or a landlord who paid
+       for a boost would be told a rental fee is outstanding when none is. */
+    const payableFeesMinor = BigInt(c.payable_fees_minor ?? '0');
 
     const mapped: DashboardListing[] = listings.rows.map((r) => ({
       id: r.id,
@@ -205,7 +214,7 @@ export class DashboardService {
         unreadMessages: Number(c.unread_messages ?? 0),
         balanceMinor: balanceMinor.toString(),
       },
-      attention: buildAttention(c, mapped, balanceMinor),
+      attention: buildAttention(c, mapped, payableFeesMinor),
       listings: mapped,
       upcoming: upcoming.rows.map((r) => ({
         bookingId: r.id,
@@ -232,7 +241,7 @@ export class DashboardService {
 function buildAttention(
   c: Record<string, any>,
   listings: readonly DashboardListing[],
-  balanceMinor: bigint,
+  payableFeesMinor: bigint,
 ): AttentionItem[] {
   const items: AttentionItem[] = [];
 
@@ -264,7 +273,7 @@ function buildAttention(
     });
   }
 
-  if (balanceMinor < 0n) {
+  if (payableFeesMinor > 0n) {
     const overdue = Number(c.overdue_fees ?? 0);
     items.push({
       kind: 'OUTSTANDING_DEBT',
