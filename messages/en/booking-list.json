@@ -1,0 +1,8 @@
+{
+  "BookingList": {
+    "landlord": "Host",
+    "tenant": "Tenant",
+    "verified": "verified",
+    "guests": "{count, plural, one {# guest} other {# guests}}"
+  }
+}

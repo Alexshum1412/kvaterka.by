@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
+import { Link, useRouter } from '@/i18n/navigation.ts';
 import { api } from '@/lib/api-client.ts';
 import { Icon } from './icons.tsx';
+import type { AppLocale } from '@/i18n/routing.ts';
 
 /**
  * The inbox.
@@ -41,26 +42,34 @@ export interface InboxItem {
   readonly createdAt: string;
 }
 
-function timeAgo(iso: string): string {
-  const then = new Date(iso).getTime();
-  const minutes = Math.max(0, Math.round((Date.now() - then) / 60_000));
-  if (minutes < 1) return 'только что';
-  if (minutes < 60) return `${minutes} мин назад`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} ч назад`;
-  const days = Math.round(hours / 24);
-  if (days < 30) return `${days} дн назад`;
-  return new Date(iso).toLocaleDateString('ru-BY', { day: 'numeric', month: 'long' });
-}
+const DATE_LOCALE: Record<AppLocale, string> = {
+  ru: 'ru-BY',
+  be: 'be-BY',
+  en: 'en-US',
+};
 
 export function NotificationList({ items }: { items: readonly InboxItem[] }) {
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations('Notifications.list');
   const [read, setRead] = useState<Set<string>>(
     () => new Set(items.filter((i) => i.readAt !== null).map((i) => i.id)),
   );
   const [busy, setBusy] = useState(false);
 
   const unread = items.filter((i) => !read.has(i.id)).length;
+
+  function timeAgo(iso: string): string {
+    const then = new Date(iso).getTime();
+    const minutes = Math.max(0, Math.round((Date.now() - then) / 60_000));
+    if (minutes < 1) return t('justNow');
+    if (minutes < 60) return t('minutesAgo', { count: minutes });
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return t('hoursAgo', { count: hours });
+    const days = Math.round(hours / 24);
+    if (days < 30) return t('daysAgo', { count: days });
+    return new Date(iso).toLocaleDateString(DATE_LOCALE[locale as AppLocale], { day: 'numeric', month: 'long' });
+  }
 
   async function markAll(): Promise<void> {
     setBusy(true);
@@ -90,12 +99,10 @@ export function NotificationList({ items }: { items: readonly InboxItem[] }) {
   return (
     <div className="nl">
       <div className="nl__head">
-        <p className="text-sm muted">
-          {unread === 0 ? 'Всё прочитано' : `${unread} ${unread === 1 ? 'непрочитанное' : 'непрочитанных'}`}
-        </p>
+        <p className="text-sm muted">{unread === 0 ? t('allRead') : t('unreadCount', { count: unread })}</p>
         {unread > 0 && (
           <button type="button" className="btn btn-ghost btn-sm" onClick={markAll} disabled={busy}>
-            Отметить всё прочитанным
+            {t('markAllButton')}
           </button>
         )}
       </div>
@@ -127,7 +134,7 @@ export function NotificationList({ items }: { items: readonly InboxItem[] }) {
                   {body}
                 </button>
               )}
-              {!isRead && <span className="sr-only">Не прочитано</span>}
+              {!isRead && <span className="sr-only">{t('unreadSr')}</span>}
             </li>
           );
         })}

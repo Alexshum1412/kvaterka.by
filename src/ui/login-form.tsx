@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/navigation.ts';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from '@/ui/icons.tsx';
 import { CornflowerMark } from '@/ui/brand.tsx';
@@ -14,6 +15,7 @@ type Mode = 'LOGIN' | 'REGISTER';
  * that never resolves.
  */
 export function LoginForm({ next = '/dashboard' }: { next?: string }) {
+  const t = useTranslations('Login');
 
   const [mode, setMode] = useState<Mode>('LOGIN');
   const [identifier, setIdentifier] = useState('');
@@ -42,7 +44,7 @@ export function LoginForm({ next = '/dashboard' }: { next?: string }) {
         setError(e.message);
         setFieldErrors(e.fieldErrors);
       } else {
-        setError('Не удалось соединиться с сервером. Проверьте интернет и попробуйте снова.');
+        setError(t('networkError'));
       }
       setBusy(false);
     }
@@ -54,12 +56,8 @@ export function LoginForm({ next = '/dashboard' }: { next?: string }) {
         <span className="lf__mark">
           <CornflowerMark size={44} />
         </span>
-        <h1 className="lf__title">{mode === 'LOGIN' ? 'Вход в Кватэрку' : 'Регистрация'}</h1>
-        <p className="lf__lede">
-          {mode === 'LOGIN'
-            ? 'Войдите, чтобы бронировать жильё или управлять своими квартирами.'
-            : 'Аккаунт нужен, чтобы бронировать, переписываться и оставлять отзывы.'}
-        </p>
+        <h1 className="lf__title">{mode === 'LOGIN' ? t('title.login') : t('title.register')}</h1>
+        <p className="lf__lede">{mode === 'LOGIN' ? t('lede.login') : t('lede.register')}</p>
       </header>
 
       <div className="lf__card">
@@ -67,7 +65,7 @@ export function LoginForm({ next = '/dashboard' }: { next?: string }) {
           {mode === 'REGISTER' && (
             <div className="field">
               <label className="label" htmlFor="lf-name">
-                Как вас зовут
+                {t('nameLabel')}
               </label>
               <input
                 id="lf-name"
@@ -89,7 +87,7 @@ export function LoginForm({ next = '/dashboard' }: { next?: string }) {
 
           <div className="field">
             <label className="label" htmlFor="lf-id">
-              Email {mode === 'LOGIN' && 'или телефон'}
+              {mode === 'LOGIN' ? t('identifierLabel.login') : t('identifierLabel.register')}
             </label>
             <input
               id="lf-id"
@@ -111,7 +109,7 @@ export function LoginForm({ next = '/dashboard' }: { next?: string }) {
 
           <div className="field">
             <label className="label" htmlFor="lf-pw">
-              Пароль
+              {t('passwordLabel')}
             </label>
             <input
               id="lf-pw"
@@ -128,7 +126,7 @@ export function LoginForm({ next = '/dashboard' }: { next?: string }) {
             />
             {mode === 'REGISTER' && !fieldErrors.password && (
               <p className="hint" id="lf-pw-hint">
-                Не короче 10 символов. Длинная фраза надёжнее короткого пароля со спецсимволами.
+                {t('passwordHint')}
               </p>
             )}
             {fieldErrors.password && (
@@ -148,19 +146,19 @@ export function LoginForm({ next = '/dashboard' }: { next?: string }) {
           )}
 
           <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={busy}>
-            {busy ? 'Подождите…' : mode === 'LOGIN' ? 'Войти' : 'Создать аккаунт'}
+            {busy ? t('submitBusy') : mode === 'LOGIN' ? t('submitLogin') : t('submitRegister')}
           </button>
         </form>
 
         {mode === 'LOGIN' && (
           <Link href="/password-reset" className="link lf__reset">
-            Забыли пароль?
+            {t('forgotPassword')}
           </Link>
         )}
       </div>
 
       <p className="lf__switch">
-        <span>{mode === 'LOGIN' ? 'Ещё нет аккаунта?' : 'Уже есть аккаунт?'}</span>
+        <span>{mode === 'LOGIN' ? t('switchPromptLogin') : t('switchPromptRegister')}</span>
         <button
           type="button"
           className="link lf__switchBtn"
@@ -170,7 +168,7 @@ export function LoginForm({ next = '/dashboard' }: { next?: string }) {
             setFieldErrors({});
           }}
         >
-          {mode === 'LOGIN' ? 'Создать аккаунт' : 'Войти'}
+          {mode === 'LOGIN' ? t('switchActionLogin') : t('switchActionRegister')}
         </button>
       </p>
 

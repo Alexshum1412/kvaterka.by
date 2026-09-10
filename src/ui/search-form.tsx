@@ -2,9 +2,11 @@
 
 import type { FormEvent } from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation.ts';
+import type { AppLocale } from '@/i18n/routing.ts';
 import { Icon } from '@/ui/icons.tsx';
-import { cx, formatNights, plural } from '@/ui/primitives.tsx';
+import { cx, formatNightsLocalized } from '@/ui/primitives.tsx';
 
 /**
  * The primary entry point of the whole product.
@@ -17,26 +19,19 @@ import { cx, formatNights, plural } from '@/ui/primitives.tsx';
  * the market enough to be worth running.
  */
 
-const PRESETS: readonly { nights: number; label: string }[] = [
-  { nights: 1, label: 'Сутки' },
-  { nights: 3, label: '3 ночи' },
-  { nights: 7, label: 'Неделя' },
-  { nights: 30, label: 'Месяц' },
-  { nights: 90, label: '3 месяца' },
-  { nights: 180, label: 'Полгода' },
-  { nights: 365, label: 'Год' },
+const PRESETS: readonly { nights: number; key: '1' | '3' | '7' | '30' | '90' | '180' | '365' }[] = [
+  { nights: 1, key: '1' },
+  { nights: 3, key: '3' },
+  { nights: 7, key: '7' },
+  { nights: 30, key: '30' },
+  { nights: 90, key: '90' },
+  { nights: 180, key: '180' },
+  { nights: 365, key: '365' },
 ];
 
 const GUEST_OPTIONS = [1, 2, 3, 4, 5, 6];
 
 type DurationMode = 'SHORT' | 'MEDIUM' | 'LONG';
-
-/** Only reachable when a search was run without a start date. */
-const MODE_LABEL: Record<DurationMode, string> = {
-  SHORT: 'До месяца',
-  MEDIUM: '1–6 месяцев',
-  LONG: 'От полугода',
-};
 
 function isMode(value: string): value is DurationMode {
   return value === 'SHORT' || value === 'MEDIUM' || value === 'LONG';
@@ -102,6 +97,8 @@ export function SearchForm({
   compact?: boolean;
   initial?: SearchFormInitial;
 }) {
+  const t = useTranslations('Listing');
+  const locale = useLocale() as AppLocale;
   const router = useRouter();
   const params = {
     get: (key: keyof SearchFormInitial): string | null => initial?.[key] ?? null,
@@ -133,7 +130,8 @@ export function SearchForm({
   // Shut on arrival. Opening it by default put a dropdown over the city row
   // on desktop and over the whole first screen on a phone, and a panel the
   // visitor did not ask for is not the same as a discoverable one — the
-  // trigger already reads «Любой срок», which says the choice exists.
+  // trigger already reads its "any duration" placeholder, which says the
+  // choice exists.
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -177,20 +175,20 @@ export function SearchForm({
   const preset = nights === null ? null : (PRESETS.find((p) => p.nights === nights) ?? null);
   const chosen = custom || preset !== null || mode !== '';
   const durationLabel = custom
-    ? 'Свои даты'
+    ? t('form.customDates')
     : preset
-      ? preset.label
+      ? t(`form.presets.${preset.key}`)
       : mode
-        ? MODE_LABEL[mode]
-        : 'Любой срок';
+        ? t(`durationMode.${mode.toLowerCase()}`)
+        : t('form.anyDuration');
 
   let note: string | null = null;
   if (custom && from && to) {
     const span = nightsBetween(from, to);
-    if (span !== null && span > 0) note = formatNights(span);
+    if (span !== null && span > 0) note = formatNightsLocalized(span, locale);
   } else if (preset && from) {
     const end = addNights(from, preset.nights);
-    if (end) note = `по ${shortDate(end, from)} · ${formatNights(preset.nights)}`;
+    if (end) note = t('form.untilDate', { date: shortDate(end, from), duration: formatNightsLocalized(preset.nights, locale) });
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -198,7 +196,7 @@ export function SearchForm({
     setError(null);
 
     if (custom && from && to && to <= from) {
-      setError('Дата выезда должна быть позже даты заезда');
+      setError(t('form.dateOrderError'));
       return;
     }
 
@@ -240,12 +238,12 @@ export function SearchForm({
       }}
       className={cx('sf', compact ? 'sf--compact' : 'sf--full')}
       role="search"
-      aria-label="Поиск жилья"
+      aria-label={t('form.ariaLabel')}
     >
       <div className="sf__bar">
         <div className="sf__seg sf__seg--where">
           <label className="sf__label" htmlFor={`${uid}-city`}>
-            Где?
+            {t('form.whereLabel')}
           </label>
           <span className="sf__pinned">
             <Icon name="pin" size={18} />
@@ -254,7 +252,7 @@ export function SearchForm({
               className="input sf__city"
               value={city}
               onChange={(event) => setCity(event.target.value)}
-              placeholder="Минск"
+              placeholder={t('form.cityPlaceholder')}
               autoComplete="address-level2"
               enterKeyHint="search"
             />
@@ -263,7 +261,7 @@ export function SearchForm({
 
         <div className="sf__seg sf__seg--duration">
           <span className="sf__label" id={labelId}>
-            На какой срок?
+            {t('form.durationLabel')}
           </span>
           <button
             ref={triggerRef}
@@ -291,12 +289,12 @@ export function SearchForm({
                   aria-pressed={!custom && nights === item.nights}
                   onClick={() => pickPreset(item.nights)}
                 >
-                  {item.label}
+                  {t(`form.presets.${item.key}`)}
                 </button>
               ))}
               <button type="button" className="chip" aria-pressed={custom} onClick={pickCustom}>
                 <Icon name="calendar" size={16} />
-                Свои даты
+                {t('form.customDates')}
               </button>
             </div>
           </div>
@@ -305,7 +303,7 @@ export function SearchForm({
         {preset && !custom && (
           <div className="sf__seg sf__seg--date">
             <label className="sf__label" htmlFor={`${uid}-start`}>
-              Когда?
+              {t('form.whenLabel')}
             </label>
             <input
               id={`${uid}-start`}
@@ -322,7 +320,7 @@ export function SearchForm({
           <>
             <div className="sf__seg sf__seg--date">
               <label className="sf__label" htmlFor={`${uid}-from`}>
-                Заезд
+                {t('form.checkIn')}
               </label>
               <input
                 id={`${uid}-from`}
@@ -335,7 +333,7 @@ export function SearchForm({
             </div>
             <div className="sf__seg sf__seg--date">
               <label className="sf__label" htmlFor={`${uid}-to`}>
-                Выезд
+                {t('form.checkOut')}
               </label>
               <input
                 id={`${uid}-to`}
@@ -353,7 +351,7 @@ export function SearchForm({
 
         <div className="sf__seg sf__seg--guests">
           <label className="sf__label" htmlFor={`${uid}-guests`}>
-            Гости
+            {t('form.guestsLabel')}
           </label>
           <select
             id={`${uid}-guests`}
@@ -361,10 +359,10 @@ export function SearchForm({
             value={guests}
             onChange={(event) => setGuests(event.target.value)}
           >
-            <option value="">Не важно</option>
+            <option value="">{t('form.guestsAny')}</option>
             {GUEST_OPTIONS.map((n) => (
               <option key={n} value={n}>
-                {n === 6 ? '6+ гостей' : `${n} ${plural(n, 'гость', 'гостя', 'гостей')}`}
+                {n === 6 ? t('form.guestsCountMax', { count: n }) : t('guestsCount', { count: n })}
               </option>
             ))}
           </select>
@@ -373,7 +371,7 @@ export function SearchForm({
         <div className="sf__seg sf__seg--action">
           <button type="submit" className="btn btn-primary btn-lg sf__submit">
             <Icon name="search" size={18} />
-            Найти
+            {t('form.submit')}
           </button>
         </div>
       </div>

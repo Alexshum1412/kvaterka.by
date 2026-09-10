@@ -1,3 +1,7 @@
+import createNextIntlPlugin from 'next-intl/plugin';
+
+const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -22,12 +26,18 @@ const nextConfig = {
         ],
       },
       {
-        // Private surfaces must never be indexed (spec §59).
+        // Private surfaces must never be indexed (spec §59). Matched with and
+        // without a locale prefix — `/dashboard/…` (ru, unprefixed) and
+        // `/be/dashboard/…` / `/en/dashboard/…` are the same private surface.
         source: '/(dashboard|bookings|chat|settings)/:path*',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      },
+      {
+        source: '/(be|en)/(dashboard|bookings|chat|settings)/:path*',
         headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
       },
     ];
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

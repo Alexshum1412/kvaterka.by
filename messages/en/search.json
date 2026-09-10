@@ -1,0 +1,23 @@
+{
+  "Search": {
+    "meta": {
+      "titleCity": "Housing for rent in {city}",
+      "titleDefault": "Search for housing",
+      "descriptionCity": "Apartments and houses for rent in {city}: by the day, by the month, or long-term. An honest final price.",
+      "descriptionDefault": "Search for rental housing across Belarus."
+    },
+    "breadcrumbsAria": "Breadcrumbs",
+    "home": "Home",
+    "current": "Search",
+    "loadingTitle": "Search",
+    "resultsCount": "{count, plural, one {# result} other {# results}}",
+    "inCity": " in {city}",
+    "forDuration": "for {duration}",
+    "guestsSummary": "{count, plural, one {# guest} other {# guests}}",
+    "errorTitle": "Search failed",
+    "errorDetail": "{failure} Change the parameters and try again.",
+    "emptyTitle": "No results found",
+    "emptyDescription": "Try changing the district or rental duration — or remove some filters.",
+    "mapAria": "Results map"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "Chat": {
+    "title": "Messages",
+    "justNow": "just now",
+    "minutesAgo": "{minutes} min",
+    "hoursAgo": "{hours, plural, one {# hour} other {# hours}}",
+    "daysAgo": "{days, plural, one {# day} other {# days}}",
+    "emptyHint": "Conversations will appear here once you message a host or receive a request.",
+    "unreadCount": "{count, plural, one {# unread message} other {# unread messages}}",
+    "conversationCount": "{count, plural, one {# conversation} other {# conversations}}",
+    "emptyTitle": "No conversations yet",
+    "emptyBody": "Message a host from the listing page — the whole history will stay here.",
+    "findHousing": "Find housing",
+    "listingDeleted": "Listing deleted",
+    "conversationTitle": "Conversation",
+    "allMessages": "All messages",
+    "verified": "Identity verified",
+    "listing": "Listing",
+    "listingUnavailable": "Listing unavailable",
+    "contactNotice": "You can exchange phone numbers once a booking is confirmed. Until then, the conversation stays here — so both sides keep a record if a dispute comes up.",
+    "today": "Today",
+    "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    "sendError": "Couldn't send the message",
+    "emptyThread": "No messages yet. Write the first one — ask whether the dates are available, for example.",
+    "messageLabel": "Message",
+    "messagePlaceholder": "Write a message…",
+    "send": "Send",
+    "frozen": "This conversation is not accepting new messages."
+  }
+}

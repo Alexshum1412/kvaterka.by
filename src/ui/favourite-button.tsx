@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { usePathname, useRouter } from '@/i18n/navigation.ts';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from './icons.tsx';
 
@@ -54,6 +55,7 @@ export function FavouriteButton({
   initial?: boolean;
   className?: string;
 }) {
+  const t = useTranslations('Listing');
   const router = useRouter();
   const pathname = usePathname();
   const [saved, setSaved] = useState(initial ?? false);
@@ -108,7 +110,7 @@ export function FavouriteButton({
       className={className ? `fav ${className}` : 'fav'}
       onClick={toggle}
       aria-pressed={saved}
-      aria-label={saved ? 'Убрать из избранного' : 'Сохранить в избранное'}
+      aria-label={saved ? t('favourite.remove') : t('favourite.add')}
       data-saved={saved ? 'true' : 'false'}
     >
       <Icon name="heart" size={19} solid={saved} />

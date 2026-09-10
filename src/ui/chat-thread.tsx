@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from '@/ui/icons.tsx';
 
@@ -32,16 +33,12 @@ function clock(value: string): string {
   return new Date(value).toISOString().slice(11, 16);
 }
 
-function dayLabel(value: string): string {
+function dayLabel(value: string, todayLabel: string, months: string[]): string {
   const iso = new Date(value).toISOString();
-  const MONTHS = [
-    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
-  ];
   const [y, m, d] = iso.slice(0, 10).split('-');
   const today = new Date().toISOString().slice(0, 10);
-  if (iso.slice(0, 10) === today) return 'Сегодня';
-  return `${Number(d)} ${MONTHS[Number(m) - 1]} ${y}`;
+  if (iso.slice(0, 10) === today) return todayLabel;
+  return `${Number(d)} ${months[Number(m) - 1]} ${y}`;
 }
 
 export function ChatThread({
@@ -53,11 +50,13 @@ export function ChatThread({
   initial: Message[];
   canWrite: boolean;
 }) {
+  const t = useTranslations('Chat');
   const [messages, setMessages] = useState<Message[]>(initial);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const months = t.raw('months') as string[];
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });
@@ -80,7 +79,7 @@ export function ChatThread({
       setMessages((prev) => [...prev, sent]);
       setText('');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось отправить сообщение');
+      setError(e instanceof ApiError ? e.message : t('sendError'));
     } finally {
       setBusy(false);
     }
@@ -92,13 +91,11 @@ export function ChatThread({
     <div className="ct">
       <div className="ct__scroll">
         {messages.length === 0 && (
-          <p className="ct__empty">
-            Сообщений пока нет. Напишите первым — например, спросите, свободны ли даты.
-          </p>
+          <p className="ct__empty">{t('emptyThread')}</p>
         )}
 
         {messages.map((m) => {
-          const day = dayLabel(m.createdAt);
+          const day = dayLabel(m.createdAt, t('today'), months);
           const showDay = day !== lastDay;
           lastDay = day;
           return (
@@ -124,7 +121,7 @@ export function ChatThread({
       {canWrite ? (
         <form className="ct__composer" onSubmit={send}>
           <label className="sr-only" htmlFor="chat-input">
-            Сообщение
+            {t('messageLabel')}
           </label>
           <textarea
             id="chat-input"
@@ -139,17 +136,17 @@ export function ChatThread({
                 void send(e);
               }
             }}
-            placeholder="Написать сообщение…"
+            placeholder={t('messagePlaceholder')}
           />
           <button type="submit" className="btn btn-primary ct__send" disabled={busy || !text.trim()}>
             <Icon name="arrowRight" size={18} />
-            <span className="sr-only">Отправить</span>
+            <span className="sr-only">{t('send')}</span>
           </button>
         </form>
       ) : (
         <p className="ct__frozen">
           <Icon name="info" size={15} />
-          Переписка недоступна для новых сообщений.
+          {t('frozen')}
         </p>
       )}
 

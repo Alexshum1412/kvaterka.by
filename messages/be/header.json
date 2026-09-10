@@ -1,0 +1,24 @@
+{
+  "Header": {
+    "brandAria": "Кватэрка.by, на галоўную",
+    "mainNavAria": "Асноўная навігацыя",
+    "findHousing": "Знайсці жыллё",
+    "myTrips": "Мае паездкі",
+    "myListings": "Мае кватэры",
+    "favorites": "Абранае",
+    "messages": "Паведамленні",
+    "operations": "Аперацыі",
+    "moderation": "Мадэрацыя",
+    "verification": "Верыфікацыя",
+    "confirmSignIn": "Пацвердзіць уваход",
+    "listYourPlace": "Здаць кватэру",
+    "searchAria": "Знайсці жыллё",
+    "notificationsAria": "Апавяшчэнні",
+    "notificationsUnreadAria": "Апавяшчэнні, непрачытаных: {count}",
+    "myAccountAria": "{name} — асабісты кабінет",
+    "signIn": "Увайсці",
+    "logOut": "Выйсці",
+    "themeToggleAria": "Пераключыць тэму афармлення",
+    "languageAria": "Мова інтэрфейсу"
+  }
+}

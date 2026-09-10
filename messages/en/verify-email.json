@@ -1,0 +1,14 @@
+{
+  "VerifyEmail": {
+    "meta": { "title": "Email confirmation" },
+    "heading": "Email confirmation",
+    "missingToken": "The link is missing a confirmation code. Check that you followed the full link from the email.",
+    "backToLogin": "Back to sign in",
+    "busy": "Confirming your email…",
+    "successTitle": "Email confirmed",
+    "successBody": "The address is linked to your account.",
+    "loginButton": "Sign in",
+    "errorTitle": "Couldn't confirm",
+    "genericError": "Couldn't confirm your email. Please try again later."
+  }
+}

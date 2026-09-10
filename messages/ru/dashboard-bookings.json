@@ -1,0 +1,21 @@
+{
+  "DashboardBookings": {
+    "meta": { "title": "Заявки и бронирования" },
+    "backToDashboard": "Кабинет",
+    "title": "Заявки и бронирования",
+    "requestsWaiting": "{count, plural, one {# заявка ждёт ответа} few {# заявки ждут ответа} many {# заявок ждут ответа} other {# заявок ждут ответа}}",
+    "noNewRequests": "Новых заявок нет.",
+    "statusAriaLabel": "Статус",
+    "tabRequested": "Новые заявки",
+    "tabConfirmed": "Предстоящие",
+    "tabActive": "Проживают",
+    "tabCompletion": "Ждут подтверждения",
+    "tabHistory": "История",
+    "reviewsAriaLabel": "Отзывы",
+    "inviteTitle": "Можно оставить отзыв об арендаторе",
+    "inviteText": "Отзывы обеих сторон публикуются одновременно — арендатор не увидит вашу оценку, пока не напишет свою.",
+    "leaveReview": "Оставить отзыв",
+    "emptyTitle": "Здесь пока пусто",
+    "emptyHintRequested": "Новые заявки от арендаторов появятся здесь."
+  }
+}

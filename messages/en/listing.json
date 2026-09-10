@@ -1,0 +1,109 @@
+{
+  "Listing": {
+    "durationMode": {
+      "short": "Up to a month",
+      "medium": "1–6 months",
+      "long": "6+ months"
+    },
+    "guestsCount": "{count, plural, one {# guest} other {# guests}}",
+    "roomsCount": "{count, plural, one {# room} other {# rooms}}",
+
+    "form": {
+      "ariaLabel": "Search for housing",
+      "presets": {
+        "1": "1 day",
+        "3": "3 nights",
+        "7": "1 week",
+        "30": "1 month",
+        "90": "3 months",
+        "180": "6 months",
+        "365": "1 year"
+      },
+      "customDates": "Custom dates",
+      "anyDuration": "Any duration",
+      "whereLabel": "Where?",
+      "cityPlaceholder": "Minsk",
+      "durationLabel": "For how long?",
+      "whenLabel": "When?",
+      "checkIn": "Check-in",
+      "checkOut": "Check-out",
+      "guestsLabel": "Guests",
+      "guestsAny": "Any",
+      "guestsCountMax": "{count}+ guests",
+      "submit": "Search",
+      "dateOrderError": "Check-out date must be after check-in date",
+      "untilDate": "until {date} · {duration}"
+    },
+
+    "filters": {
+      "sort": {
+        "relevance": "Relevance",
+        "priceAsc": "Price: low to high",
+        "priceDesc": "Price: high to low",
+        "rating": "Rating",
+        "newest": "Newest first"
+      },
+      "otherAmenityCategory": "Other",
+      "toggle": "Filters",
+      "onMap": "On the map",
+      "sortSrOnly": "Sort",
+      "priceLegend": "Price per night or month, BYN",
+      "priceFromLabel": "From",
+      "priceToLabel": "To",
+      "pricePlaceholderMin": "0",
+      "pricePlaceholderMax": "Any",
+      "roomsLegend": "Rooms",
+      "durationLegend": "Rental duration",
+      "guestsLegend": "Guests",
+      "propertyTypeLegend": "Property type",
+      "bedsLegend": "Sleeping places, at least",
+      "ratingLegend": "Host rating",
+      "ratingFrom": "from {value}",
+      "rulesLegend": "Rules and booking",
+      "petsAllowed": "Pets allowed",
+      "childrenAllowed": "Children allowed",
+      "smokingAllowed": "Smoking allowed",
+      "verifiedOnly": "Verified only",
+      "instantBooking": "Instant booking",
+      "showAllAmenities": "Show all amenities",
+      "collapseAmenities": "Hide amenities",
+      "reset": "Reset",
+      "showResults": "Show results",
+      "removeFilterSrOnly": "— remove filter",
+      "priceChipRange": "{min}–{max} BYN",
+      "priceChipMin": "from {min} BYN",
+      "priceChipMax": "up to {max} BYN",
+      "roomsChipMax": "{count}+ rooms",
+      "bedsChip": "from {count, plural, one {# sleeping place} other {# sleeping places}}",
+      "ratingChip": "rating from {value}"
+    },
+
+    "map": {
+      "empty": "No properties in this area",
+      "ariaLabel": "Map of properties",
+      "approximateLocation": "Approximate location shown",
+      "notice": "The map layer isn't connected yet. Points are shown in their real relative positions."
+    },
+
+    "card": {
+      "instantFlag": "Instant",
+      "distanceMeters": "{value} m",
+      "distanceKm": "{value} km",
+      "areaSqm": "{value} m²",
+      "floorOf": "floor {floor}/{total}",
+      "stayNoteWithNights": "for {nights, plural, one {# night} other {# nights}}, all-inclusive",
+      "stayNoteAllInclusive": "all-inclusive",
+      "perMonth": "/ month",
+      "perNight": "/ night",
+      "fromDuration": "from {duration}",
+      "outOfFive": "out of 5",
+      "reviewsCount": ", {count, plural, one {# review} other {# reviews}}",
+      "propertyVerified": "Property verified"
+    },
+
+    "favourite": {
+      "add": "Save to favourites",
+      "remove": "Remove from favourites"
+    }
+  }
+}

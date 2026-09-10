@@ -1,0 +1,207 @@
+{
+  "StaffVerification": {
+    "metaTitle": "Verification",
+    "detailMetaTitle": "Verification request",
+
+    "queue": {
+      "title": "Verification requests",
+      "subtitle": "Sorted with applicants whose listing is already live but not yet verified at the top.",
+      "badgeActive": "In progress",
+      "badgeOverdue": "Overdue on this page",
+      "noticeRich": "You don't have the <code>document.read</code> permission: requests are visible, documents are not, and you can't approve a level. Approval requires that the decision be made by someone who could review the documents.",
+      "statusAriaLabel": "Status",
+      "tabs": {
+        "ACTIVE": "In progress",
+        "SUBMITTED": "New",
+        "IN_REVIEW": "Reviewing",
+        "NEEDS_INFO": "Awaiting reply",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected",
+        "ALL": "All"
+      },
+      "sorts": {
+        "PRIORITY": "Priority first",
+        "WAITING_LONGEST": "Waiting longest",
+        "OLDEST": "Oldest first",
+        "NEWEST": "Newest first"
+      },
+      "priority": {
+        "HIGH": "High",
+        "NORMAL": "Normal",
+        "LOW": "Low"
+      },
+      "searchLabel": "Search by name, listing, or city",
+      "searchPlaceholder": "Name, listing, or city",
+      "levelFieldLabel": "Level",
+      "levelAny": "Any level",
+      "level1": "Level 1 — identity",
+      "level2": "Level 2 — right to let",
+      "priorityFieldLabel": "Priority",
+      "priorityAny": "Any priority",
+      "assignedFieldLabel": "Assignee",
+      "assignedAny": "Any assignee",
+      "assignedMe": "Assigned to me",
+      "assignedUnassigned": "Unassigned",
+      "cityFieldLabel": "City",
+      "cityPlaceholder": "City",
+      "sortFieldLabel": "Sort",
+      "apply": "Apply",
+      "emptyTitle": "Nothing here",
+      "emptyActive": "No requests in progress.",
+      "emptyFiltered": "Nothing matches this filter.",
+      "listingLiveBadge": "listing is live",
+      "kindIdentity": "Identity",
+      "kindOwnership": "Right to let · {title}",
+      "kindOwnershipFallback": "property",
+      "nowLevel": "currently {level}",
+      "documentsCount": "{count, plural, one {# document} other {# documents}}",
+      "assignedToName": "assigned to {name}",
+      "unassigned": "unassigned",
+      "justNow": "just now",
+      "hoursAgo": "{count, plural, one {# hour} other {# hours}}",
+      "daysAgo": "{count, plural, one {# day} other {# days}}",
+      "overdueTag": "overdue",
+      "pagerAriaLabel": "Pages",
+      "back": "Back",
+      "next": "Next"
+    },
+
+    "case": {
+      "title": "{name} — level {level}",
+      "subtitleIdentity": "Identity verification",
+      "subtitleOwnership": "Right-to-let verification",
+      "back": "Back to queue",
+      "priorityHigh": "High priority",
+      "priorityNormal": "Normal priority",
+      "overdueTag": "overdue · target {hours} h",
+      "waiting": "waiting {count, plural, one {# hour} other {# hours}}",
+      "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+
+      "applicant": {
+        "sectionTitle": "Applicant",
+        "factNow": "Currently",
+        "factWants": "Requesting",
+        "factMemberSince": "Member since",
+        "factRentals": "Stays",
+        "rentalsValue": "{tenant} as tenant · {landlord} as host",
+        "factRating": "Rating",
+        "noReviews": "no reviews",
+        "ratingValue": "{rating} from {count}",
+        "factContacts": "Contacts",
+        "emailVerified": "email ✓",
+        "emailUnverified": "email ✗",
+        "phoneVerified": "phone ✓",
+        "phoneUnverified": "phone ✗",
+        "listingLiveBadge": "listing is already live",
+        "accountStatusBadge": "account: {status}",
+        "publicProfileLink": "Public profile",
+        "hint": "Phone and email aren't shown — only whether they're verified. Deciding on the documents doesn't require the contact details themselves."
+      },
+
+      "property": {
+        "sectionTitle": "Property and declared basis",
+        "factListing": "Listing",
+        "factWhere": "Location",
+        "factStatus": "Status",
+        "factVerified": "Verified",
+        "yes": "yes",
+        "no": "no",
+        "openListingLink": "Open listing",
+        "unavailable": "Property unavailable.",
+        "expectedDocument": "Expected document: {doc}",
+        "notStated": "Basis not stated.",
+        "declaredHint": "This is a statement, not evidence. On its own it isn't a basis — the domain still requires a document.",
+        "addressHint": "The exact address isn't shown: it's only available through the right-to-let check (DEC-020). Match the address on the document against the listing's city and district."
+      },
+
+      "documents": {
+        "sectionTitle": "Documents",
+        "legalNoticeRich": "Collecting identity documents is disabled by the <code>verification.identity_documents</code> flag pending legal review (LEGAL-004). While it's off, there will be no documents and no level can be granted.",
+        "none": "No documents.",
+        "docType": {
+          "PASSPORT": "Passport",
+          "ID_CARD": "ID card",
+          "SELFIE": "Selfie",
+          "OWNERSHIP_CERTIFICATE": "Ownership certificate",
+          "POWER_OF_ATTORNEY": "Power of attorney",
+          "UTILITY_BILL": "Utility bill",
+          "OTHER": "Other"
+        },
+        "uploadedAt": "uploaded {date}",
+        "purgedSuffix": "deleted under the retention policy",
+        "openedCount": "{count, plural, one {opened # time} other {opened # times}}",
+        "neverOpened": "not opened yet",
+        "readOnlyLogged": "can be opened only through a logged request",
+        "lockedPurged": "deleted",
+        "lockedNoAccess": "no document.read permission"
+      },
+
+      "prior": {
+        "sectionTitle": "Previous requests",
+        "levelLine": "level {level} · {date}",
+        "hint": "Repeated refusals for the same reason are a signal. A single refusal usually isn't."
+      },
+
+      "signals": {
+        "sectionTitle": "Risk signals",
+        "weight": "weight",
+        "hint": "Staff only. The applicant is told «suspicious activity» without detail — otherwise it's a guide to what to avoid next time."
+      },
+
+      "timeline": {
+        "sectionTitle": "History",
+        "event": {
+          "SUBMITTED": "Request submitted",
+          "STATUS_TAKE": "Taken into review",
+          "STATUS_REQUEST_INFO": "Clarification requested",
+          "STATUS_APPROVE": "Approved",
+          "STATUS_REJECT": "Rejected",
+          "STATUS_EXPIRE": "Closed as expired",
+          "DECISION_APPROVE": "Applicant told: approved",
+          "DECISION_REJECT": "Applicant told: rejected",
+          "DECISION_REQUEST_INFO": "Applicant told: clarification needed",
+          "ASSIGNED": "Assignee set",
+          "UNASSIGNED": "Assignee removed"
+        },
+        "internalTag": "staff only",
+        "seenTag": "visible to applicant"
+      },
+
+      "aside": {
+        "whatHappensTitle": "What approval will do",
+        "whatHappensHint": "This is exactly what tenants will see. The wording states what the platform checked, and doesn't promise a legal review or a guarantee.",
+        "decisionTitle": "Decision",
+        "internalNoteTitle": "Internal note",
+        "internalNoteHint": "Never sent to the applicant, by any route."
+      }
+    },
+
+    "decision": {
+      "action": {
+        "TAKE": { "label": "Take into review", "hint": "The request will be assigned to you." },
+        "REQUEST_INFO": { "label": "Request clarification", "hint": "The applicant will see the reasons and can add to the request without starting over." },
+        "APPROVE": { "label": "Approve", "hint": "The trust level will be granted." },
+        "REJECT": { "label": "Reject", "hint": "At least one reason is required." },
+        "EXPIRE": { "label": "Close as expired", "hint": "The applicant isn't responding." }
+      },
+      "reasonsLegendRequired": "Reasons",
+      "reasonsLegendOptional": "Reasons — optional",
+      "reasonsHint": "The code decides what the applicant sees and which step they're sent to. Be precise — it's the difference between \"fix the photo\" and \"something's wrong, unclear what\".",
+      "applicantMessageLabel": "Message to applicant",
+      "applicantMessagePlaceholder": "What the person should do. They will see this text.",
+      "applicantMessageHint": "The platform adds plain-language explanations for the selected reasons automatically — this is only for what needs to be said in your own words.",
+      "internalNoteLabel": "Internal note",
+      "internalNotePlaceholder": "What you noticed. The applicant won't see this.",
+      "internalNoteHint": "Visible to staff only and never deleted — the request's history only ever grows.",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "noActionsWithAccess": "No actions are available for this request right now.",
+      "noActionsNoAccess": "Without document access you can only view the queue.",
+      "assigneeLabel": "Assignee",
+      "unassignedOption": "Unassigned",
+      "youSuffix": " (you)",
+      "errorSaveFailed": "Couldn't save the decision",
+      "errorAssignFailed": "Couldn't assign"
+    }
+  }
+}

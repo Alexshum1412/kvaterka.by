@@ -1,9 +1,20 @@
 import { z } from 'zod';
 import { defineRoute, type AnyRoute } from '../http.ts';
 import { writeAudit } from '../../services/audit.ts';
-import { invalid } from '../../services/errors.ts';
+import { invalid, notFound } from '../../services/errors.ts';
 import { MODERATION_REASON_CODES } from '../../domain/moderation.ts';
 import { VERIFICATION_REASON_CODES } from '../../domain/verification.ts';
+import { ROLES } from '../../auth/rbac.ts';
+
+const email = z.string().trim().toLowerCase().email('Некорректный email').max(200);
+const phone = z
+  .string()
+  .trim()
+  .regex(/^\+375\d{9}$/, 'Телефон в формате +375XXXXXXXXX');
+/** ADMIN and its own grant are deliberately not excluded here — the same
+ * "no wildcard, but ADMIN holds role.grant explicitly" reasoning as the rest
+ * of this file (see rbac.ts) applies to granting ADMIN itself. */
+const grantableRole = z.enum(ROLES);
 
 /**
  * Staff endpoints.
@@ -234,6 +245,77 @@ export const adminRoutes: AnyRoute[] = [
           payload: { propertyId: params.id, decision: body.decision, reason: body.reason ?? null },
         });
       }
+      return { ok: true };
+    },
+  }),
+
+  defineRoute({
+    method: 'GET',
+    path: '/admin/moderation/reviews',
+    summary: 'Reviews that were reported and still need a decision',
+    tags: ['admin'],
+    auth: 'required',
+    permission: 'review.moderate',
+    async handler({ ctx }) {
+      // Driven off the generic report table rather than a review-specific
+      // flag: a review only ever gets staff attention because somebody
+      // reported it, the same as a listing or a message.
+      const { rows } = await ctx.db.query(
+        `SELECT r.id, r.booking_id, r.author_id, r.subject_id, r.author_role, r.overall, r.body,
+                r.what_was_good, r.what_to_improve, r.status, r.created_at,
+                rep.id AS report_id, rep.category AS report_category, rep.detail AS report_detail
+           FROM review r
+           JOIN report rep ON rep.target_type = 'REVIEW' AND rep.target_id = r.id::text
+          WHERE rep.status IN ('OPEN','REVIEWING') AND r.status IN ('PUBLISHED','PENDING')
+          ORDER BY rep.created_at LIMIT 100`,
+      );
+      return rows;
+    },
+  }),
+
+  defineRoute({
+    method: 'POST',
+    path: '/admin/moderation/reviews/:id',
+    summary: 'Decide a reported review — keep it published, or hide/remove it',
+    tags: ['admin'],
+    auth: 'required',
+    permission: 'review.moderate',
+    body: z.object({
+      decision: z.enum(['PUBLISHED', 'HIDDEN', 'REMOVED']),
+      note: reason,
+    }),
+    async handler({ params, body, ctx, caller }) {
+      await ctx.db.transaction(async (tx) => {
+        const { rows } = await tx.query<{ status: string; author_id: string; subject_id: string }>(
+          `SELECT status, author_id, subject_id FROM review WHERE id=$1`,
+          [params.id!],
+        );
+        const before = rows[0];
+        if (!before) throw notFound('Отзыв');
+
+        await tx.query(`UPDATE review SET status=$2, moderation_note=$3 WHERE id=$1`, [
+          params.id!,
+          body.decision,
+          body.note,
+        ]);
+        // Kept PUBLISHED: the report did not hold up. Anything else: acted on.
+        const reportOutcome = body.decision === 'PUBLISHED' ? 'DISMISSED' : 'ACTIONED';
+        await tx.query(
+          `UPDATE report SET status=$3, handled_by=$2, handled_at=now()
+            WHERE target_type='REVIEW' AND target_id=$1 AND status IN ('OPEN','REVIEWING')`,
+          [params.id!, caller.userId, reportOutcome],
+        );
+        await writeAudit(tx, {
+          actorUserId: caller.userId,
+          actorRole: 'ADMIN',
+          action: 'review.moderate',
+          targetType: 'review',
+          targetId: params.id!,
+          changes: { status: { from: before.status, to: body.decision } },
+          reason: body.note,
+          source: 'admin',
+        });
+      });
       return { ok: true };
     },
   }),
@@ -473,6 +555,149 @@ export const adminRoutes: AnyRoute[] = [
         });
       });
       return { ok: true };
+    },
+  }),
+
+  defineRoute({
+    method: 'GET',
+    path: '/admin/users/:userId',
+    summary: 'Full user detail for the admin screen',
+    tags: ['admin'],
+    auth: 'required',
+    permission: 'user.view',
+    async handler({ params, ctx }) {
+      const { rows } = await ctx.db.query(
+        `SELECT id, display_name, email, phone, account_kind, company_name, locale, status,
+                suspended_reason, verification_level, email_verified_at, phone_verified_at,
+                completed_rentals_as_tenant, completed_rentals_as_landlord, created_at
+           FROM app_user WHERE id=$1 AND deleted_at IS NULL`,
+        [params.userId!],
+      );
+      const user = rows[0];
+      if (!user) throw notFound('Пользователь');
+
+      const roles = await ctx.services.auth.listRoles(params.userId!);
+      return { ...user, roles };
+    },
+  }),
+
+  defineRoute({
+    method: 'PUT',
+    path: '/admin/users/:userId/roles',
+    summary: "Set a user's roles to exactly this set (grants what's missing, revokes what's extra)",
+    tags: ['admin'],
+    auth: 'required',
+    permission: 'role.grant',
+    body: z.object({ roles: z.array(grantableRole).min(1), reason }),
+    async handler({ params, body, ctx, caller }) {
+      const current = new Set(await ctx.services.auth.listRoles(params.userId!));
+      const next = new Set(body.roles);
+      // TENANT is the floor every account stands on; it is granted at
+      // registration and is never part of an admin's explicit set.
+      next.add('TENANT');
+
+      for (const role of next) {
+        if (!current.has(role)) await ctx.services.auth.grantRole(params.userId!, role, caller.userId, body.reason);
+      }
+      for (const role of current) {
+        if (!next.has(role)) await ctx.services.auth.revokeRole(params.userId!, role, caller.userId, body.reason);
+      }
+      return { ok: true, roles: [...next] };
+    },
+  }),
+
+  defineRoute({
+    method: 'POST',
+    path: '/admin/users',
+    summary: 'Create a staff-managed account and mail its owner a setup link',
+    tags: ['admin'],
+    auth: 'required',
+    permission: 'user.create',
+    rateLimit: { limit: 20, windowSeconds: 3600, by: 'user', bucket: 'admin:create-user' },
+    body: z.object({
+      email: email.optional(),
+      phone: phone.optional(),
+      displayName: z.string().trim().min(2, 'Укажите имя').max(80),
+      roles: z.array(grantableRole).max(ROLES.length).optional(),
+      reason,
+    }).refine((v) => v.email || v.phone, { message: 'Укажите email или телефон', path: ['email'] }),
+    async handler({ body, ctx, caller }) {
+      const { userId, resetToken } = await ctx.services.auth.createStaffManagedAccount(
+        { email: body.email, phone: body.phone, displayName: body.displayName, roles: body.roles ?? [] },
+        caller.userId,
+        body.reason,
+      );
+
+      // Same delivery path as a self-service reset link — never returned in
+      // the response, only ever mailed to the address the admin typed.
+      await ctx.services.notifications.enqueue({
+        userId,
+        category: 'SECURITY',
+        dedupeKey: `staff-account-setup:${userId}`,
+        payload: { kind: 'PASSWORD_RESET', token: resetToken },
+        channels: ['EMAIL'],
+      });
+
+      return { userId, setupEmailQueued: true };
+    },
+  }),
+
+  defineRoute({
+    method: 'GET',
+    path: '/admin/analytics/overview',
+    summary: 'Aggregate platform numbers — bookings, GMV, fee revenue, growth',
+    tags: ['admin'],
+    auth: 'required',
+    permission: 'analytics.view',
+    query: z.object({ days: z.coerce.number().int().min(7).max(365).optional() }),
+    async handler({ query, ctx }) {
+      const days = query.days ?? 30;
+      const since = `now() - interval '${days} days'`;
+
+      const [users, listings, bookingsByStatus, gmv, feeRevenue, signupSeries, bookingSeries] = await Promise.all([
+        ctx.db.query<{ status: string; total: string }>(
+          `SELECT status, count(*)::text AS total FROM app_user WHERE deleted_at IS NULL GROUP BY status`,
+        ),
+        ctx.db.query<{ status: string; total: string }>(
+          `SELECT status, count(*)::text AS total FROM property WHERE deleted_at IS NULL GROUP BY status`,
+        ),
+        ctx.db.query<{ status: string; total: string }>(
+          `SELECT status, count(*)::text AS total FROM booking WHERE created_at >= ${since} GROUP BY status`,
+        ),
+        // GMV: what tenants were told to expect on bookings that actually
+        // completed — never PENDING/DECLINED/EXPIRED requests nobody paid,
+        // and never the metered-utilities portion, which the platform never
+        // sees a figure for at all.
+        ctx.db.query<{ total: string | null }>(
+          `SELECT sum(total_expected_minor)::text AS total FROM booking
+             WHERE status = 'COMPLETED' AND created_at >= ${since}`,
+        ),
+        // The platform's own cut, from the fee ledger — never derived by
+        // re-applying a rate to GMV, which would drift from what was actually
+        // charged if a fee was ever waived or adjusted (finance.waiveFee/adjust).
+        ctx.db.query<{ total: string | null }>(
+          `SELECT sum(fee_minor)::text AS total FROM service_fee WHERE accrued_at >= ${since}`,
+        ),
+        ctx.db.query<{ day: string; total: string }>(
+          `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, count(*)::text AS total
+             FROM app_user WHERE created_at >= ${since} GROUP BY 1 ORDER BY 1`,
+        ),
+        ctx.db.query<{ day: string; total: string }>(
+          `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, count(*)::text AS total
+             FROM booking WHERE created_at >= ${since} GROUP BY 1 ORDER BY 1`,
+        ),
+      ]);
+
+      return {
+        windowDays: days,
+        usersByStatus: Object.fromEntries(users.rows.map((r) => [r.status, Number(r.total)])),
+        listingsByStatus: Object.fromEntries(listings.rows.map((r) => [r.status, Number(r.total)])),
+        bookingsByStatus: Object.fromEntries(bookingsByStatus.rows.map((r) => [r.status, Number(r.total)])),
+        gmvMinor: gmv.rows[0]?.total ?? '0',
+        feeRevenueMinor: feeRevenue.rows[0]?.total ?? '0',
+        signupsByDay: signupSeries.rows,
+        bookingsByDay: bookingSeries.rows,
+      };
     },
   }),
 

@@ -1,0 +1,8 @@
+{
+  "BookingList": {
+    "landlord": "Хозяин",
+    "tenant": "Арендатор",
+    "verified": "подтверждён",
+    "guests": "{count, plural, one {# гость} few {# гостя} many {# гостей} other {# гостей}}"
+  }
+}

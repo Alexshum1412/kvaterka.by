@@ -1,0 +1,38 @@
+{
+  "Terms": {
+    "title": "Terms of use",
+    "metaDescription": "Kvaterka.by's platform rules and the current status of its legal documents.",
+    "lede": "Below is how the platform actually works. A formal agreement hasn't been drafted yet — and we say so plainly instead of hiding it behind generic wording.",
+    "note": {
+      "p1Rich": "<strong>Document in progress.</strong> The terms of service need to be drafted by a lawyer practicing in Belarus. Until that happens, we won't publish text that looks like a contract but isn't one. This is a deliberate choice: invented legal wording is more dangerous than having none.",
+      "p2": "Until an agreement exists, the platform runs on the rules described on this page. They're built into the software itself and applied the same way to everyone."
+    },
+    "what": {
+      "heading": "What the platform does",
+      "body": "Kvaterka is a place where a host publishes a listing, a tenant finds it, asks questions, sends a request, and leaves a review after the stay. The platform keeps the messages, confirmations, and dispute decisions."
+    },
+    "not": {
+      "heading": "What the platform doesn't do",
+      "item1Rich": "<strong>Isn't a party to your deal.</strong> The rental agreement is between the two of you. Kvaterka isn't a party to it.",
+      "item2Rich": "<strong>Doesn't take rent or a deposit.</strong> You pay the rent to each other directly.",
+      "item3Rich": "<strong>Doesn't guarantee the condition of the property.</strong> Moderator review of a listing is a review of the listing, not of the flat."
+    },
+    "fee": {
+      "heading": "Platform fee",
+      "bodyRich": "The host is charged 5% after a completed stay confirmed by both sides. <link>How the fee is calculated</link>."
+    },
+    "rules": {
+      "heading": "Rules the platform enforces itself",
+      "item1": "Contact details aren't shared until a booking is confirmed — this protects both sides.",
+      "item2": "A review can only be left after a stay has taken place, one from each side.",
+      "item3": "Both sides' reviews are published at the same time.",
+      "item4": "Financial records and the action log are immutable, including for staff.",
+      "item5": "A listing goes through moderation before it's published."
+    },
+    "disputes": {
+      "heading": "Disputes",
+      "body": "A dispute is opened from the booking card. A platform staff member decides it based on the message history and the check-in/check-out marks. The decision is logged and can't be rewritten after the fact."
+    },
+    "footerRich": "What happens to your data — <privacyLink>on a separate page</privacyLink>. Questions — <supportLink>contact support</supportLink>."
+  }
+}

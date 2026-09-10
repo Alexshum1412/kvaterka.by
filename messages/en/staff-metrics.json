@@ -1,0 +1,66 @@
+{
+  "StaffMetrics": {
+    "title": "Metrics",
+    "subtitle": "Platform totals: users, listings, bookings, and revenue.",
+    "rangeLabel": "Range",
+    "range30": "30 days",
+    "range90": "90 days",
+    "rangeNote": "The range affects bookings, GMV, fee revenue, and the day-by-day charts. Users and listings are shown all-time.",
+    "refreshing": "Refreshing…",
+    "loadError": "Could not refresh data for this range. Showing the last loaded numbers.",
+    "retry": "Retry",
+    "stats": {
+      "users": "Users total",
+      "usersHint": "All time, across every status",
+      "gmv": "GMV for the range",
+      "gmvHint": "Sum of completed bookings",
+      "feeRevenue": "Platform fee revenue",
+      "feeRevenueHint": "Accrued per the fee ledger",
+      "publishedListings": "Listings published",
+      "publishedListingsHint": "Live on the platform now, not range-limited",
+      "bookings": "Bookings in the range",
+      "bookingsHint": "Every status, created within the selected range"
+    },
+    "sections": {
+      "users": "Users by status",
+      "listings": "Listings by status",
+      "bookings": "Bookings by status",
+      "signupsTrend": "Signups by day",
+      "bookingsTrend": "Bookings by day"
+    },
+    "trend": {
+      "totalLabel": "Total",
+      "tooltip": "{date}: {count}"
+    },
+    "statusUser": {
+      "ACTIVE": "Active",
+      "RESTRICTED": "Restricted",
+      "SUSPENDED": "Suspended",
+      "CLOSED": "Closed"
+    },
+    "statusListing": {
+      "DRAFT": "Draft",
+      "PENDING_MODERATION": "Pending review",
+      "PUBLISHED": "Published",
+      "PAUSED": "Paused",
+      "REJECTED": "Rejected",
+      "ARCHIVED": "Archived"
+    },
+    "statusBooking": {
+      "INQUIRY": "Question",
+      "REQUESTED": "Request sent",
+      "OFFER_PENDING": "Discussing terms",
+      "CONFIRMED": "Confirmed",
+      "CHECKED_IN": "Checked in",
+      "COMPLETION_PENDING": "Awaiting confirmation",
+      "COMPLETED": "Completed",
+      "DECLINED": "Declined",
+      "WITHDRAWN": "Withdrawn",
+      "EXPIRED": "Expired",
+      "NOT_TAKEN_PLACE": "Didn't happen",
+      "CANCELLED_BY_TENANT": "Cancelled by tenant",
+      "CANCELLED_BY_LANDLORD": "Cancelled by host",
+      "DISPUTED": "Disputed"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "Profile": {
+    "meta": {
+      "titleSuffix": " — профиль",
+      "notFoundTitle": "Профиль не найден",
+      "description": "Профиль на Кватэрка.by: подтверждения, отзывы и объявления."
+    },
+    "kindCompany": "Компания",
+    "kindIndividual": "Частное лицо",
+    "memberSince": "на Кватэрке с {date}",
+    "trustBand": {
+      "NEW": "Новый участник",
+      "DEVELOPING": "Набирает опыт",
+      "ESTABLISHED": "Опытный участник",
+      "HIGH": "Высокий уровень доверия"
+    },
+    "statsAria": "Показатели",
+    "reviewsCount": "{count, plural, one {# отзыв} few {# отзыва} many {# отзывов} other {# отзывов}}",
+    "rentalsAsLandlord": "{count, plural, one {# сдача жилья} few {# сдачи жилья} many {# сдач жилья} other {# сдач жилья}}",
+    "rentalsAsTenant": "{count, plural, one {# аренда} few {# аренды} many {# аренд} other {# аренд}}",
+    "activeListings": "{count, plural, one {# объявление} few {# объявления} many {# объявлений} other {# объявлений}}",
+    "responseRate": "ответов на заявки",
+    "freshNotice": "Пока нет завершённых сделок и отзывов. Это не значит, что что-то не так — просто история ещё не набралась.",
+    "listingsHeading": "Объявления",
+    "reviewsHeading": "Отзывы",
+    "reviewsHeadingCount": "Отзывы · {count}",
+    "noReviews": "Отзывов пока нет. Их можно оставить только после завершённой аренды, поэтому здесь не бывает случайных оценок.",
+    "reviewAsTenant": "как арендатор",
+    "reviewAsLandlord": "как хозяин",
+    "privacyNote": "Телефон, email и точный адрес не публикуются. Контактами стороны обмениваются после подтверждённого бронирования.",
+    "backToSearch": "К поиску жилья"
+  }
+}

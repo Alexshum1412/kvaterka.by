@@ -1,0 +1,32 @@
+{
+  "StaffReports": {
+    "title": "Скаргі",
+    "subtitle": "Скаргі ад карыстальнікаў — на аб'явы, профілі, паведамленні і водгукі.",
+    "badgeQueue": "У чарзе",
+    "notice": "Гэты спіс сам не вырашае скаргі. Кожная вядзе на экран, дзе рашэнне сапраўды прымаецца.",
+    "emptyTitle": "Скаргаў няма",
+    "emptyBody": "Адкрытых скаргаў у чарзе не засталося.",
+    "targetTypeProperty": "Аб'ява",
+    "targetTypeUser": "Карыстальнік",
+    "targetTypeMessage": "Паведамленне",
+    "targetTypeReview": "Водгук",
+    "statusOpen": "Новая",
+    "statusReviewing": "На разглядзе",
+    "detailNone": "Без каментара",
+    "reporterLabel": "Паскардзіўся:",
+    "targetLabel": "Аб'ект:",
+    "goToProperty": "Да аб'явы",
+    "goToUser": "Да профілю",
+    "goToReviewsQueue": "Да чаргі водгукаў",
+    "goToMessagesQueue": "Да чаргі паведамленняў",
+    "reviewsHint": "Прамой спасылкі на гэты водгук няма — знайдзіце яго ў чарзе па аўтары або тэксце.",
+    "categorySpam": "Спам",
+    "categoryAbuse": "Абразы",
+    "categoryFraud": "Махлярства",
+    "categoryOffPlatform": "Вядзе з пляцоўкі",
+    "categoryOther": "Іншае",
+    "categoryFalseInformation": "Недакладная інфармацыя",
+    "categoryPrivateData": "Асабістыя дадзеныя",
+    "categoryNotAboutStay": "Не пра пражыванне"
+  }
+}

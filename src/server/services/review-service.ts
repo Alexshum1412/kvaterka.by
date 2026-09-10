@@ -394,6 +394,32 @@ export class ReviewService {
   }
 
   /**
+   * Reviews that were reported and still await a moderation decision.
+   *
+   * Same query the `/admin/moderation/reviews` handler runs, plus the two
+   * display names a moderator actually needs to make sense of a row — a raw
+   * `author_id` UUID tells them nothing the queue page can act on. Kept here
+   * rather than only inline in the route so the staff queue page (a server
+   * component with no HTTP round trip to itself) has a service method to call,
+   * the same shape every other staff queue page uses.
+   */
+  async moderationQueue(): Promise<Record<string, unknown>[]> {
+    const { rows } = await this.db.query(
+      `SELECT r.id, r.booking_id, r.author_id, r.subject_id, r.author_role, r.overall, r.body,
+              r.what_was_good, r.what_to_improve, r.status, r.created_at,
+              au.display_name AS author_name, su.display_name AS subject_name,
+              rep.id AS report_id, rep.category AS report_category, rep.detail AS report_detail
+         FROM review r
+         JOIN report rep ON rep.target_type = 'REVIEW' AND rep.target_id = r.id::text
+         JOIN app_user au ON au.id = r.author_id
+         JOIN app_user su ON su.id = r.subject_id
+        WHERE rep.status IN ('OPEN','REVIEWING') AND r.status IN ('PUBLISHED','PENDING')
+        ORDER BY rep.created_at LIMIT 100`,
+    );
+    return rows;
+  }
+
+  /**
    * Aggregate facts guests actually confirmed, so the listing can distinguish
    * "landlord says Wi-Fi" from "94% of guests confirmed Wi-Fi" (spec §35).
    */

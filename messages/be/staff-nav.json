@@ -1,0 +1,21 @@
+{
+  "StaffNav": {
+    "navAria": "Аперацыі",
+    "overview": "Агляд",
+    "disputes": "Звароты",
+    "moderation": "Мадэрацыя",
+    "verification": "Верыфікацыя",
+    "retention": "Захаванне",
+    "reports": "Скаргі",
+    "reviews": "Водгукі",
+    "messages": "Паведамленні",
+    "users": "Карыстальнікі",
+    "metrics": "Метрыкі",
+    "featureFlags": "Флагі",
+    "auditLog": "Журнал",
+    "security": "Бяспека",
+    "yourRoles": "Вашы ролі",
+    "withheldNotice": "Службовы доступ ({roles}) закрыты да пацвярджэння другога фактару.",
+    "confirm": "Пацвердзіць"
+  }
+}

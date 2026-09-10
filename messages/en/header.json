@@ -1,0 +1,24 @@
+{
+  "Header": {
+    "brandAria": "Kvaterka.by, go to home page",
+    "mainNavAria": "Main navigation",
+    "findHousing": "Find housing",
+    "myTrips": "My trips",
+    "myListings": "My listings",
+    "favorites": "Favorites",
+    "messages": "Messages",
+    "operations": "Operations",
+    "moderation": "Moderation",
+    "verification": "Verification",
+    "confirmSignIn": "Confirm sign-in",
+    "listYourPlace": "List your place",
+    "searchAria": "Find housing",
+    "notificationsAria": "Notifications",
+    "notificationsUnreadAria": "Notifications, {count} unread",
+    "myAccountAria": "{name} — account",
+    "signIn": "Sign in",
+    "logOut": "Log out",
+    "themeToggleAria": "Toggle color theme",
+    "languageAria": "Interface language"
+  }
+}

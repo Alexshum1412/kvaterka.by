@@ -1,0 +1,29 @@
+{
+  "StaffOverview": {
+    "metaTitle": "Operations",
+    "title": "Operations",
+    "subtitle": "Only what needs a decision.",
+    "noUrgent": "No urgent cases.",
+    "screenNotReady": "Screen not built yet — data is available via the API",
+    "cardPressingLabel": "Need attention now",
+    "cardPressingDetail": "Safety, fraud, or an active stay.",
+    "cardOpenLabel": "New cases",
+    "cardOpenDetail": "Nobody has picked these up yet.",
+    "cardEscalatedLabel": "Escalated",
+    "cardEscalatedDetail": "Waiting on an administrator's decision.",
+    "cardMineLabel": "Assigned to you",
+    "cardMineDetail": "Assigned to you and not yet closed.",
+    "cardUnassignedLabel": "Unassigned",
+    "cardUnassignedDetail": "Open and assigned to no one.",
+    "cardListingsLabel": "Listings pending review",
+    "cardListingsDetail": "Hosts are waiting for a reply.",
+    "cardFrozenLabel": "Bookings in dispute",
+    "cardFrozenDetail": "No fee accrues while the case is open.",
+    "cardFlaggedLabel": "Messages under review",
+    "cardFlaggedDetail": "Flagged by the contact filter.",
+    "cardReportsLabel": "Reports",
+    "cardReportsDetail": "On listings, reviews, and messages.",
+    "cardVerificationLabel": "Verification requests",
+    "cardVerificationDetail": "Documents are visible only to VERIFIER."
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "StaffNav": {
+    "navAria": "Операции",
+    "overview": "Обзор",
+    "disputes": "Обращения",
+    "moderation": "Модерация",
+    "verification": "Верификация",
+    "retention": "Хранение",
+    "reports": "Жалобы",
+    "reviews": "Отзывы",
+    "messages": "Сообщения",
+    "users": "Пользователи",
+    "metrics": "Метрики",
+    "featureFlags": "Флаги",
+    "auditLog": "Журнал",
+    "security": "Безопасность",
+    "yourRoles": "Ваши роли",
+    "withheldNotice": "Служебный доступ ({roles}) закрыт до подтверждения второго фактора.",
+    "confirm": "Подтвердить"
+  }
+}

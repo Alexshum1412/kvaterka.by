@@ -47,6 +47,18 @@ export const PERMISSIONS = [
   'feature_flag.write',
   'role.grant',
   /**
+   * Aggregate platform numbers (GMV, fee revenue, signups, listing counts)
+   * over time. Deliberately separate from `audit.read`: an audit trail is
+   * "what happened to this one row", a metrics view is "how is the whole
+   * platform doing" — different sensitivity, different audience.
+   */
+  'analytics.view',
+  /** Creating a staff-managed account (support setting someone up, an
+   * operator onboarding another operator). Bundled with `role.grant`
+   * rather than free-standing: an account with no role is just a normal
+   * signup, so the sensitive act is always "create AND grant" together. */
+  'user.create',
+  /**
    * Running the scheduled lifecycle sweep (stay ends, completion deadlines,
    * review publication). Separate from the rest because it is a machine
    * credential in practice: a cron calls it, and it can move money-bearing
@@ -122,6 +134,8 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'audit.read',
     'feature_flag.write',
     'role.grant',
+    'analytics.view',
+    'user.create',
     'lifecycle.run',
     'retention.hold',
     'retention.run',
@@ -168,6 +182,7 @@ const REASON_REQUIRED: readonly Permission[] = [
   'document.read',
   'feature_flag.write',
   'role.grant',
+  'user.create',
   'retention.hold',
 ];
 

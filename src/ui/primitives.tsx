@@ -10,6 +10,7 @@ import type { ReactNode } from 'react';
 import { Icon, type IconName } from '@/ui/icons.tsx';
 import { CornflowerMark } from '@/ui/brand.tsx';
 import { formatMoney, fromStorage } from '@/server/domain/money.ts';
+import type { AppLocale } from '@/i18n/routing.ts';
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
@@ -255,4 +256,127 @@ export function bookingTone(status: string): 'neutral' | 'verified' | 'warning' 
   if (status.startsWith('CANCELLED') || status === 'DECLINED' || status === 'EXPIRED') return 'neutral';
   if (status === 'COMPLETION_PENDING' || status === 'REQUESTED') return 'warning';
   return 'primary';
+}
+
+/* ==================================================================== *
+ * Locale-aware siblings — property type, booking status, and stay
+ * duration are closed, fixed vocabularies (not user-generated text), so a
+ * code-level translation table is the honest way to localize them: the
+ * same reasoning that already puts TONE_ICON in code rather than a
+ * database. Named distinctly from the RU-only originals above rather than
+ * changing those functions' signatures, so migrating a call site is a
+ * conscious opt-in (swap the import, pass the current locale) rather than
+ * a silent behaviour change at every existing call site simultaneously.
+ * ==================================================================== */
+
+/**
+ * Russian and Belarusian share the exact CLDR plural-category split
+ * (one/few/many, selected the same way by the last one/two digits) — only
+ * the words differ. English has just one/other. Two selectors rather than
+ * a single locale-branching one, so a call site's intent (three Slavic
+ * forms, or one English pair) is visible at the call, not hidden in an
+ * if/else this function would otherwise need.
+ */
+export function pluralSlavic(n: number, locale: 'ru' | 'be', forms: { one: string; few: string; many: string }): string {
+  return plural(n, forms.one, forms.few, forms.many);
+}
+export function pluralEn(n: number, one: string, many: string): string {
+  return n === 1 ? one : many;
+}
+
+const PROPERTY_TYPE_LABEL_BE: Record<string, string> = {
+  APARTMENT: 'Кватэра',
+  ROOM: 'Пакой',
+  HOUSE: 'Дом',
+  COTTAGE: 'Котэдж',
+  STUDIO: 'Студыя',
+  TOWNHOUSE: 'Таўнхаус',
+};
+const PROPERTY_TYPE_LABEL_EN: Record<string, string> = {
+  APARTMENT: 'Apartment',
+  ROOM: 'Room',
+  HOUSE: 'House',
+  COTTAGE: 'Cottage',
+  STUDIO: 'Studio',
+  TOWNHOUSE: 'Townhouse',
+};
+export function propertyTypeLabel(type: string, locale: AppLocale): string {
+  const table = locale === 'be' ? PROPERTY_TYPE_LABEL_BE : locale === 'en' ? PROPERTY_TYPE_LABEL_EN : PROPERTY_TYPE_LABEL;
+  return table[type] ?? type;
+}
+
+const BOOKING_STATUS_LABEL_BE: Record<string, string> = {
+  INQUIRY: 'Пытанне',
+  REQUESTED: 'Запыт адпраўлены',
+  OFFER_PENDING: 'Абмеркаванне ўмоў',
+  DECLINED: 'Адхілена',
+  WITHDRAWN: 'Адкліканы',
+  EXPIRED: 'Тэрмін мінуў',
+  CONFIRMED: 'Пацверджана',
+  CHECKED_IN: 'Засяленне адбылося',
+  COMPLETION_PENDING: 'Чакае пацвярджэння',
+  COMPLETED: 'Завершана',
+  NOT_TAKEN_PLACE: 'Не адбылося',
+  CANCELLED_BY_TENANT: 'Скасавана арандатарам',
+  CANCELLED_BY_LANDLORD: 'Скасавана гаспадаром',
+  DISPUTED: 'Спрэчка',
+};
+const BOOKING_STATUS_LABEL_EN: Record<string, string> = {
+  INQUIRY: 'Question',
+  REQUESTED: 'Request sent',
+  OFFER_PENDING: 'Discussing terms',
+  DECLINED: 'Declined',
+  WITHDRAWN: 'Withdrawn',
+  EXPIRED: 'Expired',
+  CONFIRMED: 'Confirmed',
+  CHECKED_IN: 'Checked in',
+  COMPLETION_PENDING: 'Awaiting confirmation',
+  COMPLETED: 'Completed',
+  NOT_TAKEN_PLACE: "Didn't happen",
+  CANCELLED_BY_TENANT: 'Cancelled by tenant',
+  CANCELLED_BY_LANDLORD: 'Cancelled by host',
+  DISPUTED: 'Disputed',
+};
+export function bookingStatusLabel(status: string, locale: AppLocale): string {
+  const table = locale === 'be' ? BOOKING_STATUS_LABEL_BE : locale === 'en' ? BOOKING_STATUS_LABEL_EN : BOOKING_STATUS_LABEL;
+  return table[status] ?? status;
+}
+
+/** Locale-aware sibling of `formatNights` — same thresholds (year/month/night). */
+export function formatNightsLocalized(nights: number, locale: AppLocale): string {
+  if (locale === 'en') {
+    if (nights >= 365) return `${Math.round(nights / 365)} ${pluralEn(Math.round(nights / 365), 'year', 'years')}`;
+    if (nights >= 30) return `${Math.round(nights / 30)} ${pluralEn(Math.round(nights / 30), 'month', 'months')}`;
+    return `${nights} ${pluralEn(nights, 'night', 'nights')}`;
+  }
+  if (locale === 'be') {
+    if (nights >= 365) {
+      const years = Math.round(nights / 365);
+      return `${years} ${pluralSlavic(years, 'be', { one: 'год', few: 'гады', many: 'гадоў' })}`;
+    }
+    if (nights >= 30) {
+      const months = Math.round(nights / 30);
+      return `${months} ${pluralSlavic(months, 'be', { one: 'месяц', few: 'месяцы', many: 'месяцаў' })}`;
+    }
+    return `${nights} ${pluralSlavic(nights, 'be', { one: 'ноч', few: 'ночы', many: 'начэй' })}`;
+  }
+  return formatNights(nights);
+}
+
+/** Locale-aware sibling of `formatNightsGenitive` (used in "от X до Y" phrasing). English has no genitive declension, so it reuses the cardinal form — the caller supplies "from"/"to" around it. */
+export function formatNightsGenitiveLocalized(nights: number, locale: AppLocale): string {
+  if (locale === 'en') return formatNightsLocalized(nights, locale);
+  if (locale === 'be') {
+    const endsInOne = nights % 10 === 1 && nights % 100 !== 11;
+    if (nights >= 365) {
+      const years = Math.round(nights / 365);
+      return `${years} ${years % 10 === 1 && years % 100 !== 11 ? 'года' : 'гадоў'}`;
+    }
+    if (nights >= 30) {
+      const months = Math.round(nights / 30);
+      return `${months} ${months % 10 === 1 && months % 100 !== 11 ? 'месяца' : 'месяцаў'}`;
+    }
+    return `${nights} ${endsInOne ? 'ночы' : 'начэй'}`;
+  }
+  return formatNightsGenitive(nights);
 }

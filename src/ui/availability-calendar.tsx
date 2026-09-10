@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from '@/ui/icons.tsx';
-import { plural } from '@/ui/primitives.tsx';
+import type { AppLocale } from '@/i18n/routing.ts';
 
 /**
  * Availability.
@@ -35,32 +36,12 @@ interface CalendarView {
   freshness: 'FRESH' | 'AGEING' | 'STALE';
 }
 
-const LEGEND: { status: DayStatus; label: string; icon: 'check' | 'clock' | 'close' | 'alert' }[] = [
-  { status: 'AVAILABLE', label: 'Свободно', icon: 'check' },
-  { status: 'BOOKED', label: 'Забронировано', icon: 'close' },
-  { status: 'PENDING', label: 'Ждёт ответа', icon: 'clock' },
-  { status: 'BLOCKED', label: 'Закрыто вами', icon: 'alert' },
+const LEGEND_META: { status: DayStatus; labelKey: 'available' | 'booked' | 'pending' | 'blocked'; icon: 'check' | 'clock' | 'close' | 'alert' }[] = [
+  { status: 'AVAILABLE', labelKey: 'available', icon: 'check' },
+  { status: 'BOOKED', labelKey: 'booked', icon: 'close' },
+  { status: 'PENDING', labelKey: 'pending', icon: 'clock' },
+  { status: 'BLOCKED', labelKey: 'blocked', icon: 'alert' },
 ];
-
-const STATUS_WORD: Record<DayStatus, string> = {
-  AVAILABLE: 'свободно',
-  BOOKED: 'забронировано',
-  PENDING: 'ждёт вашего ответа',
-  BLOCKED: 'закрыто вами',
-  MAINTENANCE: 'ремонт',
-  OWNER_BLOCKED: 'вы живёте сами',
-};
-
-const MONTHS = [
-  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
-];
-/** «1 августа», not «1 Август» — a date in Russian takes the genitive. */
-const MONTHS_GENITIVE = [
-  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
-];
-const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const addMonths = (d: Date, n: number) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1));
@@ -68,15 +49,26 @@ const addMonths = (d: Date, n: number) => new Date(Date.UTC(d.getUTCFullYear(), 
 /** Monday-first weekday index, which is how a Belarusian calendar reads. */
 const weekdayIndex = (d: Date) => (d.getUTCDay() + 6) % 7;
 
-function formatRange(from: string, to: string): string {
+/** «1 августа», not «1 Август» — a date in Russian and Belarusian takes the
+ * genitive; English reorders to "August 1" instead. */
+function formatRange(from: string, to: string, monthsGenitive: readonly string[], locale: AppLocale): string {
   const f = (s: string) => {
     const [, m, d] = s.split('-');
-    return `${Number(d)} ${MONTHS_GENITIVE[Number(m) - 1]}`;
+    const day = Number(d);
+    const month = monthsGenitive[Number(m) - 1];
+    return locale === 'en' ? `${month} ${day}` : `${day} ${month}`;
   };
   return from === to ? f(from) : `${f(from)} — ${f(to)}`;
 }
 
 export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
+  const t = useTranslations('Calendar');
+  const locale = useLocale() as AppLocale;
+  const months = t.raw('months') as string[];
+  const monthsGenitive = t.raw('monthsGenitive') as string[];
+  const weekdays = t.raw('weekdays') as string[];
+  const statusWord = t.raw('statusWord') as Record<DayStatus, string>;
+
   const today = useMemo(() => {
     const now = new Date();
     return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -87,6 +79,9 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<string | null>(null);
+  /** The confirmed second endpoint — despite the name, no longer touched by
+   * mouse movement (see `pick` below). Kept as `hover` rather than renamed
+   * to `endDate` only to keep this diff small; it is not a hover state. */
   const [hover, setHover] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -102,11 +97,11 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
       );
       setView(data);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось загрузить календарь');
+      setError(e instanceof ApiError ? e.message : t('loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [propertyId, monthStart, monthEnd]);
+  }, [propertyId, monthStart, monthEnd, t]);
 
   useEffect(() => {
     void load();
@@ -118,7 +113,7 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
     return map;
   }, [view]);
 
-  /* The provisional selection, from the anchor to whatever is hovered. */
+  /* The provisional selection, from the anchor to the confirmed second point. */
   const selection = useMemo(() => {
     if (!anchor) return null;
     const end = hover ?? anchor;
@@ -127,17 +122,51 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
 
   const inSelection = (date: string) => selection !== null && date >= selection.from && date <= selection.to;
 
+  /**
+   * A plain two-click range picker: click a start day, click an end day.
+   *
+   * This used to update on `onMouseEnter` as well as `onClick`, which meant
+   * the "to" date was whatever cell the cursor last passed over — including
+   * cells crossed on the way to the confirm button below the grid, which
+   * sits close enough to the last row that reaching it routinely dragged
+   * the endpoint past whatever middle date was actually intended. Clicking
+   * a date now does exactly what it looks like it does, and nothing else
+   * changes the selection.
+   */
   function pick(date: string) {
     const day = byDate.get(date);
     // A booked night is not the landlord's to reassign from here; that
     // belongs to the booking, which has its own cancellation rules.
     if (day && (day.status === 'BOOKED' || day.status === 'PENDING')) return;
-    if (!anchor) {
+    // No start yet, or a complete range is already showing — begin a fresh
+    // selection rather than extending the old one.
+    if (!anchor || (hover && hover !== anchor)) {
       setAnchor(date);
-      setHover(date);
+      setHover(null);
       return;
     }
+    // Start is set, this click supplies the end (in either order).
     setHover(date);
+  }
+
+  /** Manual entry — typing exact dates rather than clicking every day of a
+   * long range. Accepts either order; `selection` already sorts from/to. */
+  function pickManual(which: 'from' | 'to', value: string) {
+    if (value === '') {
+      if (which === 'from') { setAnchor(null); setHover(null); }
+      else setHover(null);
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+    if (which === 'from') {
+      setAnchor(value);
+      if (!hover) setHover(value);
+    } else {
+      if (!anchor) setAnchor(value);
+      setHover(value);
+    }
+    const monthOfEntry = new Date(Date.UTC(Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1, 1));
+    if (iso(monthOfEntry) !== monthStart) setMonth(monthOfEntry);
   }
 
   async function apply(action: 'block' | 'unblock') {
@@ -162,7 +191,7 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
       setHover(null);
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось изменить календарь');
+      setError(e instanceof ApiError ? e.message : t('updateFailed'));
     } finally {
       setBusy(false);
     }
@@ -191,50 +220,75 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
             className="btn btn-secondary btn-sm"
             onClick={() => setMonth(addMonths(month, -1))}
             disabled={isCurrentMonth}
-            aria-label="Предыдущий месяц"
+            aria-label={t('prevMonth')}
           >
             <Icon name="arrowLeft" size={16} />
           </button>
           <h2 className="cal__month">
-            {MONTHS[month.getUTCMonth()]} {month.getUTCFullYear()}
+            {months[month.getUTCMonth()]} {month.getUTCFullYear()}
           </h2>
           <button
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={() => setMonth(addMonths(month, 1))}
-            aria-label="Следующий месяц"
+            aria-label={t('nextMonth')}
           >
             <Icon name="arrowRight" size={16} />
           </button>
         </div>
         {!isCurrentMonth && (
           <button type="button" className="link cal__today" onClick={() => setMonth(today)}>
-            Сегодня
+            {t('today')}
           </button>
         )}
       </header>
 
       <ul className="cal__legend">
-        {LEGEND.map((l) => (
+        {LEGEND_META.map((l) => (
           <li key={l.status}>
             <span className={`cal__swatch cal__swatch--${l.status.toLowerCase()}`} aria-hidden="true">
               <Icon name={l.icon} size={12} />
             </span>
-            {l.label}
+            {t(`legend.${l.labelKey}`)}
           </li>
         ))}
       </ul>
 
+      {/* Typing exact dates is faster and more precise than clicking through
+          a long range one day at a time, and it's the same anchor/hover
+          state the grid below uses — the two stay in sync either way. */}
+      <div className="cal__manual">
+        <label className="cal__manualField">
+          <span>{t('manualFrom')}</span>
+          <input
+            type="date"
+            className="input"
+            value={anchor ?? ''}
+            onChange={(e) => pickManual('from', e.target.value)}
+          />
+        </label>
+        <label className="cal__manualField">
+          <span>{t('manualTo')}</span>
+          <input
+            type="date"
+            className="input"
+            value={hover ?? ''}
+            min={anchor ?? undefined}
+            onChange={(e) => pickManual('to', e.target.value)}
+          />
+        </label>
+      </div>
+
       <div className="cal__weekdays" aria-hidden="true">
-        {WEEKDAYS.map((w) => (
-          <span key={w}>{w}</span>
+        {weekdays.map((w, i) => (
+          <span key={i}>{w}</span>
         ))}
       </div>
 
       {loading && !view ? (
         <div className="skeleton cal__loading" />
       ) : (
-        <div className="cal__grid" role="grid" aria-label="Календарь доступности">
+        <div className="cal__grid" role="grid" aria-label={t('gridAria')}>
           {Array.from({ length: leading }, (_, i) => (
             <span key={`pad-${i}`} className="cal__pad" />
           ))}
@@ -252,9 +306,8 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
                 data-status={status.toLowerCase()}
                 data-selected={inSelection(date) ? 'true' : 'false'}
                 disabled={locked}
-                aria-label={`${i + 1} ${MONTHS_GENITIVE[month.getUTCMonth()]}, ${STATUS_WORD[status]}`}
+                aria-label={t('dayAriaLabel', { day: i + 1, month: monthsGenitive[month.getUTCMonth()] ?? '', status: statusWord[status] })}
                 onClick={() => pick(date)}
-                onMouseEnter={() => anchor && setHover(date)}
               >
                 <span className="cal__num">{i + 1}</span>
                 {status !== 'AVAILABLE' && (
@@ -270,10 +323,12 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
       )}
 
       {selection && (
-        <div className="cal__confirm" role="group" aria-label="Изменить доступность">
+        <div className="cal__confirm" role="group" aria-label={t('confirmGroupAria')}>
           <p className="cal__confirmText">
-            {formatRange(selection.from, selection.to)} · {selectedNights}{' '}
-            {plural(selectedNights, 'день', 'дня', 'дней')}
+            {t('confirmText', {
+              range: formatRange(selection.from, selection.to, monthsGenitive, locale),
+              count: selectedNights,
+            })}
           </p>
           <div className="cal__confirmActions">
             <button
@@ -284,15 +339,15 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
                 setHover(null);
               }}
             >
-              Отмена
+              {t('cancel')}
             </button>
             {selectionHasBlocks ? (
               <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void apply('unblock')}>
-                {busy ? 'Открываем…' : 'Открыть даты'}
+                {busy ? t('opening') : t('openDates')}
               </button>
             ) : (
               <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void apply('block')}>
-                {busy ? 'Закрываем…' : 'Закрыть даты'}
+                {busy ? t('closing') : t('closeDates')}
               </button>
             )}
           </div>
@@ -307,9 +362,7 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
 
       {view && (
         <p className="hint">
-          Сдаётся от {view.minNights} до {view.maxNights}{' '}
-          {plural(view.maxNights, 'ночи', 'ночей', 'ночей')}. Забронированные даты нельзя закрыть —
-          отмена бронирования происходит в самом бронировании.
+          {t('footerHint', { min: view.minNights, max: view.maxNights })}
         </p>
       )}
 
@@ -321,6 +374,10 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
         .cal__today { background: none; border: 0; cursor: pointer; font: inherit; font-size: var(--text-sm); font-weight: 600; }
 
         .cal__legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); list-style: none; margin: 0; padding: 0; font-size: var(--text-xs); color: var(--text-secondary); }
+
+        .cal__manual { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+        .cal__manualField { display: flex; align-items: center; gap: 0.5rem; font-size: var(--text-sm); color: var(--text-secondary); }
+        .cal__manualField input { max-width: 10rem; }
         .cal__legend li { display: flex; align-items: center; gap: 0.35rem; }
         .cal__swatch { display: grid; place-items: center; width: 1.15rem; height: 1.15rem; border-radius: var(--radius-sm); }
         .cal__swatch--available { background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-tertiary); }

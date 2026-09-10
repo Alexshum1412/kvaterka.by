@@ -1,0 +1,76 @@
+{
+  "Retention": {
+    "metaTitle": "Data retention",
+    "title": "Data retention",
+    "subtitle": "What the platform keeps, what it destroys, and what is stopping it",
+    "badgeHolds": "Holds",
+    "badgeOverdueReview": "Review overdue",
+    "badgeStuckPurges": "Unfinished purges",
+
+    "windowTechnical": "Technical window",
+    "windowPerRow": "Per row ({column})",
+    "windowIndefinite": "Indefinite",
+    "windowUndefined": "Not defined · {blockedBy}",
+
+    "stateHeading": "State as of today",
+    "storageTitle": "Private storage",
+    "storageNotConfiguredNote": "Documents are not destroyed: the platform cannot confirm that a file was actually deleted, and a purge record with no confirmation is a false record.",
+    "legalHoldTitle": "No retention window chosen for documents",
+    "legalHoldBody": "This is LEGAL-004. While the question stays open, the platform does not assign a window on its own: a document's window field is empty, and an empty window means \"cannot be destroyed\". Answering the question is one policy entry, not a code change.",
+    "runRestrictedToAdmin": "Running the job is available to administrators.",
+
+    "documentsTitle": "Identity documents",
+    "documentsEmpty": "No document has been uploaded — collection is disabled pending an answer on LEGAL-004, so there is nothing to destroy yet.",
+
+    "stuckTitle": "Unfinished purges",
+    "stuckBody": "Destruction started and was not confirmed. The job will retry on its own; if a row stays here for a long time, storage is unreachable.",
+    "stuckLine": "{docType} · started {when}",
+
+    "holdsTitle": "Holds",
+    "holdsBody": "A hold blocks destruction and opens nothing. Support and moderation can place one; only an administrator can lift one, and must name a reason.",
+    "holdsEmpty": "No active holds.",
+    "holdMeta": "{name}, {when}",
+    "holdOverdueSuffix": " · review overdue",
+
+    "runsTitle": "Job runs",
+    "runsEmpty": "The job has not run yet.",
+    "tableStarted": "Started",
+    "tableStatus": "Status",
+    "tableProcessed": "Processed",
+    "tableSkipped": "Skipped",
+    "tableFailed": "Failed",
+
+    "catalogueTitle": "Table policy",
+    "catalogueBody1": "This is the same declaration the retention service reads — it cannot describe a policy the code does not have. A test checks it against the database schema: a table cannot be added without saying what happens to its data.",
+    "catalogueBody2": "Open legal questions the windows depend on: {deps}.",
+    "tableTable": "Table",
+    "tableClass": "Class",
+    "tableOnErasure": "On account closure",
+    "tableWindow": "Window",
+    "appendOnlyBadge": "append-only",
+    "enforcedBadge": "job enforces this",
+
+    "placeHoldButton": "Place a hold",
+    "placeHoldFormNote": "A hold stops the background job from destroying this data. It deletes nothing and opens nothing.",
+    "placeHoldTargetLabel": "What to hold",
+    "placeHoldIdLabel": "Identifier",
+    "placeHoldIdPlaceholder": "UUID",
+    "placeHoldReasonCodeLabel": "Reason",
+    "placeHoldExplanationLabel": "Explanation — read by whoever lifts the hold",
+    "placeHoldExplanationPlaceholder": "For example: request from 08/12, case #…",
+    "errorGeneric": "Couldn't complete the action",
+    "saving": "Saving…",
+    "placeButton": "Place",
+    "cancelButton": "Cancel",
+
+    "releaseHoldButton": "Lift hold",
+    "releaseHoldFormNote": "Lifting it allows this data to be destroyed again. The reason is kept in the log.",
+    "releaseHoldReasonLabel": "Why the hold is no longer needed",
+    "releasing": "Lifting…",
+    "releaseButton": "Lift",
+
+    "runButton": "Run now",
+    "running": "Running…",
+    "runNoteStorageMissing": "Document storage isn't configured, so no documents will be destroyed. The job will only remove expired sessions, one-time tokens, and internal counters."
+  }
+}

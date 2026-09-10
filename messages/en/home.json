@@ -1,0 +1,47 @@
+{
+  "Home": {
+    "kicker": "Belarus, no surprises",
+    "title": "Find an apartment for the term you need",
+    "subtitle": "By the night, by the month, or by the year — anywhere in Belarus.",
+    "citiesAria": "Popular cities",
+    "cities": {
+      "minsk": "Minsk",
+      "grodno": "Grodno",
+      "brest": "Brest",
+      "vitebsk": "Vitebsk",
+      "gomel": "Gomel",
+      "mogilev": "Mogilev"
+    },
+    "recentHeading": "Recently published",
+    "allListings": "All listings",
+    "goToSearch": "Go to search",
+    "empty": {
+      "failedTitle": "Listings didn't load right now",
+      "failedDescription": "This looks like a temporary glitch. Refresh the page or open search.",
+      "noneTitle": "No listings published yet",
+      "noneDescription": "As soon as hosts publish a place, it will appear here."
+    },
+    "trustHeading": "Why Kvaterka",
+    "trust": {
+      "price": {
+        "title": "The final price upfront",
+        "body": "Rent, cleaning, and mandatory fees are shown as one total. What can't be calculated in advance — metered utilities — we flag separately instead of hiding it."
+      },
+      "identity": {
+        "title": "You know who you're dealing with",
+        "body": "Identity verification and the right to rent out a property are separate marks, and we don't mix them. Companies are labeled as companies."
+      },
+      "reviews": {
+        "title": "Reviews after real bookings",
+        "body": "A review can only be left after a completed booking. Both reviews go live at the same time, so no one can tailor their rating to the other's."
+      },
+      "history": {
+        "title": "The history stays with you",
+        "body": "Messages, dates, and terms are kept. If a dispute comes up, both sides have something to point to."
+      }
+    },
+    "hostHeading": "Renting out an apartment?",
+    "hostBody": "Listing is free to publish. A 5% service fee applies only after the booking is complete and both sides have confirmed it. You receive the rental payment directly.",
+    "hostCta": "Publish a listing"
+  }
+}

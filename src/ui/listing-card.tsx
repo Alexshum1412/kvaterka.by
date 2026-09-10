@@ -1,7 +1,9 @@
-import Link from 'next/link';
+import { getLocale, getTranslations } from 'next-intl/server';
+import { Link } from '@/i18n/navigation.ts';
+import type { AppLocale } from '@/i18n/routing.ts';
 import { Icon } from './icons.tsx';
 import { FavouriteButton } from './favourite-button.tsx';
-import { PROPERTY_TYPE_LABEL, formatNightsGenitive, plural } from './primitives.tsx';
+import { propertyTypeLabel, formatNightsGenitiveLocalized } from './primitives.tsx';
 import { formatMoney, fromStorage } from '@/server/domain/money.ts';
 
 export interface ListingCardData {
@@ -43,7 +45,7 @@ export interface ListingCardData {
  * and the button sits above it — one interactive element per hit area,
  * both reachable from the keyboard.
  */
-export function ListingCard({
+export async function ListingCard({
   listing,
   nights,
   initialFavourite,
@@ -56,6 +58,9 @@ export function ListingCard({
    */
   initialFavourite?: boolean;
 }) {
+  const locale = (await getLocale()) as AppLocale;
+  const t = await getTranslations('Listing');
+
   const cover = listing.photos.find((p) => p.isCover) ?? listing.photos[0];
   const instant = listing.bookingMode !== 'REQUEST';
 
@@ -63,16 +68,17 @@ export function ListingCard({
     listing.district ? `${listing.city} · ${listing.district}` : listing.city,
     listing.distanceMeters !== undefined &&
       (listing.distanceMeters < 1000
-        ? `${listing.distanceMeters} м`
-        : `${(listing.distanceMeters / 1000).toFixed(1)} км`),
+        ? t('card.distanceMeters', { value: listing.distanceMeters })
+        : t('card.distanceKm', { value: (listing.distanceMeters / 1000).toFixed(1) })),
   ]
     .filter(Boolean)
     .join(' · ');
 
   const basics = [
-    listing.rooms !== null && `${listing.rooms} ${plural(listing.rooms, 'комната', 'комнаты', 'комнат')}`,
-    listing.areaSqm && `${Math.round(Number(listing.areaSqm))} м²`,
-    listing.floor !== null && listing.totalFloors !== null && `${listing.floor}/${listing.totalFloors} эт.`,
+    listing.rooms !== null && t('roomsCount', { count: listing.rooms }),
+    listing.areaSqm && t('card.areaSqm', { value: Math.round(Number(listing.areaSqm)) }),
+    listing.floor !== null && listing.totalFloors !== null &&
+      t('card.floorOf', { floor: listing.floor, total: listing.totalFloors }),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -80,8 +86,8 @@ export function ListingCard({
   const stayTotal = listing.stayTotalMinor;
   const stayNote =
     nights !== undefined && nights > 0
-      ? `за ${nights} ${plural(nights, 'ночь', 'ночи', 'ночей')}, всё включено`
-      : 'всё включено';
+      ? t('card.stayNoteWithNights', { nights })
+      : t('card.stayNoteAllInclusive');
 
   return (
     <article className="lc">
@@ -90,7 +96,7 @@ export function ListingCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={`/media/${cover.storageKey}`}
-            alt={`${PROPERTY_TYPE_LABEL[listing.propertyType] ?? 'Жильё'} — ${listing.title}`}
+            alt={`${propertyTypeLabel(listing.propertyType, locale)} — ${listing.title}`}
             loading="lazy"
             decoding="async"
             width={640}
@@ -105,7 +111,7 @@ export function ListingCard({
         {/* One flag, and only for the fact that changes what happens next:
             verification is a claim about the object and stays with the
             facts below, where it can be worded precisely. */}
-        {instant && <span className="lc__flag">Мгновенно</span>}
+        {instant && <span className="lc__flag">{t('card.instantFlag')}</span>}
       </div>
 
       <FavouriteButton propertyId={listing.id} initial={initialFavourite} className="lc__fav" />
@@ -128,9 +134,11 @@ export function ListingCard({
           ) : (
             <>
               <span className="lc__amount numeric">{priceLabel(listing.basePriceMinor)}</span>
-              <span className="lc__per">/ {listing.priceUnit === 'MONTH' ? 'месяц' : 'ночь'}</span>
+              <span className="lc__per">{listing.priceUnit === 'MONTH' ? t('card.perMonth') : t('card.perNight')}</span>
               {listing.minNights > 1 && (
-                <span className="lc__min">от {formatNightsGenitive(listing.minNights)}</span>
+                <span className="lc__min">
+                  {t('card.fromDuration', { duration: formatNightsGenitiveLocalized(listing.minNights, locale) })}
+                </span>
               )}
             </>
           )}
@@ -144,15 +152,13 @@ export function ListingCard({
             <span className="lc__rating">
               <Icon name="star" size={14} solid />
               <span className="numeric">{listing.rating.toFixed(1)}</span>
-              <span className="sr-only">из 5</span>
+              <span className="sr-only">{t('card.outOfFive')}</span>
               {listing.reviewCount > 0 && (
                 <>
                   <span className="lc__reviews numeric" aria-hidden="true">
                     ({listing.reviewCount})
                   </span>
-                  <span className="sr-only">
-                    , {listing.reviewCount} {plural(listing.reviewCount, 'отзыв', 'отзыва', 'отзывов')}
-                  </span>
+                  <span className="sr-only">{t('card.reviewsCount', { count: listing.reviewCount })}</span>
                 </>
               )}
             </span>
@@ -164,7 +170,7 @@ export function ListingCard({
         {listing.propertyVerified && (
           <p className="lc__verified">
             <Icon name="checkCircle" size={14} />
-            Объект проверен
+            {t('card.propertyVerified')}
           </p>
         )}
       </div>

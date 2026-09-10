@@ -1,0 +1,23 @@
+{
+  "Search": {
+    "meta": {
+      "titleCity": "Арэнда жылля ў горадзе {city}",
+      "titleDefault": "Пошук жылля",
+      "descriptionCity": "Кватэры і дамы ў арэнду ў горадзе {city}: пасутачна, на месяц і на працяглы тэрмін. Сумленная канчатковая цана.",
+      "descriptionDefault": "Пошук жылля ў арэнду па ўсёй Беларусі."
+    },
+    "breadcrumbsAria": "Хлебныя крошкі",
+    "home": "Галоўная",
+    "current": "Пошук",
+    "loadingTitle": "Пошук",
+    "resultsCount": "{count, plural, one {# варыянт} few {# варыянты} many {# варыянтаў} other {# варыянтаў}}",
+    "inCity": " у горадзе {city}",
+    "forDuration": "на {duration}",
+    "guestsSummary": "{count, plural, one {# госць} few {# госці} many {# гасцей} other {# гасцей}}",
+    "errorTitle": "Не ўдалося выканаць пошук",
+    "errorDetail": "{failure} Змяніце параметры і паспрабуйце зноў.",
+    "emptyTitle": "Нічога не знайшлі",
+    "emptyDescription": "Паспрабуйце змяніць раён або тэрмін арэнды — або прыбярыце частку фільтраў.",
+    "mapAria": "Карта вынікаў"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "Profile": {
+    "meta": {
+      "titleSuffix": " — profile",
+      "notFoundTitle": "Profile not found",
+      "description": "Profile on Kvaterka.by: verification, reviews and listings."
+    },
+    "kindCompany": "Company",
+    "kindIndividual": "Individual",
+    "memberSince": "On Kvaterka since {date}",
+    "trustBand": {
+      "NEW": "New member",
+      "DEVELOPING": "Building a track record",
+      "ESTABLISHED": "Experienced member",
+      "HIGH": "High trust level"
+    },
+    "statsAria": "Stats",
+    "reviewsCount": "{count, plural, one {# review} other {# reviews}}",
+    "rentalsAsLandlord": "{count, plural, one {# rental hosted} other {# rentals hosted}}",
+    "rentalsAsTenant": "{count, plural, one {# rental} other {# rentals}}",
+    "activeListings": "{count, plural, one {# listing} other {# listings}}",
+    "responseRate": "response rate to requests",
+    "freshNotice": "No completed rentals or reviews yet. That doesn't mean anything is wrong — the history just hasn't built up yet.",
+    "listingsHeading": "Listings",
+    "reviewsHeading": "Reviews",
+    "reviewsHeadingCount": "Reviews · {count}",
+    "noReviews": "No reviews yet. They can only be left after a completed rental, so there are never any random ratings here.",
+    "reviewAsTenant": "as a tenant",
+    "reviewAsLandlord": "as a host",
+    "privacyNote": "Phone number, email, and exact address are never published. The parties exchange contact details after a confirmed booking.",
+    "backToSearch": "Back to search"
+  }
+}

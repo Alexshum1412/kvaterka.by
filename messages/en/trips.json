@@ -1,0 +1,30 @@
+{
+  "Trips": {
+    "meta": { "title": "My trips" },
+    "title": "My trips",
+    "subtitleEmpty": "Your requests and bookings will appear here.",
+    "subtitleCount": "{count, plural, one {# booking} other {# bookings}}",
+    "needsAttention": "{count, plural, one {# needs attention} other {# need attention}}",
+    "navAria": "Sections",
+    "navFavorites": "Favorites",
+    "navMessages": "Messages",
+    "navSearch": "Find housing",
+    "inviteAria": "Reviews",
+    "inviteTitle": "How was your stay?",
+    "inviteText": "Your rating helps other people choose a place to stay and a host. Reviews from both sides are published at the same time.",
+    "inviteButton": "Leave a review",
+    "emptyTitle": "No trips yet",
+    "emptyText": "Find a place and send a request — it will appear here along with its status.",
+    "emptyButton": "Browse listings",
+    "groups": {
+      "action": {
+        "title": "Needs attention",
+        "hint": "The stay has ended — please confirm the rental took place."
+      },
+      "waiting": { "title": "Awaiting host response" },
+      "upcoming": { "title": "Upcoming" },
+      "active": { "title": "Currently staying" },
+      "history": { "title": "History" }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "HostFees": {
+    "title": "Platform fee",
+    "metaDescription": "Kvaterka takes 5% from the host after a completed rental. No fees for posting and no commission from the tenant.",
+    "breadcrumbLabel": "Breadcrumbs",
+    "breadcrumbHome": "Home",
+    "breadcrumbHost": "List your apartment",
+    "lede": "One fee, one rate, one moment it's charged: {rate}% from the host after the rental ends and both sides confirm it.",
+    "highlight": {
+      "label": "from the host — once per rental, only after both sides confirm it happened."
+    },
+    "whatsNot": {
+      "heading": "What there isn't",
+      "li1": "A fee for posting a listing.",
+      "li2": "A fee for boosting search placement.",
+      "li3": "A commission from the tenant — they pay only the amount you agreed on.",
+      "li4": "A subscription fee."
+    },
+    "when": {
+      "heading": "When it's charged",
+      "p1Rich": "The fee is charged once per rental, and only once the rental is <strong>marked as completed</strong>. A cancelled, expired, or unrealized rental doesn't create a fee.",
+      "p2": "Charging it twice is impossible: three independent database constraints prevent that, not a check in the code. A repeat request returns the same result, not a second charge."
+    },
+    "how": {
+      "heading": "How it's calculated",
+      "p1": "The fee is {rate}% of the rental amount for the confirmed term. All amounts are stored in kopecks as whole numbers, and rounding is deterministic, so recalculating a year later gives the same kopeck.",
+      "p2Rich": "The <link>Finance</link> section shows every charge: which rental it's for, what base amount, and at what rate."
+    },
+    "debt": {
+      "heading": "Outstanding balance",
+      "p1Rich": "An unpaid fee limits posting new listings — but it <strong>doesn't touch a rental already underway</strong>. Evicting a tenant over a host's debt would punish the wrong person.",
+      "p2": "Fee records are immutable. An error is corrected not by editing the row but with an offsetting entry stating the reason and the author — so the history can be checked, not just read.",
+      "noteRich": "<strong>What isn't ready yet.</strong> There's no way to pay a charged fee inside the platform yet: no payment provider is connected. The fee is calculated and recorded, but transferring money through Kvaterka isn't possible right now.",
+      "cta": "List your apartment"
+    }
+  }
+}

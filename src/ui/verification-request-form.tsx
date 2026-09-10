@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation.ts';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from '@/ui/icons.tsx';
 import {
@@ -40,6 +41,7 @@ export function VerificationRequestForm({
   prefill?: { ownershipBasis?: OwnershipBasis; note?: string };
 }) {
   const router = useRouter();
+  const t = useTranslations('DashboardVerification');
   const [propertyId, setPropertyId] = useState(properties.find((p) => !p.verified)?.id ?? '');
   const [basis, setBasis] = useState<OwnershipBasis | ''>(prefill?.ownershipBasis ?? '');
   const [note, setNote] = useState(prefill?.note ?? '');
@@ -68,7 +70,7 @@ export function VerificationRequestForm({
       );
       router.refresh();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось отправить заявку');
+      setError(e instanceof ApiError ? e.message : t('submitError'));
       setBusy(false);
     }
   }
@@ -78,41 +80,33 @@ export function VerificationRequestForm({
       {!collectionEnabled && (
         <p className="vrf__stop">
           <Icon name="info" size={16} />
-          <span>
-            Приём документов пока не открыт: платформа не начнёт собирать документы, удостоверяющие
-            личность, до юридического заключения. Заявку можно оставить — мы сообщим, когда проверка
-            станет доступна, и до тех пор уровень не выдаётся никому.
-          </span>
+          <span>{t('collectionStopNotice')}</span>
         </p>
       )}
 
       {needsProperty && (
         <>
           <label className="field">
-            <span className="label">Какое жильё</span>
+            <span className="label">{t('propertyFieldLabel')}</span>
             <select
               className="select"
               value={propertyId}
               onChange={(e) => setPropertyId(e.target.value)}
               required
             >
-              <option value="">Выберите объявление</option>
+              <option value="">{t('selectListingPlaceholder')}</option>
               {properties.map((p) => (
                 <option key={p.id} value={p.id} disabled={p.verified}>
                   {p.title} · {p.city}
-                  {p.verified ? ' (уже проверено)' : ''}
+                  {p.verified ? t('alreadyVerifiedSuffix') : ''}
                 </option>
               ))}
             </select>
-            {properties.length === 0 && (
-              <span className="hint">
-                Сначала создайте объявление — право сдачи подтверждается для конкретного жилья.
-              </span>
-            )}
+            {properties.length === 0 && <span className="hint">{t('noPropertiesHint')}</span>}
           </label>
 
           <fieldset className="vrf__basis">
-            <legend className="label">На каком основании вы сдаёте это жильё</legend>
+            <legend className="label">{t('basisLegend')}</legend>
             <div className="vrf__options">
               {OWNERSHIP_BASES.map((b) => (
                 <button
@@ -127,31 +121,22 @@ export function VerificationRequestForm({
                 </button>
               ))}
             </div>
-            <span className="hint">
-              От основания зависит, какой документ мы попросим. Само основание — это ваше заявление,
-              а не подтверждение: документ всё равно понадобится.
-            </span>
+            <span className="hint">{t('basisHint')}</span>
           </fieldset>
         </>
       )}
 
       <label className="field">
-        <span className="label">Что нам полезно знать — по желанию</span>
+        <span className="label">{t('noteFieldLabel')}</span>
         <textarea
           className="textarea"
           rows={3}
           maxLength={1000}
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder={
-            needsProperty
-              ? 'Например: собственность оформлена на девичью фамилию.'
-              : 'Например: в паспорте другое написание имени.'
-          }
+          placeholder={needsProperty ? t('notePlaceholderProperty') : t('notePlaceholderSelf')}
         />
-        <span className="hint">
-          Не пишите здесь номер документа — он не нужен, и в заявке ему не место.
-        </span>
+        <span className="hint">{t('noteHint')}</span>
       </label>
 
       {error && (
@@ -162,7 +147,7 @@ export function VerificationRequestForm({
       )}
 
       <button type="submit" className="btn btn-primary" disabled={!canSubmit || busy}>
-        {busy ? 'Отправляем…' : supersedesId ? 'Отправить заново' : 'Отправить заявку'}
+        {busy ? t('submitting') : supersedesId ? t('resubmitButton') : t('submitButton')}
       </button>
 
       <style>{`

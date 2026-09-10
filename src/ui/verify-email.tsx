@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/navigation.ts';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from './icons.tsx';
 
@@ -20,6 +21,7 @@ import { Icon } from './icons.tsx';
  * ran twice.
  */
 export function VerifyEmail({ token }: { token: string }) {
+  const t = useTranslations('VerifyEmail');
   const [status, setStatus] = useState<'busy' | 'success' | 'error'>('busy');
   const [error, setError] = useState<string | null>(null);
   const sent = useRef(false);
@@ -33,16 +35,18 @@ export function VerifyEmail({ token }: { token: string }) {
         await api.post('/auth/verify-email', { token });
         setStatus('success');
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Не удалось подтвердить почту. Попробуйте ещё раз позже.');
+        setError(e instanceof ApiError ? e.message : t('genericError'));
         setStatus('error');
       }
     })();
+    // Fires the confirmation exactly once on mount (guarded by the `sent`
+    // ref above); `token` is the only value the request depends on.
   }, [token]);
 
   if (status === 'busy') {
     return (
       <div className="ve__busy">
-        <p>Подтверждаем почту…</p>
+        <p>{t('busy')}</p>
         <style>{VE_CSS}</style>
       </div>
     );
@@ -55,10 +59,10 @@ export function VerifyEmail({ token }: { token: string }) {
           <Icon name="check" size={20} />
         </span>
         <div>
-          <h2>Почта подтверждена</h2>
-          <p>Адрес привязан к аккаунту.</p>
+          <h2>{t('successTitle')}</h2>
+          <p>{t('successBody')}</p>
           <Link href="/login" className="btn btn-primary">
-            Войти
+            {t('loginButton')}
           </Link>
         </div>
         <style>{VE_CSS}</style>
@@ -72,10 +76,10 @@ export function VerifyEmail({ token }: { token: string }) {
         <Icon name="alert" size={20} />
       </span>
       <div>
-        <h2>Не получилось подтвердить</h2>
+        <h2>{t('errorTitle')}</h2>
         <p role="alert">{error}</p>
         <Link href="/login" className="link">
-          Вернуться ко входу
+          {t('backToLogin')}
         </Link>
       </div>
       <style>{VE_CSS}</style>

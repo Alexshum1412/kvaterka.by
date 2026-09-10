@@ -1,0 +1,130 @@
+{
+  "ListingDetail": {
+    "meta": {
+      "notFoundTitle": "Listing not found",
+      "descriptionFallback": "Rental: {title} in {city}."
+    },
+    "breadcrumbs": {
+      "aria": "Breadcrumbs",
+      "home": "Home"
+    },
+    "header": {
+      "reviewCount": "{count, plural, one {# review} other {# reviews}}"
+    },
+    "facts": {
+      "rooms": "Rooms",
+      "area": "Area",
+      "areaValue": "{value} m²",
+      "floor": "Floor",
+      "floorOf": "{floor} of {total}",
+      "beds": "Sleeping spaces",
+      "bathrooms": "Bathrooms",
+      "maxGuests": "Max guests"
+    },
+    "duration": {
+      "text": "Available <strongMin>from {min}</strongMin> to <strongMax>{max}</strongMax>"
+    },
+    "amenitiesTitle": "Amenities",
+    "amenities": {
+      "confirmed": "confirmed by {confirmed} of {total}",
+      "note": "The “confirmed” mark is added by guests after a completed stay — it's their observation, not the host's promise."
+    },
+    "rulesTitle": "Rules",
+    "policy": {
+      "smoking": {
+        "PROHIBITED": "Smoking is not allowed",
+        "ALLOWED": "Smoking is allowed",
+        "BALCONY_ONLY": "Smoking allowed on the balcony only"
+      },
+      "pets": {
+        "PROHIBITED": "No pets allowed",
+        "ALLOWED": "Pets allowed",
+        "SMALL_ONLY": "Small pets only",
+        "ON_REQUEST": "Pets allowed by arrangement"
+      }
+    },
+    "rules": {
+      "childrenAllowed": "Children welcome",
+      "childrenNotAllowed": "Not suitable for children",
+      "partiesAllowed": "Events allowed",
+      "partiesNotAllowed": "Parties and events not allowed",
+      "checkInOut": "Check-in from {from}, check-out until {to}",
+      "quietHours": "Quiet hours: {from} to {to}"
+    },
+    "reviews": {
+      "title": "Reviews",
+      "titleWithCount": "Reviews · {count}",
+      "empty": "No reviews yet. They can only be left after a completed stay, so there are no random ratings here.",
+      "thin": "{count, plural, one {So far there is # review} other {So far there are # reviews}} — that's too few to judge the rating by. Look at the review text, not the number.",
+      "wouldRentAgain": "Would rent again"
+    },
+    "dimensions": {
+      "cleanliness": "Cleanliness",
+      "accuracy": "Accuracy of description",
+      "communication": "Communication",
+      "checkIn": "Check-in",
+      "location": "Location",
+      "value": "Value for money",
+      "rulesClarity": "Clarity of rules"
+    },
+    "location": {
+      "title": "Location",
+      "note": "{place}. An approximate location is shown — the exact address is revealed after the booking is confirmed."
+    },
+    "owner": {
+      "title": "Host",
+      "company": "Company",
+      "private": "Private host",
+      "completedRentals": "{count, plural, one {# completed deal} other {# completed deals}}",
+      "profileLink": "Profile"
+    },
+    "aside": {
+      "utilitiesNote": "Metered utility costs are paid separately and are not known in advance.",
+      "cleaningFeeNote": "A mandatory cleaning fee of <money></money> is already included in the total."
+    },
+    "dock": {
+      "requestButton": "Send request",
+      "bookButton": "Book now"
+    },
+    "priceUnit": {
+      "perMonth": "per month",
+      "perNight": "per night"
+    },
+    "gallery": {
+      "empty": "No photos yet",
+      "mainAlt": "{title} — main photo",
+      "photoAlt": "{title} — photo {index}",
+      "morePhotos": "{count} photos"
+    },
+    "booking": {
+      "doneTitleConfirmed": "Booking confirmed",
+      "doneTitleRequested": "Request sent",
+      "doneTextConfirmed": "The dates are secured for you. The exact address and the host's contact details are now available in your booking.",
+      "doneTextRequested": "The host will respond within 48 hours. The dates aren't blocked yet — another request confirmed sooner could take them.",
+      "goToBooking": "Go to booking",
+      "term": "from {min} to {max}",
+      "checkInLabel": "Check-in",
+      "checkOutLabel": "Check-out",
+      "guestsLabel": "Guests",
+      "durationError": "This listing is rented for a term from {min} to {max}. You selected {nights, plural, one {# night} other {# nights}}.",
+      "quoteHead": "{nights, plural, one {Estimate for # night} other {Estimate for # nights}}",
+      "meterBilled": "metered",
+      "totalLabel": "Total due to the host",
+      "depositNote": "Additionally, a refundable deposit of {amount} BYN — returned at check-out.",
+      "variableCostsNote": "Utility costs are billed by meter and are not included in the amount above.",
+      "submitError": "Couldn't send the request",
+      "instantBookButton": "Book instantly",
+      "requestButton": "Send request",
+      "confirmLeadInstant": "The dates will be secured immediately after confirmation.",
+      "confirmLeadRequest": "The host will respond to the request. The dates aren't secured yet.",
+      "messageLabel": "Message to the host",
+      "messagePlaceholder": "Hello! I'm planning to come to Minsk for a few days…",
+      "messageHint": "Optional. Contact details and links to other services are hidden in messages — until the booking is confirmed, communication happens here.",
+      "backButton": "Back",
+      "confirmButtonSubmitting": "Sending…",
+      "confirmButtonInstant": "Confirm booking",
+      "confirmButtonRequest": "Send request",
+      "footerNote": "Rent is paid directly between you and the host. The platform does not accept rental payments and is not a party to the agreement."
+    }
+  }
+}

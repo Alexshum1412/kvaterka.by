@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation.ts';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from '@/ui/icons.tsx';
 
@@ -27,29 +28,28 @@ type Role = 'TENANT' | 'LANDLORD';
 
 interface Dimension {
   key: string;
-  label: string;
-  help: string;
+  labelKey: string;
+  helpKey: string;
   required: boolean;
 }
 
+/** Message keys mirror `Booking.dim*Label` / `Booking.dim*Help`. */
 const TENANT_DIMENSIONS: Dimension[] = [
-  { key: 'accuracy', label: 'Соответствие описанию', help: 'Совпало ли жильё с фотографиями и текстом', required: true },
-  { key: 'cleanliness', label: 'Чистота', help: 'Каким вы застали жильё', required: true },
-  { key: 'communication', label: 'Общение с хозяином', help: 'Отвечал ли понятно и вовремя', required: true },
-  { key: 'checkIn', label: 'Заселение', help: 'Насколько просто было попасть внутрь', required: false },
-  { key: 'location', label: 'Расположение', help: 'Район, транспорт, что рядом', required: false },
-  { key: 'value', label: 'Цена и качество', help: 'Оправдала ли квартира свою цену', required: false },
-  { key: 'rulesClarity', label: 'Понятность правил', help: 'Было ли заранее ясно, что можно', required: false },
+  { key: 'accuracy', labelKey: 'dimAccuracyLabel', helpKey: 'dimAccuracyHelp', required: true },
+  { key: 'cleanliness', labelKey: 'dimCleanlinessLabel', helpKey: 'dimCleanlinessHelp', required: true },
+  { key: 'communication', labelKey: 'dimCommTenantLabel', helpKey: 'dimCommTenantHelp', required: true },
+  { key: 'checkIn', labelKey: 'dimCheckInLabel', helpKey: 'dimCheckInHelp', required: false },
+  { key: 'location', labelKey: 'dimLocationLabel', helpKey: 'dimLocationHelp', required: false },
+  { key: 'value', labelKey: 'dimValueLabel', helpKey: 'dimValueHelp', required: false },
+  { key: 'rulesClarity', labelKey: 'dimRulesClarityLabel', helpKey: 'dimRulesClarityHelp', required: false },
 ];
 
 const LANDLORD_DIMENSIONS: Dimension[] = [
-  { key: 'ruleCompliance', label: 'Соблюдение правил', help: 'Гости, тишина, курение, животные', required: true },
-  { key: 'propertyCondition', label: 'Аккуратность', help: 'В каком состоянии оставили жильё', required: true },
-  { key: 'communication', label: 'Общение', help: 'Отвечал ли понятно и вовремя', required: true },
-  { key: 'timeliness', label: 'Соблюдение сроков', help: 'Заселение и выезд в договорённое время', required: false },
+  { key: 'ruleCompliance', labelKey: 'dimRuleComplianceLabel', helpKey: 'dimRuleComplianceHelp', required: true },
+  { key: 'propertyCondition', labelKey: 'dimPropertyConditionLabel', helpKey: 'dimPropertyConditionHelp', required: true },
+  { key: 'communication', labelKey: 'dimCommLandlordLabel', helpKey: 'dimCommLandlordHelp', required: true },
+  { key: 'timeliness', labelKey: 'dimTimelinessLabel', helpKey: 'dimTimelinessHelp', required: false },
 ];
-
-const OVERALL_WORDS = ['', 'Плохо', 'Так себе', 'Нормально', 'Хорошо', 'Отлично'];
 
 const MIN_TEXT_FOR_LOW_RATING = 20;
 
@@ -70,8 +70,10 @@ export function ReviewForm({
   /** Amenities the listing claims, for the guest to confirm or contradict. */
   facts: readonly { code: string; label: string }[];
 }) {
+  const t = useTranslations('Booking');
   const router = useRouter();
   const dimensions = role === 'TENANT' ? TENANT_DIMENSIONS : LANDLORD_DIMENSIONS;
+  const overallWords = t.raw('overallWords') as string[];
 
   const [overall, setOverall] = useState(0);
   const [scores, setScores] = useState<Record<string, number>>({});
@@ -126,7 +128,7 @@ export function ReviewForm({
         setError(e.message);
         setFieldError(e.fieldErrors);
       } else {
-        setError('Не удалось отправить отзыв');
+        setError(t('reviewSubmitError'));
       }
       setBusy(false);
     }
@@ -135,58 +137,53 @@ export function ReviewForm({
   return (
     <form className="rf" onSubmit={submit}>
       <header className="rf__head">
-        <h1 className="rf__title">{role === 'TENANT' ? 'Как прошла аренда?' : 'Каким был арендатор?'}</h1>
+        <h1 className="rf__title">{role === 'TENANT' ? t('reviewPromptTenant') : t('reviewPromptLandlord')}</h1>
         <p className="rf__about">
           {role === 'TENANT' ? propertyTitle : counterpartyName} · {stayLabel}
         </p>
         <p className="rf__note">
           <Icon name="info" size={15} />
-          Отзывы обеих сторон публикуются одновременно — вы не увидите оценку другой стороны, пока не
-          отправите свою.
+          {t('reviewsSimultaneousNote')}
         </p>
       </header>
 
       <section className="rf__block">
-        <h2 className="rf__h2">Общая оценка</h2>
-        <Stars value={overall} onChange={setOverall} size="lg" label="Общая оценка" />
-        {overall > 0 && <p className="rf__word">{OVERALL_WORDS[overall]}</p>}
+        <h2 className="rf__h2">{t('overallRatingHeading')}</h2>
+        <Stars value={overall} onChange={setOverall} size="lg" label={t('overallRatingHeading')} />
+        {overall > 0 && <p className="rf__word">{overallWords[overall]}</p>}
       </section>
 
       <section className="rf__block">
-        <h2 className="rf__h2">Подробнее</h2>
+        <h2 className="rf__h2">{t('detailsHeading')}</h2>
         <ul className="rf__dims">
           {dimensions.map((d) => (
             <li key={d.key} className="rf__dim">
               <span className="rf__dimText">
                 <span className="rf__dimLabel">
-                  {d.label}
-                  {!d.required && <span className="rf__optional"> — если важно</span>}
+                  {t(d.labelKey)}
+                  {!d.required && <span className="rf__optional">{t('optionalSuffix')}</span>}
                 </span>
-                <span className="rf__dimHelp">{d.help}</span>
+                <span className="rf__dimHelp">{t(d.helpKey)}</span>
               </span>
               <Stars
                 value={scores[d.key] ?? 0}
                 onChange={(v) => setScores((prev) => ({ ...prev, [d.key]: v }))}
-                label={d.label}
+                label={t(d.labelKey)}
               />
             </li>
           ))}
         </ul>
-        {missingRequired.length > 0 && overall > 0 && (
-          <p className="hint">Оцените обязательные пункты, чтобы отправить отзыв.</p>
-        )}
+        {missingRequired.length > 0 && overall > 0 && <p className="hint">{t('rateRequiredHint')}</p>}
       </section>
 
       {role === 'TENANT' && facts.length > 0 && (
         <section className="rf__block">
-          <h2 className="rf__h2">Что подтвердилось</h2>
-          <p className="hint rf__factsHint">
-            Нажмите один раз — «было на месте», второй — «не было». Это то, что видят следующие
-            гости рядом с описанием хозяина.
-          </p>
+          <h2 className="rf__h2">{t('factsHeading')}</h2>
+          <p className="hint rf__factsHint">{t('factsHint')}</p>
           <div className="rf__facts">
             {facts.map((f) => {
               const state = f.code in confirmed ? (confirmed[f.code] ? 'yes' : 'no') : 'unset';
+              const stateLabel = state === 'yes' ? t('factStateYes') : state === 'no' ? t('factStateNo') : t('factStateUnset');
               return (
                 <button
                   key={f.code}
@@ -194,7 +191,7 @@ export function ReviewForm({
                   className="rf__fact"
                   data-state={state}
                   onClick={() => cycleFact(f.code)}
-                  aria-label={`${f.label}: ${state === 'yes' ? 'было на месте' : state === 'no' ? 'не было' : 'не отмечено'}`}
+                  aria-label={`${f.label}: ${stateLabel}`}
                 >
                   {state === 'yes' && <Icon name="check" size={13} />}
                   {state === 'no' && <Icon name="close" size={13} />}
@@ -208,8 +205,8 @@ export function ReviewForm({
 
       <section className="rf__block">
         <h2 className="rf__h2">
-          Комментарий{' '}
-          <span className="rf__optional">{needsExplanation ? '— обязательно' : '— по желанию'}</span>
+          {t('commentHeading')}{' '}
+          <span className="rf__optional">{needsExplanation ? t('commentRequiredSuffix') : t('commentOptionalSuffix')}</span>
         </h2>
         <textarea
           className="textarea"
@@ -218,29 +215,20 @@ export function ReviewForm({
           value={body}
           onChange={(e) => setBody(e.target.value)}
           aria-invalid={fieldError.body ? 'true' : undefined}
-          placeholder={
-            role === 'TENANT'
-              ? 'Что стоит знать следующему гостю: что понравилось, что удивило.'
-              : 'Что стоит знать другим хозяевам об этом арендаторе.'
-          }
+          placeholder={role === 'TENANT' ? t('commentPlaceholderTenant') : t('commentPlaceholderLandlord')}
         />
         {needsExplanation && body.trim().length < MIN_TEXT_FOR_LOW_RATING && (
-          <p className="hint">
-            Низкая оценка публикуется только с пояснением — осталось{' '}
-            {MIN_TEXT_FOR_LOW_RATING - body.trim().length} символов.
-          </p>
+          <p className="hint">{t('lowRatingHint', { count: MIN_TEXT_FOR_LOW_RATING - body.trim().length })}</p>
         )}
         {fieldError.body && <p className="error-text">{fieldError.body}</p>}
       </section>
 
       <section className="rf__block">
-        <h2 className="rf__h2">
-          {role === 'TENANT' ? 'Снимете это жильё снова?' : 'Пустите этого арендатора снова?'}
-        </h2>
+        <h2 className="rf__h2">{role === 'TENANT' ? t('rentAgainTenantHeading') : t('rentAgainLandlordHeading')}</h2>
         <div className="rf__yesno">
           {[
-            { value: true, label: 'Да' },
-            { value: false, label: 'Нет' },
+            { value: true, label: t('yesLabel') },
+            { value: false, label: t('noLabel') },
           ].map((o) => (
             <button
               key={String(o.value)}
@@ -264,9 +252,9 @@ export function ReviewForm({
 
       <div className="rf__submit">
         <button type="submit" className="btn btn-primary btn-lg" disabled={!canSubmit || busy}>
-          {busy ? 'Отправляем…' : 'Отправить отзыв'}
+          {busy ? t('sendingEllipsis') : t('submitReviewButton')}
         </button>
-        <p className="hint">Опубликованный отзыв нельзя изменить — он часть истории обеих сторон.</p>
+        <p className="hint">{t('reviewImmutableHint')}</p>
       </div>
 
       <style>{`
@@ -341,6 +329,7 @@ function Stars({
   label: string;
   size?: 'md' | 'lg';
 }) {
+  const t = useTranslations('Booking');
   return (
     <span className="st" data-size={size} role="group" aria-label={label}>
       {[1, 2, 3, 4, 5].map((n) => (
@@ -350,7 +339,7 @@ function Stars({
           className="st__btn"
           data-on={n <= value}
           aria-pressed={n === value}
-          aria-label={`${label}: ${n} из 5`}
+          aria-label={t('starRatingAriaLabel', { label, n })}
           onClick={() => onChange(n)}
         >
           <Icon name="star" size={size === 'lg' ? 28 : 20} solid={n <= value} />

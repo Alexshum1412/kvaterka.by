@@ -1,4 +1,5 @@
-import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
+import { Link } from '@/i18n/navigation.ts';
 import { CornflowerMark } from './brand.tsx';
 
 /**
@@ -13,7 +14,8 @@ import { CornflowerMark } from './brand.tsx';
  * not, and that is the one thing on this page that may never be trimmed for
  * looks.
  */
-export function SiteFooter() {
+export async function SiteFooter() {
+  const t = await getTranslations('Footer');
   return (
     <footer className="ftr">
       <div className="container ftr__inner">
@@ -28,99 +30,80 @@ export function SiteFooter() {
           </div>
 
           <div className="ftr__col">
-            <h2 className="ftr__head">Арендаторам</h2>
+            <h2 className="ftr__head">{t('tenantsHeading')}</h2>
             <ul className="ftr__list">
               <li>
                 <Link href="/search" className="ftr__link">
-                  Поиск жилья
+                  {t('searchLink')}
                 </Link>
               </li>
               <li>
                 <Link href="/how-it-works" className="ftr__link">
-                  Как это работает
+                  {t('howItWorksLink')}
                 </Link>
               </li>
               <li>
                 <Link href="/trust" className="ftr__link">
-                  Проверка и доверие
+                  {t('trustLink')}
                 </Link>
               </li>
             </ul>
           </div>
 
           <div className="ftr__col">
-            <h2 className="ftr__head">Хозяевам</h2>
+            <h2 className="ftr__head">{t('hostsHeading')}</h2>
             <ul className="ftr__list">
               <li>
                 <Link href="/host" className="ftr__link">
-                  Сдать жильё
+                  {t('hostLink')}
                 </Link>
               </li>
               <li>
                 <Link href="/host/fees" className="ftr__link">
-                  Сервисный сбор
+                  {t('feesLink')}
                 </Link>
               </li>
             </ul>
           </div>
 
           <div className="ftr__col">
-            <h2 className="ftr__head">Платформа</h2>
+            <h2 className="ftr__head">{t('platformHeading')}</h2>
             <ul className="ftr__list">
               <li>
                 <Link href="/about" className="ftr__link">
-                  О нас
+                  {t('aboutLink')}
                 </Link>
               </li>
               <li>
                 <Link href="/faq" className="ftr__link">
-                  Вопросы и ответы
+                  {t('faqLink')}
                 </Link>
               </li>
               <li>
                 <Link href="/terms" className="ftr__link">
-                  Условия использования
+                  {t('termsLink')}
                 </Link>
               </li>
               <li>
                 <Link href="/privacy" className="ftr__link">
-                  Обработка данных
+                  {t('privacyLink')}
                 </Link>
               </li>
               <li>
                 <Link href="/support" className="ftr__link">
-                  Поддержка
+                  {t('supportLink')}
                 </Link>
               </li>
             </ul>
           </div>
         </div>
 
-        <p className="ftr__legal">
-          Кватэрка.by — площадка для размещения объявлений и общения между хозяином и арендатором.
-          Платформа не является стороной договора аренды и не принимает арендную плату: расчёты
-          стороны ведут между собой напрямую. Сервисный сбор 5% платит хозяин после подтверждённой
-          сделки.
-        </p>
+        <p className="ftr__legal">{t('legal')}</p>
 
         <div className="ftr__bottom">
-          <p className="ftr__copy">© {new Date().getFullYear()} Кватэрка.by · Беларусь</p>
-
-          {/* Honest about what exists: only Russian is actually wired up.
-              BE/EN are shown so people know it's coming, not so they can click
-              it — faking a working switcher would be worse than saying nothing. */}
-          <div className="ftr__lang" aria-label="Язык интерфейса">
-            <span className="ftr__lang-pill ftr__lang-pill--active" aria-current="true">
-              RU
-            </span>
-            <span className="ftr__lang-pill ftr__lang-pill--soon" title="Скоро">
-              BE
-            </span>
-            <span className="ftr__lang-pill ftr__lang-pill--soon" title="Скоро">
-              EN
-            </span>
-            <span className="ftr__lang-note">скоро</span>
-          </div>
+          {/* The language switcher lives in the header now — always above
+              the fold, not something to scroll all the way down to find. */}
+          <p className="ftr__copy">{t('copyright', { year: new Date().getFullYear() })}</p>
         </div>
       </div>
 
@@ -190,40 +173,6 @@ export function SiteFooter() {
         }
         .ftr__copy {
           font-size: var(--text-xs);
-          color: var(--text-tertiary);
-        }
-
-        .ftr__lang {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.3rem;
-        }
-        .ftr__lang-pill {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-width: 1.75rem;
-          padding: 0.2rem 0.4rem;
-          border-radius: var(--radius-sm);
-          font-size: var(--text-2xs);
-          font-weight: 650;
-          letter-spacing: 0.02em;
-        }
-        .ftr__lang-pill--active {
-          background: var(--primary-soft);
-          color: var(--primary);
-        }
-        /* Not a control: reduced opacity and a not-allowed cursor say plainly
-           that these two don't do anything yet, rather than dressing up an
-           inert label as a button. */
-        .ftr__lang-pill--soon {
-          color: var(--text-tertiary);
-          opacity: 0.55;
-          cursor: not-allowed;
-        }
-        .ftr__lang-note {
-          margin-left: 0.125rem;
-          font-size: var(--text-2xs);
           color: var(--text-tertiary);
         }
 

@@ -1,0 +1,88 @@
+{
+  "Account": {
+    "meta": {
+      "title": "Profile & Security"
+    },
+    "header": {
+      "title": "Profile & Security",
+      "lede": "Personal details, password, active sessions, notifications, and account closure — all in one place."
+    },
+    "profile": {
+      "title": "Profile",
+      "loading": "Loading your profile…",
+      "loadError": "Couldn't load your profile",
+      "retryButton": "Retry",
+      "displayNameLabel": "Name",
+      "displayNamePlaceholder": "How should we address you",
+      "localeLabel": "Interface language",
+      "localeHint": "The language the platform shows you by default — independent of the language this page is currently open in.",
+      "localeRu": "Русский",
+      "localeBe": "Беларуская",
+      "localeEn": "English",
+      "companyNameLabel": "Company name",
+      "companyNamePlaceholder": "As stated in your company's documents",
+      "saveButton": "Save",
+      "savingButton": "Saving…",
+      "savedNotice": "Changes saved",
+      "saveError": "Couldn't save changes"
+    },
+    "security": {
+      "passwordTitle": "Change password",
+      "currentPasswordLabel": "Current password",
+      "newPasswordLabel": "New password",
+      "newPasswordHint": "At least 10 characters.",
+      "confirmPasswordLabel": "Confirm new password",
+      "passwordMismatch": "Passwords don't match",
+      "changeButton": "Change password",
+      "changingButton": "Changing…",
+      "changeSuccess": "Password changed. We signed out every other session on other devices — this one stays signed in.",
+      "changeError": "Couldn't change password",
+      "sessionsTitle": "Active sessions",
+      "sessionsHint": "Devices and browsers where your account is currently signed in.",
+      "sessionsLoading": "Loading sessions…",
+      "sessionsLoadError": "Couldn't load your sessions",
+      "sessionsEmpty": "No active sessions found",
+      "sessionUnknownDevice": "Unknown device",
+      "sessionLastSeen": "Last active: {date}",
+      "signOutOthersButton": "Sign out everywhere else",
+      "signOutOthersConfirm": "Every session except this one will be signed out. Continue?",
+      "signOutOthersBusy": "Signing out…",
+      "signOutOthersSuccess": "{count, plural, one {Signed out # session} other {Signed out # sessions}}",
+      "signOutOthersError": "Couldn't sign out other sessions"
+    },
+    "notifications": {
+      "title": "What we send",
+      "lede": "Notifications about security, debt, and moderation decisions can't be turned off — they concern your account and your money.",
+      "unavailableSuffix": ". While that's the case, emails and messages aren't sent — everything arrives in the Notifications section instead.",
+      "error": "Couldn't save the setting",
+      "columnEvent": "Event",
+      "lockedSuffix": " (can't be turned off)",
+      "channelInApp": "In your account",
+      "channelEmail": "Email",
+      "channelTelegram": "Telegram"
+    },
+    "closeAccount": {
+      "collapsedTitle": "Close account",
+      "collapsedBody": "Access ends immediately, on every device. Listings come off publication. You won't be able to undo this yourself.",
+      "openButton": "Proceed to closing",
+      "confirmTitle": "Confirmation",
+      "confirmLabel": "Type {phrase} to confirm",
+      "reasonLabel": "Reason — optional, but it helps us",
+      "submitButton": "Close account",
+      "submittingButton": "Closing…",
+      "cancelButton": "Cancel",
+      "error": "Couldn't close the account"
+    },
+    "closure": {
+      "closedTitle": "Account closed",
+      "closedBody": "Access has ended and the profile is hidden from the site. If this is a mistake, contact support.",
+      "whatHappensTitle": "What will happen",
+      "whatDoesNotTitle": "What closing does NOT do",
+      "whatDoesNotBody": "Deleting personal data isn't built yet, and that's deliberate: until it's settled exactly what the platform must keep and for how long, a half-finished deletion is worse than none — it looks complete when it isn't.",
+      "blockedBySuffix": " — waiting on a decision about {reason}",
+      "whatRemainsTitle": "What stays",
+      "debtWarning": "You have an outstanding commission balance. Closing the account doesn't cancel it — and it doesn't block closing either: holding an account hostage over money would be pressure, not data protection.",
+      "cannotCloseTitle": "You can't close it right now"
+    }
+  }
+}

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation.ts';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from '@/ui/icons.tsx';
 
@@ -168,7 +169,7 @@ function qrMatrix(text: string): boolean[][] | null {
   return m.map((row) => row.map((cell) => cell === true));
 }
 
-function QrCode({ text }: { text: string }) {
+function QrCode({ text, alt }: { text: string; alt: string }) {
   const matrix = qrMatrix(text);
   if (!matrix) return null;
   const size = matrix.length;
@@ -181,7 +182,7 @@ function QrCode({ text }: { text: string }) {
       width="220"
       height="220"
       role="img"
-      aria-label="QR-код для приложения-аутентификатора"
+      aria-label={alt}
       className="tfa__qr"
     >
       <rect width={total} height={total} fill="#fff" />
@@ -204,6 +205,7 @@ interface EnrolState {
 }
 
 export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; required: boolean }) {
+  const t = useTranslations('StaffSecurity');
   const router = useRouter();
   const [step, setStep] = useState<'IDLE' | 'SCAN' | 'CODES'>('IDLE');
   const [enrolment, setEnrolment] = useState<EnrolState | null>(null);
@@ -219,8 +221,8 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
       <section className="card tfa__done">
         <Icon name="checkCircle" size={20} />
         <div>
-          <h2>Двухфакторная проверка включена</h2>
-          <p>При входе вы будете вводить код из приложения-аутентификатора.</p>
+          <h2>{t('enabledTitle')}</h2>
+          <p>{t('enabledBody')}</p>
         </div>
       </section>
     );
@@ -236,8 +238,8 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
       const res = await api.post<EnrolState>('/me/2fa/enrol', { password });
       setEnrolment(res);
       setStep('SCAN');
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось начать настройку');
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : t('errorBeginFailed'));
     } finally {
       setBusy(false);
       setPassword('');
@@ -253,7 +255,7 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
       setCodes(res.recoveryCodes);
       setStep('CODES');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Не удалось подтвердить код');
+      setError(err instanceof ApiError ? err.message : t('errorConfirmFailed'));
     } finally {
       setBusy(false);
     }
@@ -262,14 +264,13 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
   if (step === 'CODES') {
     return (
       <section className="card tfa__codes">
-        <h2 className="tfa__h2">Сохраните резервные коды</h2>
+        <h2 className="tfa__h2">{t('codesTitle')}</h2>
         {/* Said BEFORE the list, not after: a person who has already clicked
             past something they are then told was irreplaceable has learned
             nothing useful. */}
         <p className="tfa__warn">
           <Icon name="alert" size={16} />
-          Мы показываем эти коды один раз. Мы храним только их отпечатки и не сможем показать их снова.
-          Каждый код срабатывает один раз — держите их там же, где храните пароли.
+          {t('codesWarning')}
         </p>
         <ul className="tfa__codeList">
           {codes.map((c) => (
@@ -280,18 +281,18 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
         </ul>
         <label className="tfa__confirmSaved">
           <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
-          Я сохранил коды в надёжном месте
+          {t('confirmSavedLabel')}
         </label>
         <button
           type="button"
-          className="btn btn--primary"
+          className="btn btn-primary"
           disabled={!saved}
           onClick={() => {
             router.push('/staff');
             router.refresh();
           }}
         >
-          Готово
+          {t('done')}
         </button>
       </section>
     );
@@ -300,34 +301,31 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
   if (step === 'SCAN' && enrolment) {
     return (
       <section className="card">
-        <h2 className="tfa__h2">Отсканируйте код</h2>
-        <p className="tfa__muted">
-          Откройте приложение-аутентификатор — например, то, которым вы уже пользуетесь для рабочей почты, — и
-          отсканируйте картинку. Затем введите шестизначный код, который оно покажет.
-        </p>
+        <h2 className="tfa__h2">{t('scanTitle')}</h2>
+        <p className="tfa__muted">{t('scanBody')}</p>
 
         <div className="tfa__scan">
-          <QrCode text={enrolment.uri} />
+          <QrCode text={enrolment.uri} alt={t('qrAlt')} />
           {/* Visible, not tucked behind a disclosure. Scanning depends on a
               camera, the lighting and the app; typing sixteen characters
               always works, and a person stuck at this step with no obvious
               alternative simply gives up. */}
           <div className="tfa__manual">
-            <p>Или введите ключ вручную:</p>
+            <p>{t('manualEntry')}</p>
             <code className="tfa__secret">{enrolment.secret}</code>
           </div>
         </div>
 
         <form onSubmit={confirm} className="tfa__form">
           <label className="field">
-            <span className="label">Код из приложения</span>
+            <span className="label">{t('codeFieldLabel')}</span>
             <input
               className="input tfa__code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               inputMode="numeric"
               autoComplete="one-time-code"
-              placeholder="000000"
+              placeholder={t('codePlaceholder')}
               required
             />
           </label>
@@ -336,8 +334,8 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
               {error}
             </p>
           )}
-          <button type="submit" className="btn btn--primary" disabled={busy || code.trim().length < 6}>
-            {busy ? 'Проверяем…' : 'Подтвердить'}
+          <button type="submit" className="btn btn-primary" disabled={busy || code.trim().length < 6}>
+            {busy ? t('checking') : t('confirm')}
           </button>
         </form>
       </section>
@@ -346,15 +344,11 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
 
   return (
     <section className="card">
-      <h2 className="tfa__h2">Включить двухфакторную проверку</h2>
-      <p className="tfa__muted">
-        {required
-          ? 'Для служебного доступа нужен второй фактор: пароля недостаточно, чтобы открыть обращения, документы или финансовые данные. Пока он не настроен, служебные разделы недоступны — ваш обычный аккаунт работает как прежде.'
-          : 'Дополнительная защита аккаунта: при входе понадобится код из приложения.'}
-      </p>
+      <h2 className="tfa__h2">{t('enableTitle')}</h2>
+      <p className="tfa__muted">{required ? t('enableBodyRequired') : t('enableBodyOptional')}</p>
       <form onSubmit={begin} className="tfa__form">
         <label className="field">
-          <span className="label">Подтвердите паролем</span>
+          <span className="label">{t('passwordFieldLabel')}</span>
           <input
             type="password"
             className="input"
@@ -363,18 +357,15 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
             autoComplete="current-password"
             required
           />
-          <span className="hint">
-            Пароль нужен, чтобы никто, кроме вас, не смог привязать свой аутентификатор к вашей
-            учётной записи.
-          </span>
+          <span className="hint">{t('passwordHint')}</span>
         </label>
         {error && (
           <p className="tfa__error" role="alert">
             {error}
           </p>
         )}
-        <button type="submit" className="btn btn--primary" disabled={busy || password.length === 0}>
-          {busy ? 'Готовим…' : 'Настроить'}
+        <button type="submit" className="btn btn-primary" disabled={busy || password.length === 0}>
+          {busy ? t('preparing') : t('setUp')}
         </button>
       </form>
     </section>
@@ -386,6 +377,7 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
  * ------------------------------------------------------------------ */
 
 export function TwoFactorChallenge({ next = '/staff' }: { next?: string }) {
+  const t = useTranslations('StaffSecurity');
   const router = useRouter();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -393,10 +385,8 @@ export function TwoFactorChallenge({ next = '/staff' }: { next?: string }) {
 
   return (
     <section className="card">
-      <h2 className="tfa__h2">Подтвердите вход</h2>
-      <p className="tfa__muted">
-        Введите код из приложения-аутентификатора. Если телефона под рукой нет — введите один из резервных кодов.
-      </p>
+      <h2 className="tfa__h2">{t('challengeTitle')}</h2>
+      <p className="tfa__muted">{t('challengeBody')}</p>
       <form
         className="tfa__form"
         onSubmit={async (e) => {
@@ -408,20 +398,20 @@ export function TwoFactorChallenge({ next = '/staff' }: { next?: string }) {
             router.push(next);
             router.refresh();
           } catch (err) {
-            setError(err instanceof ApiError ? err.message : 'Не удалось подтвердить код');
+            setError(err instanceof ApiError ? err.message : t('errorChallengeFailed'));
             setBusy(false);
           }
         }}
       >
         <label className="field">
-          <span className="field__label">Код</span>
+          <span className="field__label">{t('challengeCodeFieldLabel')}</span>
           <input
             className="input tfa__code"
             value={code}
             onChange={(e) => setCode(e.target.value)}
             inputMode="numeric"
             autoComplete="one-time-code"
-            placeholder="000000"
+            placeholder={t('codePlaceholder')}
             required
             autoFocus
           />
@@ -431,8 +421,8 @@ export function TwoFactorChallenge({ next = '/staff' }: { next?: string }) {
             {error}
           </p>
         )}
-        <button type="submit" className="btn btn--primary" disabled={busy || code.trim().length < 6}>
-          {busy ? 'Проверяем…' : 'Подтвердить'}
+        <button type="submit" className="btn btn-primary" disabled={busy || code.trim().length < 6}>
+          {busy ? t('checking') : t('confirm')}
         </button>
       </form>
     </section>

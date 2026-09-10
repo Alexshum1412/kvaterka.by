@@ -64,6 +64,51 @@ export const NOTIFICATION_CATEGORY_TITLE: Record<string, string> = {
   MODERATION: 'Решение модерации',
 };
 
+const NOTIFICATION_CATEGORY_TITLE_BE: Record<string, string> = {
+  BOOKING_REQUEST: 'Новы запыт на браніраванне',
+  BOOKING_DECISION: 'Рашэнне па браніраванні',
+  BOOKING_REMINDER: 'Напамін пра браніраванне',
+  BOOKING_CANCELLED: 'Браніраванне скасавана',
+  MESSAGE: 'Новае паведамленне',
+  CHECK_IN: 'Засяленне',
+  CHECK_OUT: 'Выезд',
+  COMPLETION_REQUEST: 'Пацвердзіце, што арэнда адбылася',
+  REVIEW_REQUEST: 'Можна пакінуць водгук',
+  REVIEW_PUBLISHED: 'Водгук апублікаваны',
+  DEBT: 'Ёсць запазычанасць па камісіі',
+  VERIFICATION: 'Рашэнне па праверцы',
+  SECURITY: 'Бяспека акаунта',
+  MODERATION: 'Рашэнне мадэрацыі',
+};
+
+const NOTIFICATION_CATEGORY_TITLE_EN: Record<string, string> = {
+  BOOKING_REQUEST: 'New booking request',
+  BOOKING_DECISION: 'Booking decision',
+  BOOKING_REMINDER: 'Booking reminder',
+  BOOKING_CANCELLED: 'Booking cancelled',
+  MESSAGE: 'New message',
+  CHECK_IN: 'Check-in',
+  CHECK_OUT: 'Check-out',
+  COMPLETION_REQUEST: 'Confirm the stay took place',
+  REVIEW_REQUEST: 'You can leave a review',
+  REVIEW_PUBLISHED: 'Review published',
+  DEBT: 'Outstanding commission balance',
+  VERIFICATION: 'Verification decision',
+  SECURITY: 'Account security',
+  MODERATION: 'Moderation decision',
+};
+
+/** Locale-aware sibling of `NOTIFICATION_CATEGORY_TITLE` — same fixed,
+ * closed vocabulary (a notification category is never user-typed text),
+ * same reasoning as the *Localized helpers in src/ui/primitives.tsx. The
+ * RU-only map above stays as the default/fallback and for any caller that
+ * has not been updated to pass a locale (e.g. outbound email subjects,
+ * which are a separate, not-yet-locale-aware concern). */
+export function notificationCategoryTitle(category: string, locale: 'ru' | 'be' | 'en'): string | undefined {
+  const table = locale === 'be' ? NOTIFICATION_CATEGORY_TITLE_BE : locale === 'en' ? NOTIFICATION_CATEGORY_TITLE_EN : NOTIFICATION_CATEGORY_TITLE;
+  return table[category] ?? NOTIFICATION_CATEGORY_TITLE[category];
+}
+
 /**
  * Categories a person is never asked to consent to, and cannot switch off.
  *

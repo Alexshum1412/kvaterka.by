@@ -1,0 +1,20 @@
+{
+  "Footer": {
+    "tenantsHeading": "For tenants",
+    "searchLink": "Search housing",
+    "howItWorksLink": "How it works",
+    "trustLink": "Verification & trust",
+    "hostsHeading": "For hosts",
+    "hostLink": "List your place",
+    "feesLink": "Service fee",
+    "platformHeading": "Platform",
+    "aboutLink": "About us",
+    "faqLink": "FAQ",
+    "termsLink": "Terms of use",
+    "privacyLink": "Data handling",
+    "supportLink": "Support",
+    "legal": "Kvaterka.by is a platform for listing rentals and connecting hosts with tenants. The platform is not a party to the rental agreement and does not collect rent: payment is arranged directly between the parties. A 5% service fee is paid by the host after a confirmed booking.",
+    "copyright": "© {year} Kvaterka.by · Belarus",
+    "languageAria": "Interface language"
+  }
+}

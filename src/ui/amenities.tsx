@@ -1,4 +1,5 @@
-import { AMENITY_CATEGORY, Icon, amenityIcon } from './icons.tsx';
+import { getLocale, getTranslations } from 'next-intl/server';
+import { AMENITY_CATEGORY, Icon, amenityCategoryLabel, amenityIcon } from './icons.tsx';
 
 export interface AmenityRow {
   code: string;
@@ -23,7 +24,7 @@ export interface ConfirmedFact {
  * landlord claims and what guests found are different facts, and merging
  * them would quietly destroy the only evidence a tenant has (spec §35).
  */
-export function Amenities({
+export async function Amenities({
   rows,
   confirmedFacts,
 }: {
@@ -32,6 +33,7 @@ export function Amenities({
 }) {
   if (rows.length === 0) return null;
 
+  const [locale, t] = await Promise.all([getLocale(), getTranslations('ListingDetail')]);
   const facts = confirmedFacts ?? {};
 
   const grouped = new Map<string, AmenityRow[]>();
@@ -45,7 +47,7 @@ export function Amenities({
     .map(([category, items]) => ({
       category,
       items,
-      label: AMENITY_CATEGORY[category]?.label ?? 'Прочее',
+      label: amenityCategoryLabel(category, locale as 'ru' | 'be' | 'en'),
       // An amenity category added to the database before it is added to the
       // vocabulary still renders, at the end, instead of disappearing.
       order: AMENITY_CATEGORY[category]?.order ?? 99,
@@ -72,7 +74,7 @@ export function Amenities({
                     {fact && fact.total > 0 && (
                       <span className="amn__confirm">
                         <Icon name="checkCircle" size={13} />
-                        подтвердили {fact.confirmed} из {fact.total}
+                        {t('amenities.confirmed', { confirmed: fact.confirmed, total: fact.total })}
                       </span>
                     )}
                   </span>
@@ -85,8 +87,7 @@ export function Amenities({
 
       {hasEvidence && (
         <p className="hint amn__note">
-          Отметку «подтвердили» ставят гости после завершённой аренды — это их наблюдение, а не
-          обещание хозяина.
+          {t('amenities.note')}
         </p>
       )}
 

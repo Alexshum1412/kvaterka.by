@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation.ts';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from '@/ui/icons.tsx';
 
@@ -20,41 +21,43 @@ import { Icon } from '@/ui/icons.tsx';
  * case closed by accident.
  */
 
-const ACTION_LABEL: Record<
-  string,
-  { label: string; tone: 'primary' | 'secondary' | 'danger' | 'ghost'; hint: string; reasonLabel?: string }
-> = {
-  TAKE: { label: 'Взять в работу', tone: 'primary', hint: 'Обращение закрепится за вами.' },
-  RESUME: { label: 'Вернуть в работу', tone: 'primary', hint: 'Сторона ответила — продолжаем разбор.' },
+const ACTION_TONE: Record<string, 'primary' | 'secondary' | 'danger' | 'ghost'> = {
+  TAKE: 'primary',
+  RESUME: 'primary',
+  REQUEST_INFORMATION: 'secondary',
+  ESCALATE: 'secondary',
+  RESOLVE: 'primary',
+  CLOSE: 'ghost',
+  REOPEN: 'secondary',
+};
+
+const ACTION_KEYS: Record<string, { label: string; hint: string; reasonLabel?: string }> = {
+  TAKE: { label: 'actionTakeLabel', hint: 'actionTakeHint' },
+  RESUME: { label: 'actionResumeLabel', hint: 'actionResumeHint' },
   REQUEST_INFORMATION: {
-    label: 'Запросить информацию',
-    tone: 'secondary',
-    hint: 'Сторона получит уведомление с вашим текстом.',
-    reasonLabel: 'Что нужно уточнить — этот текст увидит сторона',
+    label: 'actionRequestInfoLabel',
+    hint: 'actionRequestInfoHint',
+    reasonLabel: 'actionRequestInfoReasonLabel',
   },
   ESCALATE: {
-    label: 'Передать выше',
-    tone: 'secondary',
-    hint: 'Решение примет администратор.',
-    reasonLabel: 'Почему передаёте',
+    label: 'actionEscalateLabel',
+    hint: 'actionEscalateHint',
+    reasonLabel: 'actionEscalateReasonLabel',
   },
   RESOLVE: {
-    label: 'Принять решение',
-    tone: 'primary',
-    hint: 'Обращение закрывается с записанным решением.',
-    reasonLabel: 'Решение по обращению',
+    label: 'actionResolveLabel',
+    hint: 'actionResolveHint',
+    reasonLabel: 'actionResolveReasonLabel',
   },
   CLOSE: {
-    label: 'Закрыть без решения',
-    tone: 'ghost',
-    hint: 'Дубликат, отозвано или вне зоны ответственности платформы.',
-    reasonLabel: 'Почему закрываете',
+    label: 'actionCloseLabel',
+    hint: 'actionCloseHint',
+    reasonLabel: 'actionCloseReasonLabel',
   },
   REOPEN: {
-    label: 'Открыть заново',
-    tone: 'secondary',
-    hint: 'История прежнего решения сохранится.',
-    reasonLabel: 'Почему открываете заново',
+    label: 'actionReopenLabel',
+    hint: 'actionReopenHint',
+    reasonLabel: 'actionReopenReasonLabel',
   },
 };
 
@@ -99,6 +102,7 @@ export function DisputeActions({
   bookingId: string | null;
   bookingStatus: string | null;
 }) {
+  const t = useTranslations('Disputes');
   const router = useRouter();
   const [open, setOpen] = useState<string | null>(null);
   const [reason, setReason] = useState('');
@@ -106,6 +110,21 @@ export function DisputeActions({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<'COMPLETED' | 'NOT_TAKEN_PLACE' | 'CANCELLED' | ''>('');
+
+  const ACTION_LABEL: Record<
+    string,
+    { label: string; tone: 'primary' | 'secondary' | 'danger' | 'ghost'; hint: string; reasonLabel?: string }
+  > = Object.fromEntries(
+    Object.entries(ACTION_KEYS).map(([action, k]) => [
+      action,
+      {
+        label: t(k.label),
+        tone: ACTION_TONE[action]!,
+        hint: t(k.hint),
+        reasonLabel: k.reasonLabel ? t(k.reasonLabel) : undefined,
+      },
+    ]),
+  );
 
   function done() {
     setOpen(null);
@@ -139,7 +158,7 @@ export function DisputeActions({
       );
       done();
     } catch (e) {
-      fail(e, 'Не удалось выполнить действие');
+      fail(e, t('errorActionFailed'));
     }
   }
 
@@ -153,7 +172,7 @@ export function DisputeActions({
       setBusy(false);
       router.refresh();
     } catch (e) {
-      fail(e, 'Не удалось сохранить заметку');
+      fail(e, t('errorNoteFailed'));
     }
   }
 
@@ -165,7 +184,7 @@ export function DisputeActions({
       setBusy(false);
       router.refresh();
     } catch (e) {
-      fail(e, 'Не удалось назначить исполнителя');
+      fail(e, t('errorAssignFailed'));
     }
   }
 
@@ -182,11 +201,17 @@ export function DisputeActions({
       setOutcome('');
       done();
     } catch (e) {
-      fail(e, 'Не удалось применить решение к бронированию');
+      fail(e, t('errorOutcomeFailed'));
     }
   }
 
   const pending = open ? ACTION_LABEL[open] : null;
+
+  const OUTCOME_CHOICES = [
+    { value: 'COMPLETED' as const, label: t('outcomeCompletedLabel'), detail: t('outcomeCompletedDetail') },
+    { value: 'NOT_TAKEN_PLACE' as const, label: t('outcomeNotTakenLabel'), detail: t('outcomeNotTakenDetail') },
+    { value: 'CANCELLED' as const, label: t('outcomeCancelledLabel'), detail: t('outcomeCancelledDetail') },
+  ];
 
   return (
     <div className="da">
@@ -194,7 +219,7 @@ export function DisputeActions({
         <div className="da__form">
           <h3 className="title-sm">{pending.label}</h3>
           <label className="field">
-            <span className="label">{pending.reasonLabel ?? 'Причина'}</span>
+            <span className="label">{pending.reasonLabel ?? t('defaultReasonLabel')}</span>
             <textarea
               className="textarea"
               rows={4}
@@ -203,14 +228,12 @@ export function DisputeActions({
               onChange={(e) => setReason(e.target.value)}
               placeholder={
                 open === 'REQUEST_INFORMATION'
-                  ? 'Например: пришлите, пожалуйста, фотографии комнаты на момент заселения.'
-                  : 'Что вы установили и на каком основании.'
+                  ? t('reasonPlaceholderRequestInfo')
+                  : t('reasonPlaceholderDefault')
               }
             />
             <span className="hint">
-              {open === 'REQUEST_INFORMATION'
-                ? 'Этот текст уходит стороне в уведомлении.'
-                : 'Останется во внутренней истории обращения. Стороны видят решение, а не переписку сотрудников.'}
+              {open === 'REQUEST_INFORMATION' ? t('reasonHintRequestInfo') : t('reasonHintDefault')}
             </span>
           </label>
           <div className="da__row">
@@ -223,7 +246,7 @@ export function DisputeActions({
               }}
               disabled={busy}
             >
-              Отмена
+              {t('cancelButton')}
             </button>
             <button
               type="button"
@@ -231,7 +254,7 @@ export function DisputeActions({
               disabled={busy || reason.trim().length < 3}
               onClick={() => void run(open, false)}
             >
-              {busy ? 'Сохраняем…' : pending.label}
+              {busy ? t('savingButton') : pending.label}
             </button>
           </div>
         </div>
@@ -255,9 +278,7 @@ export function DisputeActions({
           })}
           {actions.length === 0 && (
             <p className="text-sm muted">
-              {canHandle
-                ? 'По этому обращению сейчас нет доступных действий.'
-                : 'У вас нет прав на изменение обращений — только просмотр.'}
+              {canHandle ? t('noActionsHandle') : t('noActionsView')}
             </p>
           )}
         </div>
@@ -267,17 +288,10 @@ export function DisputeActions({
           a case is bookkeeping, deciding a booking moves money. */}
       {canResolve && bookingId && bookingStatus === 'DISPUTED' && !open && (
         <div className="da__outcome">
-          <h3 className="title-sm">Решение по бронированию</h3>
-          <p className="hint">
-            Бронирование заморожено, сервисный сбор не начисляется. Выберите, что произошло на самом
-            деле — последствия рассчитает домен по замороженным условиям брони. Ввести сумму нельзя.
-          </p>
+          <h3 className="title-sm">{t('outcomeTitle')}</h3>
+          <p className="hint">{t('outcomeHint')}</p>
           <div className="da__outcomeChoices">
-            {[
-              { value: 'COMPLETED' as const, label: 'Аренда состоялась', detail: 'Начислится сервисный сбор, откроются отзывы.' },
-              { value: 'NOT_TAKEN_PLACE' as const, label: 'Аренда не состоялась', detail: 'Сбор не начисляется, даты освобождаются.' },
-              { value: 'CANCELLED' as const, label: 'Считать отменой', detail: 'Бронирование закрывается как отменённое.' },
-            ].map((o) => (
+            {OUTCOME_CHOICES.map((o) => (
               <button
                 key={o.value}
                 type="button"
@@ -293,19 +307,19 @@ export function DisputeActions({
           {outcome && (
             <>
               <label className="field">
-                <span className="label">Основание решения</span>
+                <span className="label">{t('outcomeReasonLabel')}</span>
                 <textarea
                   className="textarea"
                   rows={3}
                   maxLength={2000}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="Что подтверждает этот вывод."
+                  placeholder={t('outcomeReasonPlaceholder')}
                 />
               </label>
               <div className="da__row">
                 <button type="button" className="btn btn-ghost" onClick={() => setOutcome('')} disabled={busy}>
-                  Отмена
+                  {t('cancelButton')}
                 </button>
                 <button
                   type="button"
@@ -313,7 +327,7 @@ export function DisputeActions({
                   disabled={busy || reason.trim().length < 3}
                   onClick={() => void decideBooking()}
                 >
-                  {busy ? 'Применяем…' : 'Применить к бронированию'}
+                  {busy ? t('outcomeApplying') : t('outcomeApplyButton')}
                 </button>
               </div>
             </>
@@ -324,18 +338,18 @@ export function DisputeActions({
       {canHandle && !open && (
         <div className="da__assign">
           <label className="field">
-            <span className="label">Исполнитель</span>
+            <span className="label">{t('assignLabel')}</span>
             <select
               className="select"
               value={assignedTo ?? ''}
               disabled={busy}
               onChange={(e) => void assign(e.target.value || null)}
             >
-              <option value="">Без исполнителя</option>
+              <option value="">{t('assignNone')}</option>
               {assignableStaff.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.displayName}
-                  {s.id === currentUserId ? ' (вы)' : ''}
+                  {s.id === currentUserId ? t('assignYouSuffix') : ''}
                 </option>
               ))}
             </select>
@@ -346,19 +360,16 @@ export function DisputeActions({
       {canHandle && !open && (
         <div className="da__note">
           <label className="field">
-            <span className="label">Внутренняя заметка</span>
+            <span className="label">{t('noteLabel')}</span>
             <textarea
               className="textarea"
               rows={3}
               maxLength={4000}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Что вы проверили, что осталось сделать."
+              placeholder={t('notePlaceholder')}
             />
-            <span className="hint">
-              Видна только сотрудникам. Не попадает в переписку сторон и не удаляется — история
-              обращения только дополняется.
-            </span>
+            <span className="hint">{t('noteHint')}</span>
           </label>
           <div className="da__row">
             <button
@@ -367,7 +378,7 @@ export function DisputeActions({
               disabled={busy || note.trim().length < 2}
               onClick={() => void saveNote()}
             >
-              {busy ? 'Сохраняем…' : 'Добавить заметку'}
+              {busy ? t('noteSaving') : t('noteSaveButton')}
             </button>
           </div>
         </div>

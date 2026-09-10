@@ -1,0 +1,32 @@
+{
+  "StaffReports": {
+    "title": "Жалобы",
+    "subtitle": "Жалобы от пользователей — на объявления, профили, сообщения и отзывы.",
+    "badgeQueue": "В очереди",
+    "notice": "Этот список сам не решает жалобы. Каждая ведёт на экран, где решение действительно принимается.",
+    "emptyTitle": "Жалоб нет",
+    "emptyBody": "Открытых жалоб в очереди не осталось.",
+    "targetTypeProperty": "Объявление",
+    "targetTypeUser": "Пользователь",
+    "targetTypeMessage": "Сообщение",
+    "targetTypeReview": "Отзыв",
+    "statusOpen": "Новая",
+    "statusReviewing": "На рассмотрении",
+    "detailNone": "Без комментария",
+    "reporterLabel": "Пожаловался:",
+    "targetLabel": "Объект:",
+    "goToProperty": "К объявлению",
+    "goToUser": "К профилю",
+    "goToReviewsQueue": "К очереди отзывов",
+    "goToMessagesQueue": "К очереди сообщений",
+    "reviewsHint": "Прямой ссылки на этот отзыв нет — найдите его в очереди по автору или тексту.",
+    "categorySpam": "Спам",
+    "categoryAbuse": "Оскорбления",
+    "categoryFraud": "Мошенничество",
+    "categoryOffPlatform": "Уводит с площадки",
+    "categoryOther": "Другое",
+    "categoryFalseInformation": "Недостоверная информация",
+    "categoryPrivateData": "Личные данные",
+    "categoryNotAboutStay": "Не про проживание"
+  }
+}

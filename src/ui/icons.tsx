@@ -140,6 +140,12 @@ const PATHS = {
   phone: ['M7.5 3h9A1.5 1.5 0 0 1 18 4.5v15a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19.5v-15A1.5 1.5 0 0 1 7.5 3Z', 'M10.4 17.4h3.2'],
   shield: ['M12 3 5 6v5.4c0 4.2 2.9 8.2 7 9.6 4.1-1.4 7-5.4 7-9.6V6Z'],
   door: ['M6 21V4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21', 'M4 21h16', 'M14.5 12.4h.01'],
+  logOut: ['M9 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3', 'M21 12H9', 'm16.5 7.5 4.5 4.5-4.5 4.5'],
+  sun: [
+    'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z',
+    'M12 2.5v2.4M12 19.1v2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7',
+  ],
+  moon: ['M20.8 14.3A8.6 8.6 0 1 1 9.7 3.2a7 7 0 0 0 11.1 11.1Z'],
   baby: ['M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0', 'M9.4 11h.01M14.6 11h.01', 'M9.8 15.2a3.6 3.6 0 0 0 4.4 0'],
   accessible: [
     'M13.8 5.2a1.6 1.6 0 1 1-3.2 0 1.6 1.6 0 0 1 3.2 0',
@@ -232,6 +238,33 @@ export const AMENITY_CATEGORY: Record<string, { label: string; order: number; ic
   ACCESSIBILITY: { label: 'Доступность', order: 7, icon: 'accessible' },
   SAFETY: { label: 'Безопасность', order: 8, icon: 'alarm' },
 };
+
+/** Locale-aware sibling of `AMENITY_CATEGORY`'s label — same fixed 8-key
+ * vocabulary, same reasoning as primitives.tsx's `propertyTypeLabel`. */
+const AMENITY_CATEGORY_LABEL_BE: Record<string, string> = {
+  ESSENTIALS: 'Асноўнае',
+  KITCHEN: 'Кухня',
+  BATHROOM: 'Ванная і пральня',
+  WORK: 'Праца і адпачынак',
+  BUILDING: 'Дом і двор',
+  FAMILY: 'З дзецьмі',
+  ACCESSIBILITY: 'Даступнасць',
+  SAFETY: 'Бяспека',
+};
+const AMENITY_CATEGORY_LABEL_EN: Record<string, string> = {
+  ESSENTIALS: 'Essentials',
+  KITCHEN: 'Kitchen',
+  BATHROOM: 'Bathroom & laundry',
+  WORK: 'Work & leisure',
+  BUILDING: 'Building & yard',
+  FAMILY: 'Family-friendly',
+  ACCESSIBILITY: 'Accessibility',
+  SAFETY: 'Safety',
+};
+export function amenityCategoryLabel(key: string, locale: 'ru' | 'be' | 'en'): string {
+  const table = locale === 'be' ? AMENITY_CATEGORY_LABEL_BE : locale === 'en' ? AMENITY_CATEGORY_LABEL_EN : null;
+  return table?.[key] ?? AMENITY_CATEGORY[key]?.label ?? key;
+}
 
 /**
  * Amenities a tenant actually decides on, in the order they decide.

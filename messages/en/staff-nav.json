@@ -1,0 +1,21 @@
+{
+  "StaffNav": {
+    "navAria": "Operations",
+    "overview": "Overview",
+    "disputes": "Disputes",
+    "moderation": "Moderation",
+    "verification": "Verification",
+    "retention": "Retention",
+    "reports": "Reports",
+    "reviews": "Reviews",
+    "messages": "Messages",
+    "users": "Users",
+    "metrics": "Metrics",
+    "featureFlags": "Flags",
+    "auditLog": "Audit log",
+    "security": "Security",
+    "yourRoles": "Your roles",
+    "withheldNotice": "Staff access ({roles}) is closed until the second factor is confirmed.",
+    "confirm": "Confirm"
+  }
+}

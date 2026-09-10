@@ -1,0 +1,43 @@
+{
+  "StaffSecurity": {
+    "metaTitle": "Security",
+    "title": "Security",
+    "ledeStaff": "You have staff access. It only unlocks after a second factor — a password isn't enough.",
+    "ledeDefault": "Extra protection for your account.",
+    "withheldTitle": "Staff sections are currently locked",
+    "withheldEnrolled": "Confirm sign-in with a code from the app — the sections will reopen in this same session.",
+    "withheldNotEnrolled": "Until a second factor is set up, staff sections are unavailable. Your regular account — trips, listings, messages — works as usual.",
+
+    "qrAlt": "QR code for an authenticator app",
+    "enabledTitle": "Two-factor verification is on",
+    "enabledBody": "You'll enter a code from an authenticator app when signing in.",
+    "errorBeginFailed": "Couldn't start setup",
+    "errorConfirmFailed": "Couldn't confirm the code",
+    "errorChallengeFailed": "Couldn't confirm the code",
+
+    "codesTitle": "Save your recovery codes",
+    "codesWarning": "We show these codes once. We only store their fingerprints and can't show them again. Each code works once — keep them wherever you keep your passwords.",
+    "confirmSavedLabel": "I've saved the codes somewhere safe",
+    "done": "Done",
+
+    "scanTitle": "Scan the code",
+    "scanBody": "Open an authenticator app — the one you already use for work email, for instance — and scan the image. Then enter the six-digit code it shows.",
+    "manualEntry": "Or enter the key manually:",
+    "codeFieldLabel": "Code from the app",
+    "codePlaceholder": "000000",
+    "checking": "Checking…",
+    "confirm": "Confirm",
+
+    "enableTitle": "Turn on two-factor verification",
+    "enableBodyRequired": "Staff access needs a second factor: a password alone isn't enough to open cases, documents, or financial data. Until it's set up, staff sections are unavailable — your regular account works as before.",
+    "enableBodyOptional": "Extra account protection: signing in will need a code from an app.",
+    "passwordFieldLabel": "Confirm with your password",
+    "passwordHint": "The password is needed so no one but you can link their authenticator to your account.",
+    "preparing": "Preparing…",
+    "setUp": "Set up",
+
+    "challengeTitle": "Confirm sign-in",
+    "challengeBody": "Enter the code from your authenticator app. If your phone isn't handy — enter one of the recovery codes instead.",
+    "challengeCodeFieldLabel": "Code"
+  }
+}

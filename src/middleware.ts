@@ -1,7 +1,21 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
+import createIntlMiddleware from 'next-intl/middleware';
+import { routing } from './i18n/routing.ts';
+
+const handleI18nRouting = createIntlMiddleware(routing);
 
 /**
- * Content Security Policy, with a per-request nonce.
+ * Content Security Policy, with a per-request nonce — composed with locale
+ * routing (next-intl).
+ *
+ * The nonce has to be set on the REQUEST headers before next-intl runs, not
+ * added to its response afterwards: next-intl builds its own forwarded
+ * headers from `request.headers` internally (`new Headers(request.headers)`,
+ * read from its actual source), and a header added to the response object it
+ * returns never reaches that internal copy. So this middleware rebuilds the
+ * incoming request with `x-nonce` already set, then hands THAT to next-intl,
+ * and only adds the CSP header to the response next-intl produces. Verified
+ * against next-intl's middleware source rather than assumed.
  *
  * The other five headers — HSTS, nosniff, frame denial, Referrer-Policy,
  * Permissions-Policy — are static and live in `next.config.ts`. CSP cannot,
@@ -36,13 +50,22 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const STATIC_ASSET = /^\/(?:_next\/static|_next\/image|favicon\.ico|icon\.svg|robots\.txt|sitemap\.xml)/;
 
-export function middleware(request: NextRequest): NextResponse {
+export default function middleware(request: NextRequest): NextResponse {
   // Static assets are served straight from disk and carry no markup, so a
   // per-request nonce would only defeat their caching.
   if (STATIC_ASSET.test(request.nextUrl.pathname)) return NextResponse.next();
 
   const nonce = crypto.randomUUID().replace(/-/g, '');
   const media = process.env.MEDIA_BUCKET_URL ?? '';
+
+  // Rebuild the request with the nonce already on its headers, so
+  // next-intl's own header-forwarding (rewrite for the unprefixed default
+  // locale, or a plain pass-through for /be/… and /en/…) carries it along.
+  const headersWithNonce = new Headers(request.headers);
+  headersWithNonce.set('x-nonce', nonce);
+  const requestWithNonce = new NextRequest(request, { headers: headersWithNonce });
+
+  const response = handleI18nRouting(requestWithNonce);
 
   const policy = [
     `default-src 'self'`,
@@ -74,13 +97,10 @@ export function middleware(request: NextRequest): NextResponse {
     `upgrade-insecure-requests`,
   ].join('; ');
 
-  /* The nonce travels on the request so the framework can stamp its own
-     scripts with it; browsers ignore 'unsafe-inline' when a nonce is present,
-     so the fallback above is only read by browsers too old for nonces. */
-  const headers = new Headers(request.headers);
-  headers.set('x-nonce', nonce);
-
-  const response = NextResponse.next({ request: { headers } });
+  /* The nonce travels on the request (set above, before next-intl ran) so the
+     framework can stamp its own scripts with it; browsers ignore
+     'unsafe-inline' when a nonce is present, so the fallback above is only
+     read by browsers too old for nonces. */
   response.headers.set('Content-Security-Policy', policy);
   return response;
 }

@@ -1,16 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/navigation.ts';
+import { useLocale, useTranslations } from 'next-intl';
 import { api, ApiError } from '@/lib/api-client.ts';
-import { Icon, AMENITY_CATEGORY, amenityIcon, type IconName } from '@/ui/icons.tsx';
-import { formatNightsGenitive, plural } from '@/ui/primitives.tsx';
+import { Icon, AMENITY_CATEGORY, amenityCategoryLabel, amenityIcon, type IconName } from '@/ui/icons.tsx';
+import { formatNightsGenitiveLocalized } from '@/ui/primitives.tsx';
 import {
   MODERATION_REASON_TEXT,
   firstStepForReasons,
   type ModerationReasonCode,
 } from '@/server/domain/moderation.ts';
 import type { AmenityOption } from '@/ui/search-filters.tsx';
+import type { AppLocale } from '@/i18n/routing.ts';
 
 /**
  * The listing wizard.
@@ -31,66 +33,63 @@ import type { AmenityOption } from '@/ui/search-filters.tsx';
 
 /* ------------------------------------------------------------------ */
 
-const PROPERTY_TYPES: { value: string; label: string; hint: string; icon: IconName }[] = [
-  { value: 'APARTMENT', label: 'Квартира', hint: 'Отдельная квартира целиком', icon: 'home' },
-  { value: 'ROOM', label: 'Комната', hint: 'Комната в квартире или доме', icon: 'door' },
-  { value: 'STUDIO', label: 'Студия', hint: 'Одна комната с кухней', icon: 'rooms' },
-  { value: 'HOUSE', label: 'Дом', hint: 'Частный дом целиком', icon: 'home' },
-  { value: 'COTTAGE', label: 'Коттедж или дача', hint: 'За городом', icon: 'home' },
-  { value: 'TOWNHOUSE', label: 'Таунхаус', hint: 'Секция в блокированном доме', icon: 'floors' },
+/** A plain call signature is enough for every `t()` call this file makes —
+ * the real translator carries more (`.rich`, `.raw`…), and a variable with
+ * extra members is assignable wherever only the call signature is used. */
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+/** Non-text metadata for property types — labels come from ListingWizard.propertyTypes.* via t(). */
+const PROPERTY_TYPE_META: { value: string; icon: IconName }[] = [
+  { value: 'APARTMENT', icon: 'home' },
+  { value: 'ROOM', icon: 'door' },
+  { value: 'STUDIO', icon: 'rooms' },
+  { value: 'HOUSE', icon: 'home' },
+  { value: 'COTTAGE', icon: 'home' },
+  { value: 'TOWNHOUSE', icon: 'floors' },
 ];
 
-/** City centres, so a landlord gets a sensible point without a geocoder. */
-const CITIES: { name: string; latitude: number; longitude: number }[] = [
-  { name: 'Минск', latitude: 53.9023, longitude: 27.5619 },
-  { name: 'Гомель', latitude: 52.4242, longitude: 31.0141 },
-  { name: 'Могилёв', latitude: 53.9006, longitude: 30.3313 },
-  { name: 'Витебск', latitude: 55.1848, longitude: 30.2016 },
-  { name: 'Гродно', latitude: 53.6694, longitude: 23.8131 },
-  { name: 'Брест', latitude: 52.0976, longitude: 23.7341 },
-  { name: 'Бобруйск', latitude: 53.1384, longitude: 29.2214 },
-  { name: 'Барановичи', latitude: 53.1327, longitude: 26.0139 },
-  { name: 'Борисов', latitude: 54.2278, longitude: 28.5053 },
-  { name: 'Пинск', latitude: 52.1229, longitude: 26.0951 },
-  { name: 'Орша', latitude: 54.5081, longitude: 30.4172 },
-  { name: 'Мозырь', latitude: 52.0495, longitude: 29.2456 },
-  { name: 'Солигорск', latitude: 52.7876, longitude: 27.5416 },
-  { name: 'Новополоцк', latitude: 55.5322, longitude: 28.65 },
-  { name: 'Лида', latitude: 53.8886, longitude: 25.2994 },
-  { name: 'Молодечно', latitude: 54.3167, longitude: 26.85 },
+/**
+ * City centres, so a landlord gets a sensible point without a geocoder.
+ *
+ * `name` stays the Russian city name in every locale — it is the exact
+ * string stored on the listing and matched by search-service.ts against
+ * `p.city` (`lower(p.city) = lower(...)`). Only the visible option label,
+ * looked up by `key` via ListingWizard.cities.*, is localized.
+ */
+const CITIES: { name: string; key: string; latitude: number; longitude: number }[] = [
+  { name: 'Минск', key: 'minsk', latitude: 53.9023, longitude: 27.5619 },
+  { name: 'Гомель', key: 'gomel', latitude: 52.4242, longitude: 31.0141 },
+  { name: 'Могилёв', key: 'mogilev', latitude: 53.9006, longitude: 30.3313 },
+  { name: 'Витебск', key: 'vitebsk', latitude: 55.1848, longitude: 30.2016 },
+  { name: 'Гродно', key: 'grodno', latitude: 53.6694, longitude: 23.8131 },
+  { name: 'Брест', key: 'brest', latitude: 52.0976, longitude: 23.7341 },
+  { name: 'Бобруйск', key: 'bobruisk', latitude: 53.1384, longitude: 29.2214 },
+  { name: 'Барановичи', key: 'baranovichi', latitude: 53.1327, longitude: 26.0139 },
+  { name: 'Борисов', key: 'borisov', latitude: 54.2278, longitude: 28.5053 },
+  { name: 'Пинск', key: 'pinsk', latitude: 52.1229, longitude: 26.0951 },
+  { name: 'Орша', key: 'orsha', latitude: 54.5081, longitude: 30.4172 },
+  { name: 'Мозырь', key: 'mozyr', latitude: 52.0495, longitude: 29.2456 },
+  { name: 'Солигорск', key: 'soligorsk', latitude: 52.7876, longitude: 27.5416 },
+  { name: 'Новополоцк', key: 'novopolotsk', latitude: 55.5322, longitude: 28.65 },
+  { name: 'Лида', key: 'lida', latitude: 53.8886, longitude: 25.2994 },
+  { name: 'Молодечно', key: 'molodechno', latitude: 54.3167, longitude: 26.85 },
 ];
 
-const SMOKING = [
-  { value: 'PROHIBITED', label: 'Запрещено' },
-  { value: 'BALCONY_ONLY', label: 'Только на балконе' },
-  { value: 'ALLOWED', label: 'Разрешено' },
-];
-const PETS = [
-  { value: 'PROHIBITED', label: 'Нельзя' },
-  { value: 'ON_REQUEST', label: 'По согласованию' },
-  { value: 'SMALL_ONLY', label: 'Только небольшие' },
-  { value: 'ALLOWED', label: 'Можно' },
+const SMOKING_CODES = ['PROHIBITED', 'BALCONY_ONLY', 'ALLOWED'] as const;
+const PETS_CODES = ['PROHIBITED', 'ON_REQUEST', 'SMALL_ONLY', 'ALLOWED'] as const;
+
+/** Lengths a landlord actually thinks in, expressed in nights. Display text
+ * (always the genitive-plural noun, e.g. "ночей") comes from
+ * ListingWizard.durationUnits.* via t(). */
+const DURATION_UNITS: { code: 'NIGHT' | 'WEEK' | 'MONTH' | 'YEAR'; nights: number }[] = [
+  { code: 'NIGHT', nights: 1 },
+  { code: 'WEEK', nights: 7 },
+  { code: 'MONTH', nights: 30 },
+  { code: 'YEAR', nights: 365 },
 ];
 
-/** Lengths a landlord actually thinks in, expressed in nights. */
-const DURATION_UNITS: { label: string; nights: number }[] = [
-  { label: 'ночь', nights: 1 },
-  { label: 'неделя', nights: 7 },
-  { label: 'месяц', nights: 30 },
-  { label: 'год', nights: 365 },
-];
-
-const BOOKING_MODES = [
-  { value: 'REQUEST', label: 'По запросу', hint: 'Вы подтверждаете каждое бронирование' },
-  { value: 'INSTANT', label: 'Мгновенно', hint: 'Гость бронирует сразу, без подтверждения' },
-  { value: 'INSTANT_AND_REQUEST', label: 'Оба варианта', hint: 'Гость выбирает сам' },
-];
-
-const UTILITIES = [
-  { value: 'INCLUDED', label: 'Входят в цену' },
-  { value: 'FIXED_EXTRA', label: 'Фиксированная доплата' },
-  { value: 'VARIABLE_METERED', label: 'По счётчику' },
-];
+const BOOKING_MODE_CODES = ['REQUEST', 'INSTANT', 'INSTANT_AND_REQUEST'] as const;
+const UTILITIES_CODES = ['INCLUDED', 'FIXED_EXTRA', 'VARIABLE_METERED'] as const;
 
 /* ------------------------------------------------------------------ */
 
@@ -111,16 +110,16 @@ interface Photo {
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
-const STEPS = [
-  'Что сдаёте',
-  'Где',
-  'Фотографии',
-  'О квартире',
-  'Удобства',
-  'Правила',
-  'Срок аренды',
-  'Цена',
-  'Предпросмотр',
+const STEP_KEYS = [
+  'type',
+  'location',
+  'photos',
+  'details',
+  'amenities',
+  'rules',
+  'duration',
+  'price',
+  'preview',
 ] as const;
 
 export function ListingWizard({
@@ -131,6 +130,25 @@ export function ListingWizard({
   amenities: readonly AmenityOption[];
 }) {
   const router = useRouter();
+  const t = useTranslations('ListingWizard');
+  const locale = useLocale() as AppLocale;
+  const STEPS = useMemo(() => STEP_KEYS.map((key) => t(`steps.${key}`)), [t]);
+  const SMOKING = useMemo(
+    () => SMOKING_CODES.map((code) => ({ value: code, label: t(`smoking.${code}`) })),
+    [t],
+  );
+  const PETS = useMemo(
+    () => PETS_CODES.map((code) => ({ value: code, label: t(`pets.${code}`) })),
+    [t],
+  );
+  const BOOKING_MODES = useMemo(
+    () => BOOKING_MODE_CODES.map((code) => ({ value: code, label: t(`bookingModes.${code}.label`), hint: t(`bookingModes.${code}.hint`) })),
+    [t],
+  );
+  const UTILITIES = useMemo(
+    () => UTILITIES_CODES.map((code) => ({ value: code, label: t(`utilities.${code}`) })),
+    [t],
+  );
   const [id, setId] = useState<string | null>(listing?.id ?? null);
   const [draft, setDraft] = useState<Draft>(() => ({ ...(listing ?? {}) }));
   const [photos, setPhotos] = useState<Photo[]>(
@@ -168,9 +186,9 @@ export function ListingWizard({
       // The edit stays in `pending` conceptually — it is still in `draft`,
       // so a later save carries it. The landlord is told, not ignored.
       setSaveState('error');
-      setError(e instanceof ApiError ? e.message : 'Не удалось сохранить');
+      setError(e instanceof ApiError ? e.message : t('errors.saveFailed'));
     }
-  }, [id]);
+  }, [id, t]);
 
   const patch = useCallback(
     (changes: Draft) => {
@@ -204,12 +222,12 @@ export function ListingWizard({
       setStep(1);
     } catch (e) {
       setSaveState('error');
-      setError(e instanceof ApiError ? e.message : 'Не удалось создать черновик');
+      setError(e instanceof ApiError ? e.message : t('errors.draftFailed'));
     }
   }
 
   async function go(next: number) {
-    const problem = validate(step, draft, photos);
+    const problem = validate(step, draft, photos, t);
     if (problem && next > step) {
       setError(problem);
       return;
@@ -233,7 +251,7 @@ export function ListingWizard({
       await api.post(`/listings/${id}/submit`, {});
       router.push('/dashboard?submitted=1');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось отправить на проверку');
+      setError(e instanceof ApiError ? e.message : t('errors.submitFailed'));
       setSubmitting(false);
     }
   }
@@ -251,7 +269,7 @@ export function ListingWizard({
         const response = await fetch('/api/uploads', { method: 'POST', body, credentials: 'same-origin' });
         const payload = await response.json();
         if (!response.ok) {
-          setError(payload?.error?.message ?? 'Не удалось загрузить фотографию');
+          setError(payload?.error?.message ?? t('errors.photoUploadFailed'));
           continue;
         }
         setPhotos((list) => [
@@ -259,7 +277,7 @@ export function ListingWizard({
           { id: payload.id, storageKey: payload.storageKey, isCover: list.length === 0 },
         ]);
       } catch {
-        setError('Не удалось загрузить фотографию');
+        setError(t('errors.photoUploadFailed'));
       }
     }
   }
@@ -275,7 +293,7 @@ export function ListingWizard({
         return rest;
       });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось удалить фотографию');
+      setError(e instanceof ApiError ? e.message : t('errors.photoRemoveFailed'));
     }
   }
 
@@ -284,13 +302,13 @@ export function ListingWizard({
       await api.post(`/listings/${id}/photos/${photoId}/cover`, {});
       setPhotos((list) => list.map((p) => ({ ...p, isCover: p.id === photoId })));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось выбрать главное фото');
+      setError(e instanceof ApiError ? e.message : t('errors.photoCoverFailed'));
     }
   }
 
   /* --- render ------------------------------------------------------ */
 
-  const groupedAmenities = useMemo(() => groupAmenities(amenities), [amenities]);
+  const groupedAmenities = useMemo(() => groupAmenities(amenities, locale), [amenities, locale]);
   const chosen: string[] = draft.amenities ?? [];
   const progress = Math.round(((step + 1) / STEPS.length) * 100);
 
@@ -299,18 +317,18 @@ export function ListingWizard({
       <header className="wz__top">
         <div className="wz__topRow">
           {/* Saves before leaving, so this is a safe exit at every width —
-              the bottom bar drops its own "Сохранить и выйти" on a phone. */}
+              the bottom bar drops its own translated exit label on a phone. */}
           <button type="button" className="wz__back" onClick={() => void saveAndExit()}>
             <Icon name="arrowLeft" size={16} />
-            Сохранить и выйти
+            {t('saveAndExit')}
           </button>
           <SaveBadge state={saveState} />
         </div>
-        <div className="wz__progress" role="progressbar" aria-valuenow={step + 1} aria-valuemin={1} aria-valuemax={STEPS.length} aria-label={`Шаг ${step + 1} из ${STEPS.length}`}>
+        <div className="wz__progress" role="progressbar" aria-valuenow={step + 1} aria-valuemin={1} aria-valuemax={STEPS.length} aria-label={t('stepAriaLabel', { step: step + 1, total: STEPS.length })}>
           <span className="wz__progressFill" style={{ width: `${progress}%` }} />
         </div>
         <p className="wz__stepLabel">
-          Шаг {step + 1} из {STEPS.length} · {STEPS[step]}
+          {t('stepLabel', { step: step + 1, total: STEPS.length, name: STEPS[step] ?? '' })}
         </p>
       </header>
 
@@ -319,12 +337,12 @@ export function ListingWizard({
           <aside className="wz__rejected" role="status">
             <div className="wz__rejectedHead">
               <Icon name="alert" size={18} />
-              <strong>Модератор попросил исправить объявление</strong>
+              <strong>{t('rejected.heading')}</strong>
               <button
                 type="button"
                 className="wz__rejectedClose"
                 onClick={() => setNoticeOpen(false)}
-                aria-label="Скрыть замечания"
+                aria-label={t('rejected.hideAria')}
               >
                 <Icon name="close" size={15} />
               </button>
@@ -338,49 +356,49 @@ export function ListingWizard({
                     className="link wz__jump"
                     onClick={() => void go(firstStepForReasons([code]))}
                   >
-                    Перейти к шагу
+                    {t('rejected.jumpToStep')}
                   </button>
                 </li>
               ))}
             </ul>
             {typeof draft.moderatorComment === 'string' && draft.moderatorComment && (
-              <p className="wz__rejectedComment">«{draft.moderatorComment}»</p>
+              <p className="wz__rejectedComment">{t('rejected.comment', { comment: draft.moderatorComment })}</p>
             )}
             <p className="hint">
-              Исправьте и отправьте объявление снова — заполнять всё заново не нужно.
+              {t('rejected.footer')}
             </p>
           </aside>
         )}
 
         {step === 0 && (
-          <Step title="Что вы сдаёте?" lead="С этого начнём — остальное можно заполнять постепенно.">
+          <Step title={t('step0.title')} lead={t('step0.lead')}>
             <div className="wz__cards">
-              {PROPERTY_TYPES.map((t) => (
+              {PROPERTY_TYPE_META.map((pt) => (
                 <button
-                  key={t.value}
+                  key={pt.value}
                   type="button"
                   className="wz__card"
-                  aria-pressed={draft.propertyType === t.value}
-                  onClick={() => (id ? patch({ propertyType: t.value }) : void start(t.value))}
+                  aria-pressed={draft.propertyType === pt.value}
+                  onClick={() => (id ? patch({ propertyType: pt.value }) : void start(pt.value))}
                 >
-                  <Icon name={t.icon} size={22} />
-                  <span className="wz__cardLabel">{t.label}</span>
-                  <span className="wz__cardHint">{t.hint}</span>
+                  <Icon name={pt.icon} size={22} />
+                  <span className="wz__cardLabel">{t(`propertyTypes.${pt.value}.label`)}</span>
+                  <span className="wz__cardHint">{t(`propertyTypes.${pt.value}.hint`)}</span>
                 </button>
               ))}
             </div>
             {id && draft.propertyType && (
-              <p className="hint">Черновик сохранён. Вы можете вернуться к нему в любой момент.</p>
+              <p className="hint">{t('step0.draftSaved')}</p>
             )}
           </Step>
         )}
 
         {step === 1 && (
           <Step
-            title="Где находится жильё?"
-            lead="Точный адрес не показывается в объявлении. На карте гости увидят приблизительную точку в радиусе нескольких сотен метров."
+            title={t('step1.title')}
+            lead={t('step1.lead')}
           >
-            <Field label="Город">
+            <Field label={t('step1.cityLabel')}>
               <select
                 className="select"
                 value={draft.city ?? ''}
@@ -393,40 +411,39 @@ export function ListingWizard({
                   );
                 }}
               >
-                <option value="">Выберите город</option>
+                <option value="">{t('step1.cityPlaceholder')}</option>
                 {CITIES.map((c) => (
                   <option key={c.name} value={c.name}>
-                    {c.name}
+                    {t(`cities.${c.key}`)}
                   </option>
                 ))}
               </select>
             </Field>
 
-            <Field label="Район" hint="Необязательно, но помогает гостям сориентироваться">
+            <Field label={t('step1.districtLabel')} hint={t('step1.districtHint')}>
               <input
                 className="input"
                 value={draft.district ?? ''}
                 onChange={(e) => patch({ district: e.target.value })}
-                placeholder="Центральный"
+                placeholder={t('step1.districtPlaceholder')}
               />
             </Field>
 
             <details className="wz__details">
-              <summary>Точный адрес — только для подтверждённых бронирований</summary>
+              <summary>{t('step1.exactAddressSummary')}</summary>
               <div className="wz__detailsBody">
                 <p className="hint">
-                  Улицу и дом видят только гости с подтверждённым бронированием. До этого адрес
-                  скрыт даже от тех, кто вам написал.
+                  {t('step1.exactAddressHint')}
                 </p>
                 <div className="wz__pair">
-                  <Field label="Улица">
+                  <Field label={t('step1.streetLabel')}>
                     <input
                       className="input"
                       value={draft.street ?? ''}
                       onChange={(e) => patch({ street: e.target.value })}
                     />
                   </Field>
-                  <Field label="Дом">
+                  <Field label={t('step1.houseLabel')}>
                     <input
                       className="input"
                       value={draft.houseNumber ?? ''}
@@ -434,7 +451,7 @@ export function ListingWizard({
                     />
                   </Field>
                 </div>
-                <Field label="Квартира" hint="Не передаётся никому до подтверждения брони">
+                <Field label={t('step1.apartmentLabel')} hint={t('step1.apartmentHint')}>
                   <input
                     className="input"
                     value={draft.apartmentNumber ?? ''}
@@ -447,8 +464,10 @@ export function ListingWizard({
             {draft.latitude != null && (
               <p className="wz__note">
                 <Icon name="pin" size={16} />
-                Приблизительная точка: {Number(draft.latitude).toFixed(3)},{' '}
-                {Number(draft.longitude).toFixed(3)}
+                {t('step1.approxPoint', {
+                  lat: Number(draft.latitude).toFixed(3),
+                  lng: Number(draft.longitude).toFixed(3),
+                })}
               </p>
             )}
           </Step>
@@ -456,8 +475,8 @@ export function ListingWizard({
 
         {step === 2 && (
           <Step
-            title="Фотографии"
-            lead="Первое фото будет главным в объявлении. Хорошие снимки помогают гостям понять, подходит ли им квартира."
+            title={t('step2.title')}
+            lead={t('step2.lead')}
           >
             <label className="wz__drop">
               <input
@@ -468,8 +487,8 @@ export function ListingWizard({
                 onChange={(e) => void upload(e.target.files)}
               />
               <Icon name="image" size={26} />
-              <span className="wz__dropTitle">Выберите фотографии</span>
-              <span className="wz__dropHint">JPEG, PNG или WebP, до 10 МБ каждая</span>
+              <span className="wz__dropTitle">{t('step2.dropTitle')}</span>
+              <span className="wz__dropHint">{t('step2.dropHint')}</span>
             </label>
 
             {photos.length > 0 && (
@@ -478,18 +497,18 @@ export function ListingWizard({
                   <li key={p.id} className="wz__photo">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={`/media/${p.storageKey}`} alt="" loading="lazy" />
-                    {p.isCover && <span className="wz__cover">Главное</span>}
+                    {p.isCover && <span className="wz__cover">{t('step2.cover')}</span>}
                     <div className="wz__photoActions">
                       {!p.isCover && (
                         <button type="button" className="btn btn-secondary btn-sm" onClick={() => void makeCover(p.id)}>
-                          Сделать главным
+                          {t('step2.makeCover')}
                         </button>
                       )}
                       <button
                         type="button"
                         className="btn btn-ghost btn-sm"
                         onClick={() => void removePhoto(p.id)}
-                        aria-label="Удалить фотографию"
+                        aria-label={t('step2.removeAria')}
                       >
                         <Icon name="close" size={15} />
                       </button>
@@ -499,52 +518,50 @@ export function ListingWizard({
               </ul>
             )}
             <p className="hint">
-              {photos.length === 0
-                ? 'Нужна хотя бы одна фотография, чтобы отправить объявление на проверку.'
-                : `${photos.length} ${plural(photos.length, 'фотография', 'фотографии', 'фотографий')}.`}
+              {photos.length === 0 ? t('step2.needOne') : t('step2.count', { count: photos.length })}
             </p>
           </Step>
         )}
 
         {step === 3 && (
-          <Step title="Расскажите о квартире" lead="Эти данные гости используют в фильтрах, поэтому их стоит заполнить точно.">
-            <Field label="Название объявления" hint="От 8 до 120 символов. Это заголовок, который увидят гости.">
+          <Step title={t('step3.title')} lead={t('step3.lead')}>
+            <Field label={t('step3.titleLabel')} hint={t('step3.titleHint')}>
               <input
                 className="input"
                 value={draft.title ?? ''}
                 maxLength={120}
                 onChange={(e) => patch({ title: e.target.value })}
-                placeholder="Светлая двушка у метро Немига"
+                placeholder={t('step3.titlePlaceholder')}
               />
             </Field>
 
             <div className="wz__grid">
-              <Field label="Комнат">
+              <Field label={t('step3.roomsLabel')}>
                 <NumberInput value={draft.rooms} min={0} max={30} onChange={(v) => patch({ rooms: v })} />
               </Field>
-              <Field label="Площадь, м²">
+              <Field label={t('step3.areaLabel')}>
                 <NumberInput value={draft.areaSqm} min={1} max={9999} onChange={(v) => patch({ areaSqm: v })} />
               </Field>
-              <Field label="Этаж">
+              <Field label={t('step3.floorLabel')}>
                 <NumberInput value={draft.floor} min={-5} max={200} onChange={(v) => patch({ floor: v })} />
               </Field>
-              <Field label="Этажей в доме">
+              <Field label={t('step3.totalFloorsLabel')}>
                 <NumberInput value={draft.totalFloors} min={1} max={200} onChange={(v) => patch({ totalFloors: v })} />
               </Field>
-              <Field label="Спальных мест">
+              <Field label={t('step3.bedsLabel')}>
                 <NumberInput value={draft.beds} min={0} max={50} onChange={(v) => patch({ beds: v })} />
               </Field>
-              <Field label="Санузлов">
+              <Field label={t('step3.bathroomsLabel')}>
                 <NumberInput value={draft.bathrooms} min={0} max={20} onChange={(v) => patch({ bathrooms: v })} />
               </Field>
-              <Field label="Максимум гостей">
+              <Field label={t('step3.maxGuestsLabel')}>
                 <NumberInput value={draft.maxGuests} min={1} max={50} onChange={(v) => patch({ maxGuests: v })} />
               </Field>
             </div>
 
             <Field
-              label="Описание"
-              hint="Расскажите о квартире: что в ней удобно, что находится рядом, кому она особенно подойдёт."
+              label={t('step3.descriptionLabel')}
+              hint={t('step3.descriptionHint')}
             >
               <textarea
                 className="textarea"
@@ -558,7 +575,7 @@ export function ListingWizard({
         )}
 
         {step === 4 && (
-          <Step title="Что есть в квартире?" lead="Отметьте то, что действительно есть — гости подтверждают удобства после проживания.">
+          <Step title={t('step4.title')} lead={t('step4.lead')}>
             {groupedAmenities.map((group) => (
               <fieldset key={group.category} className="wz__set">
                 <legend className="wz__legend">{group.label}</legend>
@@ -589,40 +606,40 @@ export function ListingWizard({
         )}
 
         {step === 5 && (
-          <Step title="Правила проживания" lead="Понятные правила снижают число неподходящих запросов.">
+          <Step title={t('step5.title')} lead={t('step5.lead')}>
             <Choice
-              label="Курение"
+              label={t('step5.smokingLabel')}
               options={SMOKING}
               value={draft.smokingPolicy ?? 'PROHIBITED'}
               onChange={(v) => patch({ smokingPolicy: v })}
             />
             <Choice
-              label="Животные"
+              label={t('step5.petsLabel')}
               options={PETS}
               value={draft.petsPolicy ?? 'PROHIBITED'}
               onChange={(v) => patch({ petsPolicy: v })}
             />
             <Choice
-              label="Дети"
+              label={t('step5.childrenLabel')}
               options={[
-                { value: 'yes', label: 'Можно' },
-                { value: 'no', label: 'Не подходит' },
+                { value: 'yes', label: t('step5.childrenYes') },
+                { value: 'no', label: t('step5.childrenNo') },
               ]}
               value={draft.childrenAllowed === false ? 'no' : 'yes'}
               onChange={(v) => patch({ childrenAllowed: v === 'yes' })}
             />
             <Choice
-              label="Вечеринки и мероприятия"
+              label={t('step5.partiesLabel')}
               options={[
-                { value: 'no', label: 'Запрещены' },
-                { value: 'yes', label: 'Разрешены' },
+                { value: 'no', label: t('step5.partiesNo') },
+                { value: 'yes', label: t('step5.partiesYes') },
               ]}
               value={draft.partiesAllowed ? 'yes' : 'no'}
               onChange={(v) => patch({ partiesAllowed: v === 'yes' })}
             />
 
             <div className="wz__pair">
-              <Field label="Заезд с">
+              <Field label={t('step5.checkInLabel')}>
                 <input
                   type="time"
                   className="input"
@@ -630,7 +647,7 @@ export function ListingWizard({
                   onChange={(e) => patch({ checkInFrom: e.target.value })}
                 />
               </Field>
-              <Field label="Выезд до">
+              <Field label={t('step5.checkOutLabel')}>
                 <input
                   type="time"
                   className="input"
@@ -641,7 +658,7 @@ export function ListingWizard({
             </div>
 
             <div className="wz__pair">
-              <Field label="Тихие часы с" hint="Необязательно">
+              <Field label={t('step5.quietFromLabel')} hint={t('step5.quietFromHint')}>
                 <input
                   type="time"
                   className="input"
@@ -649,7 +666,7 @@ export function ListingWizard({
                   onChange={(e) => patch({ quietHoursFrom: e.target.value || undefined })}
                 />
               </Field>
-              <Field label="до">
+              <Field label={t('step5.quietToLabel')}>
                 <input
                   type="time"
                   className="input"
@@ -670,36 +687,36 @@ export function ListingWizard({
         )}
 
         {step === 7 && (
-          <Step title="Цена" lead="Гость видит итоговую сумму до бронирования, поэтому важно указать всё, что входит в оплату.">
+          <Step title={t('step7.title')} lead={t('step7.lead')}>
             <Choice
-              label="Как считаем цену"
+              label={t('step7.priceModeLabel')}
               options={[
-                { value: 'NIGHT', label: 'За ночь' },
-                { value: 'MONTH', label: 'За месяц' },
+                { value: 'NIGHT', label: t('step7.priceModeNight') },
+                { value: 'MONTH', label: t('step7.priceModeMonth') },
               ]}
               value={draft.priceUnit ?? 'NIGHT'}
               onChange={(v) => patch({ priceUnit: v })}
             />
 
             <Field
-              label={draft.priceUnit === 'MONTH' ? 'Цена за месяц, BYN' : 'Цена за ночь, BYN'}
-              hint="Основная ставка. Скидки на длительное проживание можно настроить позже."
+              label={draft.priceUnit === 'MONTH' ? t('step7.priceLabelMonth') : t('step7.priceLabelNight')}
+              hint={t('step7.priceHint')}
             >
               <MoneyInput value={draft.basePriceMinor} onChange={(v) => patch({ basePriceMinor: v })} />
             </Field>
 
-            <Field label="Обязательная уборка, BYN" hint="Разовая сумма. Оставьте пустым, если её нет.">
+            <Field label={t('step7.cleaningLabel')} hint={t('step7.cleaningHint')}>
               <MoneyInput value={draft.cleaningFeeMinor} onChange={(v) => patch({ cleaningFeeMinor: v })} />
             </Field>
 
             <Choice
-              label="Коммунальные платежи"
+              label={t('step7.utilitiesLabel')}
               options={UTILITIES}
               value={draft.utilitiesMode ?? 'INCLUDED'}
               onChange={(v) => patch({ utilitiesMode: v })}
             />
             {draft.utilitiesMode === 'FIXED_EXTRA' && (
-              <Field label="Доплата за коммунальные, BYN">
+              <Field label={t('step7.utilitiesExtraLabel')}>
                 <MoneyInput
                   value={draft.utilitiesFixedMinor}
                   onChange={(v) => patch({ utilitiesFixedMinor: v })}
@@ -708,17 +725,16 @@ export function ListingWizard({
             )}
             {draft.utilitiesMode === 'VARIABLE_METERED' && (
               <p className="hint">
-                Гостю будет показано «по счётчику» — платформа не станет придумывать сумму, которую
-                нельзя посчитать заранее.
+                {t('step7.utilitiesMeteredHint')}
               </p>
             )}
 
-            <Field label="Залог, BYN" hint="Возвращается при выезде. Оставьте пустым, если залога нет.">
+            <Field label={t('step7.depositLabel')} hint={t('step7.depositHint')}>
               <MoneyInput value={draft.depositMinor} onChange={(v) => patch({ depositMinor: v })} />
             </Field>
 
             <Choice
-              label="Как гости бронируют"
+              label={t('step7.bookingModeLabel')}
               options={BOOKING_MODES}
               value={draft.bookingMode ?? 'REQUEST'}
               onChange={(v) => patch({ bookingMode: v })}
@@ -731,9 +747,9 @@ export function ListingWizard({
                 onChange={(e) => patch({ negotiationEnabled: e.target.checked })}
               />
               <span>
-                <strong>Цена обсуждается</strong>
+                <strong>{t('step7.negotiationTitle')}</strong>
                 <span className="hint">
-                  Гость сможет предложить свои условия, а вы — принять или отклонить.
+                  {t('step7.negotiationHint')}
                 </span>
               </span>
             </label>
@@ -741,7 +757,7 @@ export function ListingWizard({
         )}
 
         {step === 8 && (
-          <Step title="Проверьте объявление" lead="Так его увидят гости. Любой шаг можно поправить.">
+          <Step title={t('step8.title')} lead={t('step8.lead')}>
             <PreviewSummary
               draft={draft}
               photos={photos}
@@ -751,8 +767,7 @@ export function ListingWizard({
 
             <div className="wz__submit">
               <p className="hint">
-                После отправки объявление проверит модератор. Мы сообщим о результате — сроки
-                проверки зависят от очереди.
+                {t('step8.submitHint')}
               </p>
               <button
                 type="button"
@@ -760,7 +775,7 @@ export function ListingWizard({
                 disabled={submitting || !id}
                 onClick={() => void submit()}
               >
-                {submitting ? 'Отправляем…' : 'Отправить на проверку'}
+                {submitting ? t('step8.submitting') : t('step8.submit')}
               </button>
             </div>
           </Step>
@@ -774,16 +789,16 @@ export function ListingWizard({
         )}
       </main>
 
-      <nav className="wz__nav" aria-label="Навигация по шагам">
+      <nav className="wz__nav" aria-label={t('navAriaLabel')}>
         <button type="button" className="btn btn-ghost" onClick={() => void go(step - 1)} disabled={step === 0}>
-          Назад
+          {t('back')}
         </button>
         <button type="button" className="btn btn-secondary wz__exit" onClick={() => void saveAndExit()} disabled={!id}>
-          Сохранить и выйти
+          {t('saveAndExit')}
         </button>
         {step < STEPS.length - 1 && (
           <button type="button" className="btn btn-primary" onClick={() => void go(step + 1)} disabled={!id}>
-            Далее
+            {t('next')}
           </button>
         )}
       </nav>
@@ -1011,11 +1026,12 @@ function MoneyInput({ value, onChange }: { value: unknown; onChange: (minor: str
 }
 
 function SaveBadge({ state }: { state: SaveState }) {
+  const t = useTranslations('ListingWizard');
   if (state === 'idle') return null;
   const config = {
-    saving: { text: 'Сохраняем…', icon: 'clock' as IconName, tone: 'var(--text-tertiary)' },
-    saved: { text: 'Сохранено', icon: 'checkCircle' as IconName, tone: 'var(--success)' },
-    error: { text: 'Не удалось сохранить', icon: 'alert' as IconName, tone: 'var(--error)' },
+    saving: { text: t('saveState.saving'), icon: 'clock' as IconName, tone: 'var(--text-tertiary)' },
+    saved: { text: t('saveState.saved'), icon: 'checkCircle' as IconName, tone: 'var(--success)' },
+    error: { text: t('errors.saveFailed'), icon: 'alert' as IconName, tone: 'var(--error)' },
   }[state];
   return (
     <span className="wz__save" style={{ color: config.tone }} role="status">
@@ -1037,6 +1053,13 @@ function SaveBadge({ state }: { state: SaveState }) {
  * segment plus a count gives the same expressiveness with none of the
  * precision problem, and the sentence underneath is the real feedback.
  */
+const DURATION_PRESETS = [
+  { key: 'presetDailyOnly', min: 1, max: 14 },
+  { key: 'presetDailyAndMonth', min: 1, max: 90 },
+  { key: 'presetFromMonth', min: 30, max: 365 },
+  { key: 'presetLongTermOnly', min: 180, max: 365 * 3 },
+] as const;
+
 function DurationStep({
   minNights,
   maxNights,
@@ -1046,43 +1069,40 @@ function DurationStep({
   maxNights: number;
   onChange: (min: number, max: number) => void;
 }) {
+  const t = useTranslations('ListingWizard');
+  const locale = useLocale() as AppLocale;
   const invalid = maxNights < minNights;
   return (
-    <Step
-      title="На какой срок сдаёте?"
-      lead="Кватэрка работает и на сутки, и на год. Укажите границы — гости увидят только подходящие им варианты."
-    >
+    <Step title={t('step6.title')} lead={t('step6.lead')}>
       <div className="wz__pair">
-        <DurationPicker label="Минимум" nights={minNights} onChange={(n) => onChange(n, maxNights)} />
-        <DurationPicker label="Максимум" nights={maxNights} onChange={(n) => onChange(minNights, n)} />
+        <DurationPicker label={t('step6.minLabel')} nights={minNights} onChange={(n) => onChange(n, maxNights)} />
+        <DurationPicker label={t('step6.maxLabel')} nights={maxNights} onChange={(n) => onChange(minNights, n)} />
       </div>
 
       {invalid ? (
         <p className="error-text" role="alert">
-          Максимальный срок не может быть меньше минимального.
+          {t('errors.invalidDuration')}
         </p>
       ) : (
         <p className="wz__note">
           <Icon name="calendar" size={16} />
-          Можно снять от {formatNightsGenitive(minNights)} до {formatNightsGenitive(maxNights)}.
+          {t('step6.rangeNote', {
+            min: formatNightsGenitiveLocalized(minNights, locale),
+            max: formatNightsGenitiveLocalized(maxNights, locale),
+          })}
         </p>
       )}
 
       <div className="wz__chips">
-        {[
-          { label: 'Только посуточно', min: 1, max: 14 },
-          { label: 'Посуточно и на месяц', min: 1, max: 90 },
-          { label: 'От месяца', min: 30, max: 365 },
-          { label: 'Только долгосрочно', min: 180, max: 365 * 3 },
-        ].map((p) => (
+        {DURATION_PRESETS.map((p) => (
           <button
-            key={p.label}
+            key={p.key}
             type="button"
             className="chip chip-sm"
             aria-pressed={minNights === p.min && maxNights === p.max}
             onClick={() => onChange(p.min, p.max)}
           >
-            {p.label}
+            {t(`step6.${p.key}`)}
           </button>
         ))}
       </div>
@@ -1099,6 +1119,7 @@ function DurationPicker({
   nights: number;
   onChange: (nights: number) => void;
 }) {
+  const t = useTranslations('ListingWizard');
   const unit = bestUnit(nights);
   const count = Math.max(1, Math.round(nights / unit.nights));
   return (
@@ -1111,7 +1132,7 @@ function DurationPicker({
           min={1}
           max={999}
           value={count}
-          aria-label={`${label}: количество`}
+          aria-label={t('step6.quantityAria', { label })}
           onChange={(e) => {
             const n = Number(e.target.value);
             if (Number.isFinite(n) && n >= 1) onChange(clampNights(n * unit.nights));
@@ -1119,16 +1140,16 @@ function DurationPicker({
         />
         <select
           className="select"
-          value={unit.label}
-          aria-label={`${label}: единица`}
+          value={unit.code}
+          aria-label={t('step6.unitAria', { label })}
           onChange={(e) => {
-            const next = DURATION_UNITS.find((u) => u.label === e.target.value);
+            const next = DURATION_UNITS.find((u) => u.code === e.target.value);
             if (next) onChange(clampNights(count * next.nights));
           }}
         >
           {DURATION_UNITS.map((u) => (
-            <option key={u.label} value={u.label}>
-              {u.label === 'ночь' ? 'ночей' : u.label === 'неделя' ? 'недель' : u.label === 'месяц' ? 'месяцев' : 'лет'}
+            <option key={u.code} value={u.code}>
+              {t(`durationUnits.${u.code}`)}
             </option>
           ))}
         </select>
@@ -1148,37 +1169,57 @@ function PreviewSummary({
   amenities: readonly AmenityOption[];
   onEdit: (step: number) => void;
 }) {
+  const t = useTranslations('ListingWizard');
+  const locale = useLocale() as AppLocale;
   const cover = photos.find((p) => p.isCover) ?? photos[0];
   const names = new Map(amenities.map((a) => [a.code, a.name_ru]));
   const chosen: string[] = draft.amenities ?? [];
   const price = draft.basePriceMinor ? Math.round(Number(draft.basePriceMinor) / 100) : null;
+  const dash = t('preview.dash');
+  const propertyType = PROPERTY_TYPE_META.find((pt) => pt.value === draft.propertyType);
 
   const rows: { step: number; label: string; value: string }[] = [
-    { step: 0, label: 'Тип', value: PROPERTY_TYPES.find((t) => t.value === draft.propertyType)?.label ?? '—' },
-    { step: 1, label: 'Город', value: draft.district ? `${draft.city} · ${draft.district}` : (draft.city ?? '—') },
-    { step: 2, label: 'Фотографии', value: photos.length > 0 ? `${photos.length}` : 'нет' },
+    {
+      step: 0,
+      label: t('preview.typeRow'),
+      value: propertyType ? t(`propertyTypes.${propertyType.value}.label`) : dash,
+    },
+    { step: 1, label: t('preview.cityRow'), value: draft.district ? `${draft.city} · ${draft.district}` : (draft.city ?? dash) },
+    { step: 2, label: t('preview.photosRow'), value: photos.length > 0 ? `${photos.length}` : t('preview.photosNone') },
     {
       step: 3,
-      label: 'Параметры',
+      label: t('preview.paramsRow'),
       value:
         [
-          draft.rooms != null && `${draft.rooms} ${plural(Number(draft.rooms), 'комната', 'комнаты', 'комнат')}`,
-          draft.areaSqm != null && `${Math.round(Number(draft.areaSqm))} м²`,
-          draft.floor != null && draft.totalFloors != null && `${draft.floor}/${draft.totalFloors} эт.`,
+          draft.rooms != null && t('preview.roomsCount', { count: Number(draft.rooms) }),
+          draft.areaSqm != null && `${Math.round(Number(draft.areaSqm))} ${t('preview.areaUnit')}`,
+          draft.floor != null && draft.totalFloors != null && `${draft.floor}/${draft.totalFloors} ${t('preview.floorShort')}`,
         ]
           .filter(Boolean)
-          .join(' · ') || '—',
+          .join(' · ') || dash,
     },
-    { step: 4, label: 'Удобства', value: chosen.length ? chosen.slice(0, 4).map((c) => names.get(c) ?? c).join(', ') + (chosen.length > 4 ? ` и ещё ${chosen.length - 4}` : '') : '—' },
+    {
+      step: 4,
+      label: t('preview.amenitiesRow'),
+      value: chosen.length
+        ? chosen.slice(0, 4).map((c) => names.get(c) ?? c).join(', ') +
+          (chosen.length > 4 ? ` ${t('preview.amenitiesMore', { count: chosen.length - 4 })}` : '')
+        : dash,
+    },
     {
       step: 6,
-      label: 'Срок',
-      value: `от ${formatNightsGenitive(Number(draft.minNights ?? 1))} до ${formatNightsGenitive(Number(draft.maxNights ?? 365))}`,
+      label: t('preview.durationRow'),
+      value: t('preview.durationValue', {
+        min: formatNightsGenitiveLocalized(Number(draft.minNights ?? 1), locale),
+        max: formatNightsGenitiveLocalized(Number(draft.maxNights ?? 365), locale),
+      }),
     },
     {
       step: 7,
-      label: 'Цена',
-      value: price ? `${price} BYN ${draft.priceUnit === 'MONTH' ? 'в месяц' : 'за ночь'}` : '—',
+      label: t('preview.priceRow'),
+      value: price
+        ? `${price} BYN ${draft.priceUnit === 'MONTH' ? t('preview.pricePerMonth') : t('preview.pricePerNight')}`
+        : dash,
     },
   ];
 
@@ -1192,28 +1233,30 @@ function PreviewSummary({
           ) : (
             <span className="pv__nophoto">
               <Icon name="image" size={22} />
-              Нет фотографий
+              {t('preview.noPhotos')}
             </span>
           )}
         </div>
         <div className="pv__body">
-          <h2 className="pv__title">{draft.title || 'Без названия'}</h2>
+          <h2 className="pv__title">{draft.title || t('preview.noTitle')}</h2>
           <p className="pv__price numeric">
-            {price ? `${price} BYN` : 'Цена не указана'}{' '}
-            <span className="pv__unit">{price ? (draft.priceUnit === 'MONTH' ? '/ месяц' : '/ ночь') : ''}</span>
+            {price ? `${price} BYN` : t('preview.noPrice')}{' '}
+            <span className="pv__unit">
+              {price ? (draft.priceUnit === 'MONTH' ? t('preview.perMonth') : t('preview.perNight')) : ''}
+            </span>
           </p>
-          <p className="pv__place">{draft.district ? `${draft.city} · ${draft.district}` : draft.city || '—'}</p>
+          <p className="pv__place">{draft.district ? `${draft.city} · ${draft.district}` : draft.city || dash}</p>
         </div>
       </article>
 
       <dl className="pv__rows">
         {rows.map((r) => (
-          <div key={r.label} className="pv__row">
+          <div key={r.step} className="pv__row">
             <dt>{r.label}</dt>
             <dd>
               <span>{r.value}</span>
               <button type="button" className="link" onClick={() => onEdit(r.step)}>
-                Изменить
+                {t('preview.edit')}
               </button>
             </dd>
           </div>
@@ -1244,7 +1287,7 @@ function PreviewSummary({
 
 /* ------------------------------------------------------------------ */
 
-function groupAmenities(amenities: readonly AmenityOption[]) {
+function groupAmenities(amenities: readonly AmenityOption[], locale: AppLocale) {
   const map = new Map<string, AmenityOption[]>();
   for (const a of amenities) {
     const list = map.get(a.category);
@@ -1255,7 +1298,7 @@ function groupAmenities(amenities: readonly AmenityOption[]) {
     .map(([category, items]) => ({
       category,
       items,
-      label: AMENITY_CATEGORY[category]?.label ?? 'Прочее',
+      label: amenityCategoryLabel(category, locale),
       order: AMENITY_CATEGORY[category]?.order ?? 99,
     }))
     .sort((a, b) => a.order - b.order);
@@ -1278,18 +1321,18 @@ function timeValue(value: unknown, fallback: string): string {
   return value.slice(0, 5);
 }
 
-function validate(step: number, draft: Draft, photos: Photo[]): string | null {
-  if (step === 0 && !draft.propertyType) return 'Выберите, что вы сдаёте.';
-  if (step === 1 && !draft.city) return 'Выберите город.';
-  if (step === 2 && photos.length === 0) return 'Добавьте хотя бы одну фотографию.';
+function validate(step: number, draft: Draft, photos: Photo[], t: Translate): string | null {
+  if (step === 0 && !draft.propertyType) return t('errors.chooseType');
+  if (step === 1 && !draft.city) return t('errors.chooseCity');
+  if (step === 2 && photos.length === 0) return t('errors.addPhoto');
   if (step === 3) {
     const title = String(draft.title ?? '').trim();
-    if (title.length < 8) return 'Название должно быть не короче 8 символов.';
+    if (title.length < 8) return t('errors.titleTooShort');
   }
   if (step === 6 && Number(draft.maxNights ?? 365) < Number(draft.minNights ?? 1)) {
-    return 'Максимальный срок не может быть меньше минимального.';
+    return t('errors.invalidDuration');
   }
-  if (step === 7 && !draft.basePriceMinor) return 'Укажите цену.';
+  if (step === 7 && !draft.basePriceMinor) return t('errors.setPrice');
   return null;
 }
 

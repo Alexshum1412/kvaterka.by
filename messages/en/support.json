@@ -1,0 +1,39 @@
+{
+  "Support": {
+    "title": "Support",
+    "metaDescription": "What to do when something goes wrong: a booking dispute, verification, account access.",
+    "lede": "Most questions get solved right where the problem happened. Below is where to go for each one.",
+    "booking": {
+      "heading": "A problem with a booking or a stay",
+      "body": "Open the booking card — there's a button to open a dispute. The dispute goes to a staff member, who reviews it using the message history and the check-in/check-out marks. This is the only path that comes with a deadline, an owner, and a recorded decision.",
+      "tripsLink": "My trips",
+      "bookingsLink": "Bookings for my listings"
+    },
+    "verification": {
+      "heading": "A question about profile verification",
+      "body": "If verification was declined, the reason is stated in the decision, and you can usually reapply after fixing what's noted.",
+      "link": "My verification"
+    },
+    "listing": {
+      "heading": "A listing was declined",
+      "body": "The moderator states a reason. Fix the listing and resubmit — it's a note, not a block.",
+      "link": "My listings"
+    },
+    "fee": {
+      "heading": "Fees and outstanding balance",
+      "body": "Every charge shows its basis: which stay it's for and what amount it's based on.",
+      "financeLink": "Finance",
+      "feesLink": "How the fee is calculated"
+    },
+    "data": {
+      "heading": "Data and account",
+      "body": "What's stored about you and what happens when you close your account — on their own pages.",
+      "accountLink": "Account",
+      "privacyLink": "Data and privacy"
+    },
+    "note": {
+      "p1Rich": "<strong>What doesn't exist yet.</strong> A dedicated support channel — email, chat, or a form — doesn't exist on the platform yet, and we won't pretend it does. If your question isn't solved by any of the paths above (for example, you can't sign in to your account), right now it will go unanswered.",
+      "p2": "This is a known gap, not an oversight on this page."
+    }
+  }
+}

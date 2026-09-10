@@ -1,0 +1,29 @@
+{
+  "StaffOverview": {
+    "metaTitle": "Операции",
+    "title": "Операции",
+    "subtitle": "Только то, по чему нужно принять решение.",
+    "noUrgent": "Срочных обращений нет.",
+    "screenNotReady": "Экран ещё не готов — данные доступны через API",
+    "cardPressingLabel": "Требуют внимания сейчас",
+    "cardPressingDetail": "Безопасность, мошенничество или активное проживание.",
+    "cardOpenLabel": "Новые обращения",
+    "cardOpenDetail": "Их ещё никто не взял в работу.",
+    "cardEscalatedLabel": "Переданы выше",
+    "cardEscalatedDetail": "Ждут решения администратора.",
+    "cardMineLabel": "На вас",
+    "cardMineDetail": "Назначенные вам и ещё не закрытые.",
+    "cardUnassignedLabel": "Без исполнителя",
+    "cardUnassignedDetail": "Открыты и ни на кого не назначены.",
+    "cardListingsLabel": "Объявления на проверке",
+    "cardListingsDetail": "Владельцы ждут ответа.",
+    "cardFrozenLabel": "Бронирования в споре",
+    "cardFrozenDetail": "Сбор не начисляется, пока идёт разбор.",
+    "cardFlaggedLabel": "Сообщения на проверке",
+    "cardFlaggedDetail": "Фильтр контактов пометил их.",
+    "cardReportsLabel": "Жалобы",
+    "cardReportsDetail": "На объявления, отзывы и сообщения.",
+    "cardVerificationLabel": "Заявки на верификацию",
+    "cardVerificationDetail": "Документы открывает только VERIFIER."
+  }
+}

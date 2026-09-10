@@ -1,0 +1,254 @@
+{
+  "ListingWizard": {
+    "newMetaTitle": "New listing",
+    "editMetaTitle": "Edit listing",
+
+    "saveAndExit": "Save and exit",
+    "stepAriaLabel": "Step {step} of {total}",
+    "stepLabel": "Step {step} of {total} · {name}",
+    "navAriaLabel": "Step navigation",
+    "back": "Back",
+    "next": "Next",
+
+    "steps": {
+      "type": "What you're renting",
+      "location": "Where",
+      "photos": "Photos",
+      "details": "About the place",
+      "amenities": "Amenities",
+      "rules": "House rules",
+      "duration": "Stay length",
+      "price": "Price",
+      "preview": "Preview"
+    },
+
+    "saveState": {
+      "saving": "Saving…",
+      "saved": "Saved"
+    },
+
+    "rejected": {
+      "heading": "The moderator asked you to fix this listing",
+      "hideAria": "Hide the notes",
+      "jumpToStep": "Go to step",
+      "comment": "\"{comment}\"",
+      "footer": "Fix these and submit the listing again — you don't need to fill everything in from scratch."
+    },
+
+    "propertyTypes": {
+      "APARTMENT": { "label": "Apartment", "hint": "A whole self-contained apartment" },
+      "ROOM": { "label": "Room", "hint": "A room in an apartment or house" },
+      "STUDIO": { "label": "Studio", "hint": "One room with a kitchen" },
+      "HOUSE": { "label": "House", "hint": "A whole private house" },
+      "COTTAGE": { "label": "Cottage or dacha", "hint": "Outside the city" },
+      "TOWNHOUSE": { "label": "Townhouse", "hint": "A unit in a row of attached houses" }
+    },
+
+    "step0": {
+      "title": "What are you renting out?",
+      "lead": "Let's start with this — everything else can be filled in gradually.",
+      "draftSaved": "Draft saved. You can come back to it at any time."
+    },
+
+    "cities": {
+      "minsk": "Minsk",
+      "gomel": "Gomel",
+      "mogilev": "Mogilev",
+      "vitebsk": "Vitebsk",
+      "grodno": "Grodno",
+      "brest": "Brest",
+      "bobruisk": "Bobruisk",
+      "baranovichi": "Baranovichi",
+      "borisov": "Borisov",
+      "pinsk": "Pinsk",
+      "orsha": "Orsha",
+      "mozyr": "Mozyr",
+      "soligorsk": "Soligorsk",
+      "novopolotsk": "Novopolotsk",
+      "lida": "Lida",
+      "molodechno": "Molodechno"
+    },
+
+    "step1": {
+      "title": "Where is the place?",
+      "lead": "The exact address isn't shown in the listing. On the map, guests will see an approximate point within a few hundred metres.",
+      "cityLabel": "City",
+      "cityPlaceholder": "Choose a city",
+      "districtLabel": "District",
+      "districtHint": "Optional, but it helps guests get their bearings",
+      "districtPlaceholder": "Central",
+      "exactAddressSummary": "Exact address — only for confirmed bookings",
+      "exactAddressHint": "The street and building number are shown only to guests with a confirmed booking. Until then the address is hidden even from people who've messaged you.",
+      "streetLabel": "Street",
+      "houseLabel": "Building number",
+      "apartmentLabel": "Apartment",
+      "apartmentHint": "Never shared with anyone until a booking is confirmed",
+      "approxPoint": "Approximate point: {lat}, {lng}"
+    },
+
+    "step2": {
+      "title": "Photos",
+      "lead": "The first photo becomes the cover photo in the listing. Good photos help guests see whether the place suits them.",
+      "dropTitle": "Choose photos",
+      "dropHint": "JPEG, PNG, or WebP, up to 10 MB each",
+      "cover": "Cover",
+      "makeCover": "Make cover photo",
+      "removeAria": "Remove photo",
+      "needOne": "You need at least one photo before you can submit the listing for review.",
+      "count": "{count, plural, one {# photo} other {# photos}}."
+    },
+
+    "step3": {
+      "title": "Tell us about the place",
+      "lead": "Guests use this information in filters, so it's worth filling in accurately.",
+      "titleLabel": "Listing title",
+      "titleHint": "8 to 120 characters. This is the headline guests will see.",
+      "titlePlaceholder": "Bright 2-room flat near Nemiga metro",
+      "roomsLabel": "Rooms",
+      "areaLabel": "Area, m²",
+      "floorLabel": "Floor",
+      "totalFloorsLabel": "Floors in the building",
+      "bedsLabel": "Sleeping spots",
+      "bathroomsLabel": "Bathrooms",
+      "maxGuestsLabel": "Maximum guests",
+      "descriptionLabel": "Description",
+      "descriptionHint": "Tell guests about the place: what's convenient about it, what's nearby, and who it especially suits."
+    },
+
+    "step4": {
+      "title": "What does the place have?",
+      "lead": "Only tick what's actually there — guests confirm amenities after their stay."
+    },
+
+    "step5": {
+      "title": "House rules",
+      "lead": "Clear rules cut down on requests that wouldn't have worked out anyway.",
+      "smokingLabel": "Smoking",
+      "petsLabel": "Pets",
+      "childrenLabel": "Children",
+      "childrenYes": "Allowed",
+      "childrenNo": "Not suitable",
+      "partiesLabel": "Parties and events",
+      "partiesNo": "Not allowed",
+      "partiesYes": "Allowed",
+      "checkInLabel": "Check-in from",
+      "checkOutLabel": "Check-out by",
+      "quietFromLabel": "Quiet hours from",
+      "quietFromHint": "Optional",
+      "quietToLabel": "to"
+    },
+
+    "smoking": {
+      "PROHIBITED": "Not allowed",
+      "BALCONY_ONLY": "Balcony only",
+      "ALLOWED": "Allowed"
+    },
+    "pets": {
+      "PROHIBITED": "Not allowed",
+      "ON_REQUEST": "By arrangement",
+      "SMALL_ONLY": "Small pets only",
+      "ALLOWED": "Allowed"
+    },
+
+    "step6": {
+      "title": "How long do you rent it for?",
+      "lead": "Kvaterka works for anything from a single night to a year. Set the boundaries — guests will only see options that fit.",
+      "minLabel": "Minimum",
+      "maxLabel": "Maximum",
+      "rangeNote": "Can be booked for {min} to {max}.",
+      "quantityAria": "{label}: quantity",
+      "unitAria": "{label}: unit",
+      "presetDailyOnly": "Nightly only",
+      "presetDailyAndMonth": "Nightly and monthly",
+      "presetFromMonth": "From a month",
+      "presetLongTermOnly": "Long-term only"
+    },
+
+    "durationUnits": {
+      "NIGHT": "nights",
+      "WEEK": "weeks",
+      "MONTH": "months",
+      "YEAR": "years"
+    },
+
+    "step7": {
+      "title": "Price",
+      "lead": "Guests see the total amount before booking, so it's important to include everything that's part of the payment.",
+      "priceModeLabel": "How to price it",
+      "priceModeNight": "Per night",
+      "priceModeMonth": "Per month",
+      "priceLabelMonth": "Price per month, BYN",
+      "priceLabelNight": "Price per night, BYN",
+      "priceHint": "The base rate. Discounts for longer stays can be set up later.",
+      "cleaningLabel": "Mandatory cleaning fee, BYN",
+      "cleaningHint": "A one-time amount. Leave blank if there isn't one.",
+      "utilitiesLabel": "Utilities",
+      "utilitiesExtraLabel": "Utilities surcharge, BYN",
+      "utilitiesMeteredHint": "Guests will see \"metered\" — the platform won't invent an amount that can't be calculated in advance.",
+      "depositLabel": "Security deposit, BYN",
+      "depositHint": "Refunded at checkout. Leave blank if there's no deposit.",
+      "bookingModeLabel": "How guests book",
+      "negotiationTitle": "Price is negotiable",
+      "negotiationHint": "Guests can propose their own terms, and you can accept or decline."
+    },
+
+    "utilities": {
+      "INCLUDED": "Included in the price",
+      "FIXED_EXTRA": "Fixed surcharge",
+      "VARIABLE_METERED": "Metered"
+    },
+    "bookingModes": {
+      "REQUEST": { "label": "By request", "hint": "You confirm every booking" },
+      "INSTANT": { "label": "Instant", "hint": "Guests book right away, no confirmation needed" },
+      "INSTANT_AND_REQUEST": { "label": "Both", "hint": "The guest chooses" }
+    },
+
+    "step8": {
+      "title": "Review the listing",
+      "lead": "This is how guests will see it. Any step can still be changed.",
+      "submitHint": "After submission, a moderator will review the listing. We'll let you know the outcome — review time depends on the queue.",
+      "submitting": "Submitting…",
+      "submit": "Submit for review"
+    },
+
+    "preview": {
+      "typeRow": "Type",
+      "cityRow": "City",
+      "photosRow": "Photos",
+      "photosNone": "none",
+      "paramsRow": "Parameters",
+      "roomsCount": "{count, plural, one {# room} other {# rooms}}",
+      "areaUnit": "m²",
+      "floorShort": "fl.",
+      "amenitiesRow": "Amenities",
+      "amenitiesMore": "and {count} more",
+      "durationRow": "Stay length",
+      "durationValue": "{min} to {max}",
+      "priceRow": "Price",
+      "pricePerMonth": "per month",
+      "pricePerNight": "per night",
+      "noPhotos": "No photos",
+      "noTitle": "Untitled",
+      "noPrice": "Price not set",
+      "perMonth": "/ month",
+      "perNight": "/ night",
+      "edit": "Edit",
+      "dash": "—"
+    },
+
+    "errors": {
+      "saveFailed": "Couldn't save",
+      "draftFailed": "Couldn't create the draft",
+      "submitFailed": "Couldn't submit for review",
+      "photoUploadFailed": "Couldn't upload the photo",
+      "photoRemoveFailed": "Couldn't remove the photo",
+      "photoCoverFailed": "Couldn't set the cover photo",
+      "chooseType": "Choose what you're renting out.",
+      "chooseCity": "Choose a city.",
+      "addPhoto": "Add at least one photo.",
+      "titleTooShort": "The title must be at least 8 characters.",
+      "invalidDuration": "The maximum stay can't be shorter than the minimum.",
+      "setPrice": "Set a price."
+    }
+  }
+}

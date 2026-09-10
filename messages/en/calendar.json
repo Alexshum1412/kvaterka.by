@@ -1,0 +1,49 @@
+{
+  "Calendar": {
+    "pageTitle": "Calendar",
+    "backToDashboard": "Dashboard",
+    "untitledDraft": "Untitled draft",
+
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "today": "Today",
+    "gridAria": "Availability calendar",
+    "confirmGroupAria": "Change availability",
+
+    "legend": {
+      "available": "Available",
+      "booked": "Booked",
+      "pending": "Awaiting reply",
+      "blocked": "Blocked by you"
+    },
+    "statusWord": {
+      "AVAILABLE": "available",
+      "BOOKED": "booked",
+      "PENDING": "awaiting your reply",
+      "BLOCKED": "blocked by you",
+      "MAINTENANCE": "maintenance",
+      "OWNER_BLOCKED": "you're staying here"
+    },
+
+    "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    "monthsGenitive": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    "weekdays": ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
+
+    "manualFrom": "From",
+    "manualTo": "To",
+
+    "dayAriaLabel": "{month} {day}, {status}",
+
+    "loadFailed": "Couldn't load the calendar",
+    "updateFailed": "Couldn't change the calendar",
+
+    "cancel": "Cancel",
+    "opening": "Opening…",
+    "openDates": "Open dates",
+    "closing": "Closing…",
+    "closeDates": "Close dates",
+
+    "confirmText": "{range} · {count, plural, one {# day} other {# days}}",
+    "footerHint": "Available for {min} to {max, plural, one {# night} other {# nights}}. Booked dates can't be closed — cancel the booking itself instead."
+  }
+}

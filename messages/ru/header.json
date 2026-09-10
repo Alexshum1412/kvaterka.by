@@ -1,0 +1,24 @@
+{
+  "Header": {
+    "brandAria": "Кватэрка.by, на главную",
+    "mainNavAria": "Основная навигация",
+    "findHousing": "Найти жильё",
+    "myTrips": "Мои поездки",
+    "myListings": "Мои квартиры",
+    "favorites": "Избранное",
+    "messages": "Сообщения",
+    "operations": "Операции",
+    "moderation": "Модерация",
+    "verification": "Верификация",
+    "confirmSignIn": "Подтвердить вход",
+    "listYourPlace": "Сдать квартиру",
+    "searchAria": "Найти жильё",
+    "notificationsAria": "Уведомления",
+    "notificationsUnreadAria": "Уведомления, непрочитанных: {count}",
+    "myAccountAria": "{name} — личный кабинет",
+    "signIn": "Войти",
+    "logOut": "Выйти",
+    "themeToggleAria": "Переключить тему оформления",
+    "languageAria": "Язык интерфейса"
+  }
+}

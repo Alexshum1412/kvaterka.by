@@ -1,0 +1,48 @@
+{
+  "Privacy": {
+    "title": "Data and privacy",
+    "metaDescription": "What data Kvaterka.by collects, why, who sees it, and what happens to it.",
+    "lede": "What we collect, why, who sees it, and what happens to it afterward. Written to match how the software actually works, not how pages like this are usually written.",
+    "note": {
+      "p1Rich": "<strong>Privacy policy in progress.</strong> A formal document needs to be drafted by a lawyer practicing in Belarus: it determines the legal basis for processing, the country where data is stored, and retention periods. Until there's an answer, we won't invent retention periods or claim a legal basis.",
+      "p2": "Instead, below is the platform's actual behavior. It's built to hold up under any answer: we collect less than we could."
+    },
+    "collect": {
+      "heading": "What's collected",
+      "item1": "Account: name, email address or phone number, password (stored only as a hash).",
+      "item2": "Listings: description, photos, address.",
+      "item3": "Bookings: dates, amounts, check-in and check-out marks.",
+      "item4": "Messages between tenant and host.",
+      "item5": "Reviews.",
+      "item6": "Identity documents — only if you submit them yourself."
+    },
+    "notStored": {
+      "heading": "What we deliberately don't keep",
+      "item1Rich": "<strong>IP addresses — only as a hash.</strong> That's enough to link abuse together, and not enough to reconstruct a history of your movements.",
+      "item2Rich": "<strong>The session token itself isn't stored.</strong> Only its hash sits in the database, so a database leak doesn't hand an attacker your open sessions.",
+      "item3Rich": "<strong>The action log keeps diffs, not copies.</strong> What changed is recorded, not a snapshot of the whole object.",
+      "item4": "Guest registration data isn't collected at all."
+    },
+    "address": {
+      "heading": "The exact flat address",
+      "body": "Before a booking is confirmed, the map shows only the neighborhood. Publishing the exact address of an empty flat isn't a convenience question — it's a safety question for the host."
+    },
+    "id": {
+      "heading": "Identity documents",
+      "introRich": "Their submission is currently <strong>switched off</strong> and will stay off until a legal decision is made. The system is already built for that switch to be safe:",
+      "item1": "a separate, private storage bucket — the application won't start if it's the same one used for photos;",
+      "item2Rich": "only the reviewer handling the case can <strong>read the document</strong> — not support, not a moderator, not finance, not even an administrator;",
+      "item3": "every time a document is opened, it's recorded in a log that can't be altered or erased;",
+      "item4": "staff sections only unlock after a second factor, never a password alone."
+    },
+    "comms": {
+      "heading": "Who sees the messages",
+      "body": "The other party — always. Platform staff — only when handling a dispute or complaint. Messages are checked automatically for attempts to move the conversation off the platform, and if part of a message is hidden, the sender is told plainly why."
+    },
+    "close": {
+      "heading": "Closing an account",
+      "p1Rich": "The <link>“Account”</link> section lets you close your account. It also lists honestly what happens and what stays — for example, financial records and dispute materials are kept, because erasing them would destroy the other side's evidence.",
+      "p2": "Full data deletion isn't built yet and is waiting on the same legal decision. We won't say “data is deleted” while the bytes are still there."
+    }
+  }
+}

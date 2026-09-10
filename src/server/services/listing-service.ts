@@ -43,7 +43,10 @@ const OWNER_TRANSITIONS: Partial<Record<ListingStatus, readonly ListingStatus[]>
   REJECTED: ['PENDING_MODERATION', 'ARCHIVED'],
   PUBLISHED: ['PAUSED', 'ARCHIVED'],
   PAUSED: ['PUBLISHED', 'ARCHIVED'],
-  PENDING_MODERATION: ['DRAFT'],
+  // A landlord withdrawing their own pending submission needs no moderator
+  // sign-off either way — DRAFT (edit and resubmit) or ARCHIVED (delete it
+  // outright) are both purely the owner taking their own listing back.
+  PENDING_MODERATION: ['DRAFT', 'ARCHIVED'],
 };
 
 const MODERATOR_TRANSITIONS: Partial<Record<ListingStatus, readonly ListingStatus[]>> = {

@@ -1,0 +1,207 @@
+{
+  "StaffVerification": {
+    "metaTitle": "Верыфікацыя",
+    "detailMetaTitle": "Заяўка на праверку",
+
+    "queue": {
+      "title": "Заяўкі на праверку",
+      "subtitle": "Зверху — тыя, у каго аб'ява ўжо здаецца, а профіль яшчэ не пацверджаны.",
+      "badgeActive": "У працы",
+      "badgeOverdue": "Пратэрмінавана на старонцы",
+      "noticeRich": "У вас няма права <code>document.read</code>: заяўкі бачныя, дакументы — не, і пацвердзіць узровень нельга. Пацвярджэнне патрабуе, каб рашэнне прымаў той, хто мог паглядзець дакументы.",
+      "statusAriaLabel": "Статус",
+      "tabs": {
+        "ACTIVE": "У працы",
+        "SUBMITTED": "Новыя",
+        "IN_REVIEW": "Правяраем",
+        "NEEDS_INFO": "Чакаем удакладненняў",
+        "APPROVED": "Пацверджаны",
+        "REJECTED": "Адхілены",
+        "ALL": "Усе"
+      },
+      "sorts": {
+        "PRIORITY": "Спачатку важныя",
+        "WAITING_LONGEST": "Даўжэй за ўсіх чакаюць",
+        "OLDEST": "Спачатку старыя",
+        "NEWEST": "Спачатку новыя"
+      },
+      "priority": {
+        "HIGH": "Высокі",
+        "NORMAL": "Звычайны",
+        "LOW": "Нізкі"
+      },
+      "searchLabel": "Пошук па імені, аб'яве або горадзе",
+      "searchPlaceholder": "Імя, аб'ява або горад",
+      "levelFieldLabel": "Узровень",
+      "levelAny": "Любы ўзровень",
+      "level1": "Узровень 1 — асоба",
+      "level2": "Узровень 2 — права здаваць",
+      "priorityFieldLabel": "Прыярытэт",
+      "priorityAny": "Любы прыярытэт",
+      "assignedFieldLabel": "Выканаўца",
+      "assignedAny": "Любы выканаўца",
+      "assignedMe": "Прызначана мне",
+      "assignedUnassigned": "Без выканаўцы",
+      "cityFieldLabel": "Горад",
+      "cityPlaceholder": "Горад",
+      "sortFieldLabel": "Сартаванне",
+      "apply": "Ужыць",
+      "emptyTitle": "Тут пуста",
+      "emptyActive": "Заявак у працы няма.",
+      "emptyFiltered": "Пад гэты фільтр нічога не падыходзіць.",
+      "listingLiveBadge": "аб'ява здаецца",
+      "kindIdentity": "Асоба",
+      "kindOwnership": "Права здаваць · {title}",
+      "kindOwnershipFallback": "аб'ект",
+      "nowLevel": "зараз {level}",
+      "documentsCount": "{count, plural, one {# дакумент} few {# дакументы} many {# дакументаў} other {# дакументаў}}",
+      "assignedToName": "на {name}",
+      "unassigned": "без выканаўцы",
+      "justNow": "толькі што",
+      "hoursAgo": "{count, plural, one {# гадзіна} few {# гадзіны} many {# гадзін} other {# гадзін}}",
+      "daysAgo": "{count, plural, one {# дзень} few {# дні} many {# дзён} other {# дзён}}",
+      "overdueTag": "пратэрмінавана",
+      "pagerAriaLabel": "Старонкі",
+      "back": "Назад",
+      "next": "Далей"
+    },
+
+    "case": {
+      "title": "{name} — узровень {level}",
+      "subtitleIdentity": "Пацвярджэнне асобы",
+      "subtitleOwnership": "Пацвярджэнне права здаваць жыллё",
+      "back": "Да чаргі",
+      "priorityHigh": "Высокі прыярытэт",
+      "priorityNormal": "Звычайны прыярытэт",
+      "overdueTag": "пратэрмінавана · мэта {hours} гадз",
+      "waiting": "чакае {count, plural, one {# гадзіну} few {# гадзіны} many {# гадзін} other {# гадзін}}",
+      "months": ["студз", "лют", "сак", "крас", "мая", "чэрв", "ліп", "жнів", "вер", "кастр", "ліст", "снеж"],
+
+      "applicant": {
+        "sectionTitle": "Заяўнік",
+        "factNow": "Зараз",
+        "factWants": "Просіць",
+        "factMemberSince": "На платформе з",
+        "factRentals": "Арэнд",
+        "rentalsValue": "{tenant} як арандатар · {landlord} як гаспадар",
+        "factRating": "Рэйтынг",
+        "noReviews": "няма водгукаў",
+        "ratingValue": "{rating} па {count}",
+        "factContacts": "Кантакты",
+        "emailVerified": "email ✓",
+        "emailUnverified": "email ✗",
+        "phoneVerified": "тэлефон ✓",
+        "phoneUnverified": "тэлефон ✗",
+        "listingLiveBadge": "аб'ява ўжо здаецца",
+        "accountStatusBadge": "акаунт: {status}",
+        "publicProfileLink": "Публічны профіль",
+        "hint": "Тэлефон і email не паказваюцца — толькі тое, ці пацверджаны яны. Для рашэння па дакументах змест кантактаў не патрэбны."
+      },
+
+      "property": {
+        "sectionTitle": "Аб'ект і заяўленая падстава",
+        "factListing": "Аб'ява",
+        "factWhere": "Дзе",
+        "factStatus": "Статус",
+        "factVerified": "Правераны",
+        "yes": "так",
+        "no": "не",
+        "openListingLink": "Адкрыць аб'яву",
+        "unavailable": "Аб'ект недаступны.",
+        "expectedDocument": "Чаканы дакумент: {doc}",
+        "notStated": "Падстава не пазначана.",
+        "declaredHint": "Гэта заява, а не доказ. Сама па сабе яна падставай не з'яўляецца — дамен усё роўна патрабуе дакумент.",
+        "addressHint": "Дакладны адрас не паказваецца: ён даступны толькі праз праверку правоў (DEC-020). Звярайце адрас у дакуменце з горадам і раёнам аб'явы."
+      },
+
+      "documents": {
+        "sectionTitle": "Дакументы",
+        "legalNoticeRich": "Збор дакументаў, якія засведчваюць асобу, адключаны сцягам <code>verification.identity_documents</code> да юрыдычнага заключэння (LEGAL-004). Пакуль ён адключаны, дакументаў не будзе і ўзровень не выдаецца.",
+        "none": "Дакументаў няма.",
+        "docType": {
+          "PASSPORT": "Пашпарт",
+          "ID_CARD": "ID-картка",
+          "SELFIE": "Сэлфі",
+          "OWNERSHIP_CERTIFICATE": "Пасведчанне аб праве",
+          "POWER_OF_ATTORNEY": "Даверанасць",
+          "UTILITY_BILL": "Камунальны рахунак",
+          "OTHER": "Іншае"
+        },
+        "uploadedAt": "загружаны {date}",
+        "purgedSuffix": "выдалены паводле палітыкі захавання",
+        "openedCount": "{count, plural, one {адкрывалі # раз} few {адкрывалі # разы} many {адкрывалі # разоў} other {адкрывалі # разоў}}",
+        "neverOpened": "яшчэ не адкрывалі",
+        "readOnlyLogged": "адкрыць можна праз журналюемы запыт",
+        "lockedPurged": "выдалены",
+        "lockedNoAccess": "няма права document.read"
+      },
+
+      "prior": {
+        "sectionTitle": "Папярэднія заяўкі",
+        "levelLine": "узровень {level} · {date}",
+        "hint": "Паўторныя адмовы па адной прычыне — гэта сігнал. Адна адмова звычайна не."
+      },
+
+      "signals": {
+        "sectionTitle": "Сігналы рызыкі",
+        "weight": "вага",
+        "hint": "Толькі для супрацоўнікаў. Заяўніку прычына «падазроная актыўнасць» паведамляецца без падрабязнасцей — інакш гэта інструкцыя, чаго пазбягаць наступным разам."
+      },
+
+      "timeline": {
+        "sectionTitle": "Гісторыя",
+        "event": {
+          "SUBMITTED": "Заяўка адпраўлена",
+          "STATUS_TAKE": "Узята ў працу",
+          "STATUS_REQUEST_INFO": "Запытаны ўдакладненні",
+          "STATUS_APPROVE": "Пацверджана",
+          "STATUS_REJECT": "Адхілена",
+          "STATUS_EXPIRE": "Закрыта як пратэрмінаваная",
+          "DECISION_APPROVE": "Заяўніку паведамлена: пацверджана",
+          "DECISION_REJECT": "Заяўніку паведамлена: адхілена",
+          "DECISION_REQUEST_INFO": "Заяўніку паведамлена: патрэбныя ўдакладненні",
+          "ASSIGNED": "Прызначаны выканаўца",
+          "UNASSIGNED": "Выканаўца зняты"
+        },
+        "internalTag": "толькі для супрацоўнікаў",
+        "seenTag": "бачна заяўніку"
+      },
+
+      "aside": {
+        "whatHappensTitle": "Што будзе пры пацвярджэнні",
+        "whatHappensHint": "Менавіта гэта ўбачаць арандатары. Фармулёўка кажа, што праверыла платформа, і не абяцае юрыдычнай экспертызы або гарантыі.",
+        "decisionTitle": "Рашэнне",
+        "internalNoteTitle": "Унутраная нататка",
+        "internalNoteHint": "Не адпраўляецца заяўніку ніякім шляхам."
+      }
+    },
+
+    "decision": {
+      "action": {
+        "TAKE": { "label": "Узяць у працу", "hint": "Заяўка замацуецца за вамі." },
+        "REQUEST_INFO": { "label": "Запытаць удакладненні", "hint": "Заяўнік убачыць прычыны і зможа дапоўніць заяўку, не запаўняючы ўсё нанова." },
+        "APPROVE": { "label": "Пацвердзіць", "hint": "Узровень даверу будзе выдадзены." },
+        "REJECT": { "label": "Адхіліць", "hint": "Патрэбна хаця б адна прычына." },
+        "EXPIRE": { "label": "Закрыць як тэрмін, які мінуў", "hint": "Заяўнік не адказвае." }
+      },
+      "reasonsLegendRequired": "Прычыны",
+      "reasonsLegendOptional": "Прычыны — па жаданні",
+      "reasonsHint": "Код вызначае, што ўбачыць заяўнік і на які крок яго накіраваць. Выбірайце дакладней — гэта розніца паміж «выпраўце фота» і «незразумела, што не так».",
+      "applicantMessageLabel": "Паведамленне заяўніку",
+      "applicantMessagePlaceholder": "Што чалавеку зрабіць. Гэты тэкст ён убачыць.",
+      "applicantMessageHint": "Да абраных прычын платформа сама дадасць зразумелыя тлумачэнні — тут толькі тое, што трэба дадаць сваімі словамі.",
+      "internalNoteLabel": "Унутраная нататка",
+      "internalNotePlaceholder": "Што вы заўважылі. Заяўнік гэтага не ўбачыць.",
+      "internalNoteHint": "Бачная толькі супрацоўнікам і не выдаляецца — гісторыя заяўкі толькі дапаўняецца.",
+      "cancel": "Скасаваць",
+      "saving": "Захоўваем…",
+      "noActionsWithAccess": "Па гэтай заяўцы зараз няма даступных дзеянняў.",
+      "noActionsNoAccess": "Без права на дакументы можна толькі глядзець чаргу.",
+      "assigneeLabel": "Выканаўца",
+      "unassignedOption": "Без выканаўцы",
+      "youSuffix": " (вы)",
+      "errorSaveFailed": "Не ўдалося захаваць рашэнне",
+      "errorAssignFailed": "Не ўдалося прызначыць выканаўцу"
+    }
+  }
+}

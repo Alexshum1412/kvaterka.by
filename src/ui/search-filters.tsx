@@ -1,9 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Icon, AMENITY_CATEGORY, amenityIcon } from './icons.tsx';
-import { plural } from './primitives.tsx';
+import { useLocale, useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation.ts';
+import type { AppLocale } from '@/i18n/routing.ts';
+import { Icon, AMENITY_CATEGORY, amenityCategoryLabel, amenityIcon } from './icons.tsx';
+import { propertyTypeLabel } from './primitives.tsx';
 
 export interface AmenityOption {
   code: string;
@@ -35,28 +37,21 @@ export interface AmenityOption {
  * endpoint expects; the person filling in the box types BYN.
  */
 
-const DURATIONS: { value: string; label: string }[] = [
-  { value: 'SHORT', label: 'До месяца' },
-  { value: 'MEDIUM', label: '1–6 месяцев' },
-  { value: 'LONG', label: 'От полугода' },
+const DURATIONS: readonly { value: string; key: 'short' | 'medium' | 'long' }[] = [
+  { value: 'SHORT', key: 'short' },
+  { value: 'MEDIUM', key: 'medium' },
+  { value: 'LONG', key: 'long' },
 ];
 
-const SORTS: { value: string; label: string }[] = [
-  { value: 'RELEVANCE', label: 'По релевантности' },
-  { value: 'PRICE_ASC', label: 'Сначала дешевле' },
-  { value: 'PRICE_DESC', label: 'Сначала дороже' },
-  { value: 'RATING', label: 'По рейтингу' },
-  { value: 'NEWEST', label: 'Сначала новые' },
+const SORTS: readonly { value: string; key: 'relevance' | 'priceAsc' | 'priceDesc' | 'rating' | 'newest' }[] = [
+  { value: 'RELEVANCE', key: 'relevance' },
+  { value: 'PRICE_ASC', key: 'priceAsc' },
+  { value: 'PRICE_DESC', key: 'priceDesc' },
+  { value: 'RATING', key: 'rating' },
+  { value: 'NEWEST', key: 'newest' },
 ];
 
-const PROPERTY_TYPES: { value: string; label: string }[] = [
-  { value: 'APARTMENT', label: 'Квартира' },
-  { value: 'ROOM', label: 'Комната' },
-  { value: 'STUDIO', label: 'Студия' },
-  { value: 'HOUSE', label: 'Дом' },
-  { value: 'COTTAGE', label: 'Коттедж' },
-  { value: 'TOWNHOUSE', label: 'Таунхаус' },
-];
+const PROPERTY_TYPES: readonly string[] = ['APARTMENT', 'ROOM', 'STUDIO', 'HOUSE', 'COTTAGE', 'TOWNHOUSE'];
 
 /** Parameters that describe the search itself, not the narrowing of it. */
 const KEPT_ON_RESET = ['city', 'district', 'q', 'from', 'to'];
@@ -78,6 +73,8 @@ export function SearchFilters({
   /** The query string the server filtered on, as plain key/value pairs. */
   applied: Readonly<Record<string, string>>;
 }) {
+  const t = useTranslations('Listing');
+  const locale = useLocale() as AppLocale;
   const router = useRouter();
   const params = useMemo(() => new URLSearchParams(appliedQuery), [appliedQuery]);
   const [open, setOpen] = useState(false);
@@ -112,41 +109,46 @@ export function SearchFilters({
     const out: { key: string; label: string }[] = [];
     const min = params.get('priceMin');
     const max = params.get('priceMax');
-    if (min && max) out.push({ key: 'price', label: `${toByn(min)}–${toByn(max)} BYN` });
-    else if (min) out.push({ key: 'price', label: `от ${toByn(min)} BYN` });
-    else if (max) out.push({ key: 'price', label: `до ${toByn(max)} BYN` });
+    if (min && max) out.push({ key: 'price', label: t('filters.priceChipRange', { min: toByn(min), max: toByn(max) }) });
+    else if (min) out.push({ key: 'price', label: t('filters.priceChipMin', { min: toByn(min) }) });
+    else if (max) out.push({ key: 'price', label: t('filters.priceChipMax', { max: toByn(max) }) });
 
     const r = params.get('rooms');
-    if (r) out.push({ key: 'rooms', label: `${r}${r === '4' ? '+' : ''} ${plural(Number(r), 'комната', 'комнаты', 'комнат')}` });
+    if (r) {
+      out.push({
+        key: 'rooms',
+        label: r === '4' ? t('filters.roomsChipMax', { count: Number(r) }) : t('roomsCount', { count: Number(r) }),
+      });
+    }
 
     const g = params.get('guests');
-    if (g) out.push({ key: 'guests', label: `${g} ${plural(Number(g), 'гость', 'гостя', 'гостей')}` });
+    if (g) out.push({ key: 'guests', label: t('guestsCount', { count: Number(g) }) });
 
     const d = params.get('durationMode');
     const duration = DURATIONS.find((x) => x.value === d);
-    if (duration) out.push({ key: 'durationMode', label: duration.label });
+    if (duration) out.push({ key: 'durationMode', label: t(`durationMode.${duration.key}`) });
 
-    for (const t of (params.get('types') ?? '').split(',').filter(Boolean)) {
-      out.push({ key: `type:${t}`, label: PROPERTY_TYPES.find((x) => x.value === t)?.label ?? t });
+    for (const type of (params.get('types') ?? '').split(',').filter(Boolean)) {
+      out.push({ key: `type:${type}`, label: propertyTypeLabel(type, locale) });
     }
 
     const b = params.get('beds');
-    if (b) out.push({ key: 'beds', label: `от ${b} ${plural(Number(b), 'спального места', 'спальных мест', 'спальных мест')}` });
+    if (b) out.push({ key: 'beds', label: t('filters.bedsChip', { count: Number(b) }) });
 
     const rt = params.get('minRating');
-    if (rt) out.push({ key: 'minRating', label: `рейтинг от ${rt}` });
+    if (rt) out.push({ key: 'minRating', label: t('filters.ratingChip', { value: rt }) });
 
-    if (params.get('smoking') === 'true') out.push({ key: 'smoking', label: 'Можно курить' });
-    if (params.get('children') === 'true') out.push({ key: 'children', label: 'Можно с детьми' });
-    if (params.get('pets') === 'true') out.push({ key: 'pets', label: 'Можно с животными' });
-    if (params.get('verified') === 'true') out.push({ key: 'verified', label: 'Только проверенные' });
-    if (params.get('instant') === 'true') out.push({ key: 'instant', label: 'Мгновенное бронирование' });
+    if (params.get('smoking') === 'true') out.push({ key: 'smoking', label: t('filters.smokingAllowed') });
+    if (params.get('children') === 'true') out.push({ key: 'children', label: t('filters.childrenAllowed') });
+    if (params.get('pets') === 'true') out.push({ key: 'pets', label: t('filters.petsAllowed') });
+    if (params.get('verified') === 'true') out.push({ key: 'verified', label: t('filters.verifiedOnly') });
+    if (params.get('instant') === 'true') out.push({ key: 'instant', label: t('filters.instantBooking') });
 
     for (const code of (params.get('amenities') ?? '').split(',').filter(Boolean)) {
       out.push({ key: `amenity:${code}`, label: amenityNames.get(code) ?? code });
     }
     return out;
-  }, [params, amenityNames]);
+  }, [params, amenityNames, t, locale]);
 
   function push(next: URLSearchParams) {
     const qs = next.toString();
@@ -265,11 +267,11 @@ export function SearchFilters({
       .map(([category, items]) => ({
         category,
         items,
-        label: AMENITY_CATEGORY[category]?.label ?? 'Прочее',
+        label: AMENITY_CATEGORY[category] ? amenityCategoryLabel(category, locale) : t('filters.otherAmenityCategory'),
         order: AMENITY_CATEGORY[category]?.order ?? 99,
       }))
       .sort((a, b) => a.order - b.order);
-  }, [amenities]);
+  }, [amenities, locale, t]);
 
   const visibleGroups = showAllAmenities ? grouped : grouped.slice(0, 2);
 
@@ -284,7 +286,7 @@ export function SearchFilters({
           aria-controls="filters-panel"
         >
           <Icon name="sliders" size={17} />
-          Фильтры
+          {t('filters.toggle')}
           {applied.length > 0 && <span className="fl__count">{applied.length}</span>}
         </button>
 
@@ -295,7 +297,7 @@ export function SearchFilters({
                 <button type="button" className="fl__chip" onClick={() => removeChip(chip.key)}>
                   {chip.label}
                   <Icon name="close" size={13} />
-                  <span className="sr-only">— убрать фильтр</span>
+                  <span className="sr-only">{t('filters.removeFilterSrOnly')}</span>
                 </button>
               </li>
             ))}
@@ -305,10 +307,10 @@ export function SearchFilters({
         <div className="fl__end">
           <a href="#map" className="btn btn-ghost btn-sm fl__map">
             <Icon name="map" size={16} />
-            На карте
+            {t('filters.onMap')}
           </a>
           <label className="fl__sort">
-            <span className="sr-only">Сортировка</span>
+            <span className="sr-only">{t('filters.sortSrOnly')}</span>
             <select
               className="select"
               value={params.get('sort') ?? 'RELEVANCE'}
@@ -316,7 +318,7 @@ export function SearchFilters({
             >
               {SORTS.map((s) => (
                 <option key={s.value} value={s.value}>
-                  {s.label}
+                  {t(`filters.sort.${s.key}`)}
                 </option>
               ))}
             </select>
@@ -328,33 +330,33 @@ export function SearchFilters({
         <div className="fl__panel" id="filters-panel">
           <div className="fl__grid">
             <fieldset className="fl__set">
-              <legend className="fl__legend">Цена за ночь или месяц, BYN</legend>
+              <legend className="fl__legend">{t('filters.priceLegend')}</legend>
               <div className="fl__pair">
                 <label className="field">
-                  <span className="label">От</span>
+                  <span className="label">{t('filters.priceFromLabel')}</span>
                   <input
                     className="input"
                     inputMode="numeric"
                     value={priceMin}
                     onChange={(e) => setPriceMin(e.target.value)}
-                    placeholder="0"
+                    placeholder={t('filters.pricePlaceholderMin')}
                   />
                 </label>
                 <label className="field">
-                  <span className="label">До</span>
+                  <span className="label">{t('filters.priceToLabel')}</span>
                   <input
                     className="input"
                     inputMode="numeric"
                     value={priceMax}
                     onChange={(e) => setPriceMax(e.target.value)}
-                    placeholder="Любая"
+                    placeholder={t('filters.pricePlaceholderMax')}
                   />
                 </label>
               </div>
             </fieldset>
 
             <fieldset className="fl__set">
-              <legend className="fl__legend">Комнат</legend>
+              <legend className="fl__legend">{t('filters.roomsLegend')}</legend>
               <div className="fl__row">
                 {['1', '2', '3', '4'].map((n) => (
                   <button
@@ -372,7 +374,7 @@ export function SearchFilters({
             </fieldset>
 
             <fieldset className="fl__set">
-              <legend className="fl__legend">Срок аренды</legend>
+              <legend className="fl__legend">{t('filters.durationLegend')}</legend>
               <div className="fl__row">
                 {DURATIONS.map((d) => (
                   <button
@@ -382,14 +384,14 @@ export function SearchFilters({
                     aria-pressed={durationMode === d.value}
                     onClick={() => setDurationMode(durationMode === d.value ? '' : d.value)}
                   >
-                    {d.label}
+                    {t(`durationMode.${d.key}`)}
                   </button>
                 ))}
               </div>
             </fieldset>
 
             <fieldset className="fl__set">
-              <legend className="fl__legend">Гостей</legend>
+              <legend className="fl__legend">{t('filters.guestsLegend')}</legend>
               <div className="fl__row">
                 {['1', '2', '3', '4', '5', '6'].map((n) => (
                   <button
@@ -407,31 +409,31 @@ export function SearchFilters({
             </fieldset>
 
             <fieldset className="fl__set fl__set--wide">
-              <legend className="fl__legend">Тип жилья</legend>
+              <legend className="fl__legend">{t('filters.propertyTypeLegend')}</legend>
               <div className="fl__row">
-                {PROPERTY_TYPES.map((t) => (
+                {PROPERTY_TYPES.map((type) => (
                   <button
-                    key={t.value}
+                    key={type}
                     type="button"
                     className="chip chip-sm"
-                    aria-pressed={types.has(t.value)}
+                    aria-pressed={types.has(type)}
                     onClick={() =>
                       setTypes((prev) => {
                         const copy = new Set(prev);
-                        if (copy.has(t.value)) copy.delete(t.value);
-                        else copy.add(t.value);
+                        if (copy.has(type)) copy.delete(type);
+                        else copy.add(type);
                         return copy;
                       })
                     }
                   >
-                    {t.label}
+                    {propertyTypeLabel(type, locale)}
                   </button>
                 ))}
               </div>
             </fieldset>
 
             <fieldset className="fl__set">
-              <legend className="fl__legend">Спальных мест, не меньше</legend>
+              <legend className="fl__legend">{t('filters.bedsLegend')}</legend>
               <div className="fl__row">
                 {['1', '2', '3', '4', '6'].map((n) => (
                   <button
@@ -449,7 +451,7 @@ export function SearchFilters({
             </fieldset>
 
             <fieldset className="fl__set">
-              <legend className="fl__legend">Рейтинг хозяина</legend>
+              <legend className="fl__legend">{t('filters.ratingLegend')}</legend>
               <div className="fl__row">
                 {['4', '4.5'].map((n) => (
                   <button
@@ -460,26 +462,26 @@ export function SearchFilters({
                     onClick={() => setRating(rating === n ? '' : n)}
                   >
                     <Icon name="star" size={14} solid />
-                    от {n}
+                    {t('filters.ratingFrom', { value: n })}
                   </button>
                 ))}
               </div>
             </fieldset>
 
             <fieldset className="fl__set fl__set--wide">
-              <legend className="fl__legend">Правила и бронирование</legend>
+              <legend className="fl__legend">{t('filters.rulesLegend')}</legend>
               <div className="fl__row">
                 <button type="button" className="chip chip-sm" aria-pressed={pets} onClick={() => setPets(!pets)}>
                   <Icon name="paw" size={15} />
-                  Можно с животными
+                  {t('filters.petsAllowed')}
                 </button>
                 <button type="button" className="chip chip-sm" aria-pressed={children} onClick={() => setChildren(!children)}>
                   <Icon name="baby" size={15} />
-                  Можно с детьми
+                  {t('filters.childrenAllowed')}
                 </button>
                 <button type="button" className="chip chip-sm" aria-pressed={smoking} onClick={() => setSmoking(!smoking)}>
                   <Icon name="smoking" size={15} />
-                  Можно курить
+                  {t('filters.smokingAllowed')}
                 </button>
                 <button
                   type="button"
@@ -488,7 +490,7 @@ export function SearchFilters({
                   onClick={() => setVerified(!verified)}
                 >
                   <Icon name="shieldCheck" size={15} />
-                  Только проверенные
+                  {t('filters.verifiedOnly')}
                 </button>
                 <button
                   type="button"
@@ -497,7 +499,7 @@ export function SearchFilters({
                   onClick={() => setInstant(!instant)}
                 >
                   <Icon name="check" size={15} />
-                  Мгновенное бронирование
+                  {t('filters.instantBooking')}
                 </button>
               </div>
             </fieldset>
@@ -528,7 +530,7 @@ export function SearchFilters({
                 className="link fl__more"
                 onClick={() => setShowAllAmenities(!showAllAmenities)}
               >
-                {showAllAmenities ? 'Свернуть удобства' : 'Показать все удобства'}
+                {showAllAmenities ? t('filters.collapseAmenities') : t('filters.showAllAmenities')}
                 <Icon name="chevronDown" size={15} style={{ rotate: showAllAmenities ? '180deg' : '0deg' }} />
               </button>
             )}
@@ -536,10 +538,10 @@ export function SearchFilters({
 
           <div className="fl__actions">
             <button type="button" className="btn btn-ghost" onClick={reset}>
-              Сбросить
+              {t('filters.reset')}
             </button>
             <button type="button" className="btn btn-primary" onClick={apply}>
-              Показать результаты
+              {t('filters.showResults')}
             </button>
           </div>
         </div>

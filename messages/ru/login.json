@@ -1,0 +1,29 @@
+{
+  "Login": {
+    "meta": { "title": "Вход" },
+    "title": {
+      "login": "Вход в Кватэрку",
+      "register": "Регистрация"
+    },
+    "lede": {
+      "login": "Войдите, чтобы бронировать жильё или управлять своими квартирами.",
+      "register": "Аккаунт нужен, чтобы бронировать, переписываться и оставлять отзывы."
+    },
+    "nameLabel": "Как вас зовут",
+    "identifierLabel": {
+      "login": "Email или телефон",
+      "register": "Email"
+    },
+    "passwordLabel": "Пароль",
+    "passwordHint": "Не короче 10 символов. Длинная фраза надёжнее короткого пароля со спецсимволами.",
+    "networkError": "Не удалось соединиться с сервером. Проверьте интернет и попробуйте снова.",
+    "submitBusy": "Подождите…",
+    "submitLogin": "Войти",
+    "submitRegister": "Создать аккаунт",
+    "forgotPassword": "Забыли пароль?",
+    "switchPromptLogin": "Ещё нет аккаунта?",
+    "switchPromptRegister": "Уже есть аккаунт?",
+    "switchActionLogin": "Создать аккаунт",
+    "switchActionRegister": "Войти"
+  }
+}

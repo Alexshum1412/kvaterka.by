@@ -1,0 +1,109 @@
+{
+  "Listing": {
+    "durationMode": {
+      "short": "До месяца",
+      "medium": "1–6 месяцев",
+      "long": "От полугода"
+    },
+    "guestsCount": "{count, plural, one {# гость} few {# гостя} many {# гостей} other {# гостей}}",
+    "roomsCount": "{count, plural, one {# комната} few {# комнаты} many {# комнат} other {# комнат}}",
+
+    "form": {
+      "ariaLabel": "Поиск жилья",
+      "presets": {
+        "1": "Сутки",
+        "3": "3 ночи",
+        "7": "Неделя",
+        "30": "Месяц",
+        "90": "3 месяца",
+        "180": "Полгода",
+        "365": "Год"
+      },
+      "customDates": "Свои даты",
+      "anyDuration": "Любой срок",
+      "whereLabel": "Где?",
+      "cityPlaceholder": "Минск",
+      "durationLabel": "На какой срок?",
+      "whenLabel": "Когда?",
+      "checkIn": "Заезд",
+      "checkOut": "Выезд",
+      "guestsLabel": "Гости",
+      "guestsAny": "Не важно",
+      "guestsCountMax": "{count}+ гостей",
+      "submit": "Найти",
+      "dateOrderError": "Дата выезда должна быть позже даты заезда",
+      "untilDate": "по {date} · {duration}"
+    },
+
+    "filters": {
+      "sort": {
+        "relevance": "По релевантности",
+        "priceAsc": "Сначала дешевле",
+        "priceDesc": "Сначала дороже",
+        "rating": "По рейтингу",
+        "newest": "Сначала новые"
+      },
+      "otherAmenityCategory": "Прочее",
+      "toggle": "Фильтры",
+      "onMap": "На карте",
+      "sortSrOnly": "Сортировка",
+      "priceLegend": "Цена за ночь или месяц, BYN",
+      "priceFromLabel": "От",
+      "priceToLabel": "До",
+      "pricePlaceholderMin": "0",
+      "pricePlaceholderMax": "Любая",
+      "roomsLegend": "Комнат",
+      "durationLegend": "Срок аренды",
+      "guestsLegend": "Гостей",
+      "propertyTypeLegend": "Тип жилья",
+      "bedsLegend": "Спальных мест, не меньше",
+      "ratingLegend": "Рейтинг хозяина",
+      "ratingFrom": "от {value}",
+      "rulesLegend": "Правила и бронирование",
+      "petsAllowed": "Можно с животными",
+      "childrenAllowed": "Можно с детьми",
+      "smokingAllowed": "Можно курить",
+      "verifiedOnly": "Только проверенные",
+      "instantBooking": "Мгновенное бронирование",
+      "showAllAmenities": "Показать все удобства",
+      "collapseAmenities": "Свернуть удобства",
+      "reset": "Сбросить",
+      "showResults": "Показать результаты",
+      "removeFilterSrOnly": "— убрать фильтр",
+      "priceChipRange": "{min}–{max} BYN",
+      "priceChipMin": "от {min} BYN",
+      "priceChipMax": "до {max} BYN",
+      "roomsChipMax": "{count}+ комнаты",
+      "bedsChip": "от {count, plural, one {# спального места} few {# спальных мест} many {# спальных мест} other {# спальных мест}}",
+      "ratingChip": "рейтинг от {value}"
+    },
+
+    "map": {
+      "empty": "Нет объектов в этой области",
+      "ariaLabel": "Карта объектов",
+      "approximateLocation": "Показано примерное расположение",
+      "notice": "Картографический слой ещё не подключён. Точки показаны в реальном взаимном расположении."
+    },
+
+    "card": {
+      "instantFlag": "Мгновенно",
+      "distanceMeters": "{value} м",
+      "distanceKm": "{value} км",
+      "areaSqm": "{value} м²",
+      "floorOf": "{floor}/{total} эт.",
+      "stayNoteWithNights": "за {nights, plural, one {# ночь} few {# ночи} many {# ночей} other {# ночей}}, всё включено",
+      "stayNoteAllInclusive": "всё включено",
+      "perMonth": "/ месяц",
+      "perNight": "/ ночь",
+      "fromDuration": "от {duration}",
+      "outOfFive": "из 5",
+      "reviewsCount": ", {count, plural, one {# отзыв} few {# отзыва} many {# отзывов} other {# отзывов}}",
+      "propertyVerified": "Объект проверен"
+    },
+
+    "favourite": {
+      "add": "Сохранить в избранное",
+      "remove": "Убрать из избранного"
+    }
+  }
+}

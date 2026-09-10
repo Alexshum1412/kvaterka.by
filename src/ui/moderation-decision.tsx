@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { Link, useRouter } from '@/i18n/navigation.ts';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from '@/ui/icons.tsx';
 import {
@@ -30,6 +31,7 @@ export function ModerationDecision({
   propertyId: string;
   status: string;
 }) {
+  const t = useTranslations('Moderation');
   const router = useRouter();
   const [mode, setMode] = useState<'none' | 'reject' | 'pause'>('none');
   const [codes, setCodes] = useState<ModerationReasonCode[]>([]);
@@ -55,7 +57,7 @@ export function ModerationDecision({
       // The queue counts and this listing's status both changed.
       router.refresh();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось сохранить решение');
+      setError(e instanceof ApiError ? e.message : t('saveError'));
     } finally {
       setBusy(false);
     }
@@ -71,21 +73,13 @@ export function ModerationDecision({
         <Icon name="checkCircle" size={20} />
         <div>
           <strong>
-            {done === 'PUBLISHED'
-              ? 'Объявление опубликовано'
-              : done === 'REJECTED'
-                ? 'Объявление отклонено'
-                : 'Объявление скрыто'}
+            {done === 'PUBLISHED' ? t('doneApproved') : done === 'REJECTED' ? t('doneRejected') : t('donePaused')}
           </strong>
-          <p className="text-sm muted">
-            {done === 'PUBLISHED'
-              ? 'Оно уже доступно в поиске. Владелец получит уведомление.'
-              : 'Владелец увидит причину и сможет вернуться к нужному шагу.'}
-          </p>
+          <p className="text-sm muted">{done === 'PUBLISHED' ? t('doneApprovedBody') : t('doneOtherBody')}</p>
         </div>
-        <a href="/moderation" className="btn btn-secondary btn-sm">
-          К очереди
-        </a>
+        <Link href="/moderation" className="btn btn-secondary btn-sm">
+          {t('backToQueueLink')}
+        </Link>
         <style>{`
           .md__done {
             display: flex; align-items: flex-start; gap: var(--space-3);
@@ -107,17 +101,17 @@ export function ModerationDecision({
           {canApprove && (
             <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void decide('PUBLISHED')}>
               <Icon name="check" size={17} />
-              {busy ? 'Сохраняем…' : 'Одобрить и опубликовать'}
+              {busy ? t('saving') : t('approveButton')}
             </button>
           )}
           {canReject && (
             <button type="button" className="btn btn-secondary" onClick={() => setMode('reject')}>
-              Отклонить
+              {t('rejectButton')}
             </button>
           )}
           {canPause && (
             <button type="button" className="btn btn-ghost" onClick={() => setMode('pause')}>
-              Скрыть из поиска
+              {t('hideButton')}
             </button>
           )}
         </div>
@@ -125,13 +119,8 @@ export function ModerationDecision({
 
       {mode !== 'none' && (
         <div className="md__form">
-          <h3 className="title-sm">
-            {mode === 'reject' ? 'Почему отклоняем?' : 'Почему скрываем?'}
-          </h3>
-          <p className="hint">
-            Владелец увидит выбранные причины и сможет открыть нужный шаг заполнения. Выберите хотя
-            бы одну.
-          </p>
+          <h3 className="title-sm">{mode === 'reject' ? t('whyRejectHeading') : t('whyHideHeading')}</h3>
+          <p className="hint">{t('reasonsHint')}</p>
 
           <div className="md__codes">
             {MODERATION_REASON_CODES.map((code) => (
@@ -148,16 +137,16 @@ export function ModerationDecision({
           </div>
 
           <label className="field">
-            <span className="label">Комментарий владельцу</span>
+            <span className="label">{t('commentLabel')}</span>
             <textarea
               className="textarea"
               rows={4}
               maxLength={1000}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Что именно нужно исправить. Этот текст увидит владелец."
+              placeholder={t('commentPlaceholder')}
             />
-            <span className="hint">Необязательно, но обычно экономит один круг проверки.</span>
+            <span className="hint">{t('commentHint')}</span>
           </label>
 
           {error && (
@@ -168,7 +157,7 @@ export function ModerationDecision({
 
           <div className="md__formActions">
             <button type="button" className="btn btn-ghost" onClick={() => setMode('none')}>
-              Отмена
+              {t('cancelButton')}
             </button>
             <button
               type="button"
@@ -176,7 +165,7 @@ export function ModerationDecision({
               disabled={busy || codes.length === 0}
               onClick={() => void decide(mode === 'reject' ? 'REJECTED' : 'PAUSED')}
             >
-              {busy ? 'Сохраняем…' : mode === 'reject' ? 'Отклонить объявление' : 'Скрыть объявление'}
+              {busy ? t('saving') : mode === 'reject' ? t('confirmRejectButton') : t('confirmHideButton')}
             </button>
           </div>
         </div>

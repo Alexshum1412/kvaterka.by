@@ -1,0 +1,47 @@
+{
+  "HowItWorks": {
+    "title": "How it works",
+    "metaDescription": "Kvaterka connects tenants and hosts directly: you pay each other for the rental, and the platform takes 5% from the host after the rental is completed.",
+    "breadcrumbLabel": "Breadcrumbs",
+    "breadcrumbHome": "Home",
+    "lede": "Kvaterka isn't a classifieds board. It's a platform that remembers what happened: who agreed with whom, whether the rental actually took place, and what both sides said about each other afterward.",
+    "tenantHeading": "For tenants",
+    "tenantSteps": {
+      "search": {
+        "title": "Find an apartment",
+        "body": "Search understands not just \"daily\" and \"yearly\" but everything in between — from a few days to several months."
+      },
+      "request": {
+        "title": "Send a request",
+        "body": "This isn't a booking yet: the host sees your request and responds. If they don't respond in time, the request expires on its own, and you're not left wondering."
+      },
+      "negotiate": {
+        "title": "Work out the details in messages",
+        "body": "Before confirmation, messaging stays inside the platform. That way both sides keep a record of what was agreed, in case a dispute comes up later."
+      },
+      "checkin": {
+        "title": "Check in and mark your arrival",
+        "body": "The exact address opens up after confirmation — until then, only the neighborhood shows on the map."
+      },
+      "confirm": {
+        "title": "Confirm the rental happened",
+        "body": "Both sides do this. It's the confirmation, not the payment, that closes out the rental."
+      },
+      "review": {
+        "title": "Leave a review",
+        "body": "Both sides' reviews publish at the same time, so nobody can read the other one first and shape theirs to match."
+      }
+    },
+    "host": {
+      "heading": "For hosts",
+      "p1": "Posting is free. Your listing goes through moderation, then appears in search. You respond to requests, confirm the rental, and get paid directly by the tenant.",
+      "p2Rich": "The platform takes a <strong>5% fee</strong> — only from the host, and only after both sides confirm the rental happened. <link>More about the fee</link>."
+    },
+    "money": {
+      "heading": "The platform doesn't touch rental money",
+      "body": "You hand over the rent and deposit to each other directly, as agreed. Kvaterka isn't a party to your deal, doesn't accept rental payments, and doesn't hold your money.",
+      "noteRich": "<strong>What this means in practice.</strong> The platform can't \"give you your money back\", because it never received it. What it can do is keep the message history, the check-in and check-out confirmations, and review a dispute based on those records.",
+      "cta": "Browse apartments"
+    }
+  }
+}

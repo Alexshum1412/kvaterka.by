@@ -1,0 +1,22 @@
+{
+  "Notifications": {
+    "meta": { "title": "Notifications" },
+    "title": "Notifications",
+    "subtitle": "Everything Kvaterka has told you: booking requests, decisions, reminders.",
+    "settingsLink": "Choose what to send",
+    "emptyTitle": "Nothing here yet",
+    "emptyText": "Booking requests, host replies, check-in reminders, and verification decisions will appear here.",
+    "emptyButton": "Browse listings",
+    "fallbackTitle": "Notification",
+    "list": {
+      "allRead": "All caught up",
+      "unreadCount": "{count, plural, one {# unread} other {# unread}}",
+      "markAllButton": "Mark all as read",
+      "unreadSr": "Unread",
+      "justNow": "just now",
+      "minutesAgo": "{count} min ago",
+      "hoursAgo": "{count} h ago",
+      "daysAgo": "{count} d ago"
+    }
+  }
+}

@@ -1,6 +1,11 @@
-import Link from 'next/link';
+import { cookies } from 'next/headers';
+import { getTranslations } from 'next-intl/server';
+import { Link } from '@/i18n/navigation.ts';
 import { CornflowerMark } from './brand.tsx';
 import { Icon } from './icons.tsx';
+import { LogoutButton } from './logout-button.tsx';
+import { ThemeToggle } from './theme-toggle.tsx';
+import { LanguageSwitcher } from './language-switcher.tsx';
 import { currentUser } from '@/server/session.ts';
 import { readyServices } from '@/server/runtime.ts';
 import { can } from '@/server/auth/rbac.ts';
@@ -22,7 +27,8 @@ import { can } from '@/server/auth/rbac.ts';
  * second sticky row of links would push listings off the first screen.
  */
 export async function SiteHeader() {
-  const user = await currentUser();
+  const [user, t, cookieStore] = await Promise.all([currentUser(), getTranslations('Header'), cookies()]);
+  const theme = cookieStore.get('theme')?.value === 'dark' ? 'dark' : 'light';
   const initial = Array.from(user?.displayName.trim() ?? '')[0]?.toUpperCase() ?? '';
 
   /* The unread count, which is the only reason a person ever discovers the
@@ -36,30 +42,30 @@ export async function SiteHeader() {
   return (
     <header className="sh">
       <div className="container sh__bar">
-        <Link href="/" className="sh__brand" aria-label="Кватэрка.by, на главную">
+        <Link href="/" className="sh__brand" aria-label={t('brandAria')}>
           <CornflowerMark size={26} className="sh__mark" />
           <span className="sh__word">
             Кватэрка<span className="sh__tld">.by</span>
           </span>
         </Link>
 
-        <nav className="sh__nav" aria-label="Основная навигация">
+        <nav className="sh__nav" aria-label={t('mainNavAria')}>
           <Link href="/search" className="sh__link">
-            Найти жильё
+            {t('findHousing')}
           </Link>
           {user ? (
             <>
               <Link href="/trips" className="sh__link">
-                Мои поездки
+                {t('myTrips')}
               </Link>
               <Link href="/dashboard" className="sh__link">
-                Мои квартиры
+                {t('myListings')}
               </Link>
               <Link href="/favorites" className="sh__link">
-                Избранное
+                {t('favorites')}
               </Link>
               <Link href="/dashboard/chat" className="sh__link">
-                Сообщения
+                {t('messages')}
               </Link>
               {/* Staff only, and one entry rather than one per console. An
                   ordinary account gets a 404 from the page itself, so this
@@ -70,11 +76,11 @@ export async function SiteHeader() {
                   without it still reaches their own queue. */}
               {can(user.roles, 'case.view') ? (
                 <Link href="/staff" className="sh__link sh__link--staff">
-                  Операции
+                  {t('operations')}
                 </Link>
               ) : can(user.roles, 'listing.moderate') ? (
                 <Link href="/moderation" className="sh__link sh__link--staff">
-                  Модерация
+                  {t('moderation')}
                 </Link>
               ) : (
                 /* VERIFIER holds neither `case.view` nor `listing.moderate`, so
@@ -82,7 +88,7 @@ export async function SiteHeader() {
                    role whose entire job is a staff screen could not reach one. */
                 can(user.roles, 'verification.review') && (
                   <Link href="/staff/verification" className="sh__link sh__link--staff">
-                    Верификация
+                    {t('verification')}
                   </Link>
                 )
               )}
@@ -99,34 +105,43 @@ export async function SiteHeader() {
                   which is why it sits outside the chain above. */}
               {user.withheldRoles.length > 0 && (
                 <Link href="/staff/security" className="sh__link sh__link--staff">
-                  Подтвердить вход
+                  {t('confirmSignIn')}
                 </Link>
               )}
             </>
           ) : (
             <>
               <Link href="/dashboard/listings/new" className="sh__link">
-                Сдать квартиру
+                {t('listYourPlace')}
               </Link>
               {/* Signed out this leads to sign-in, which is the honest answer:
                   a shortlist has to belong to somebody. */}
               <Link href="/favorites" className="sh__link">
-                Избранное
+                {t('favorites')}
               </Link>
             </>
           )}
         </nav>
 
         <div className="sh__end">
-          <Link href="/search" className="sh__icon-link" aria-label="Найти жильё">
+          <Link href="/search" className="sh__icon-link" aria-label={t('searchAria')}>
             <Icon name="search" size={20} />
           </Link>
+
+          {/* Both controls live here — visible on every page, above the
+              fold, rather than in the footer where a real language switch
+              used to be the one honest thing to say "coming soon" about
+              (it wasn't real then; it is now, and it earns a real spot). */}
+          <div className="sh__prefs">
+            <ThemeToggle theme={theme} label={t('themeToggleAria')} />
+            <LanguageSwitcher ariaLabel={t('languageAria')} />
+          </div>
 
           {user && (
             <Link
               href="/notifications"
               className="sh__icon-link sh__bell"
-              aria-label={unread === 0 ? 'Уведомления' : `Уведомления, непрочитанных: ${unread}`}
+              aria-label={unread === 0 ? t('notificationsAria') : t('notificationsUnreadAria', { count: unread })}
             >
               <Icon name="bell" size={20} />
               {/* A count, not a bare dot: "you have things waiting" and "you
@@ -141,12 +156,10 @@ export async function SiteHeader() {
             </Link>
           )}
 
+          {user && <LogoutButton label={t('logOut')} />}
+
           {user ? (
-            <Link
-              href="/dashboard"
-              className="sh__me"
-              aria-label={`${user.displayName} — личный кабинет`}
-            >
+            <Link href="/dashboard" className="sh__me" aria-label={t('myAccountAria', { name: user.displayName })}>
               <span className="sh__monogram" aria-hidden="true">
                 {initial === '' ? <Icon name="users" size={16} /> : initial}
               </span>
@@ -154,7 +167,7 @@ export async function SiteHeader() {
             </Link>
           ) : (
             <Link href="/login" className="btn btn-primary sh__cta">
-              Войти
+              {t('signIn')}
             </Link>
           )}
         </div>
@@ -218,6 +231,19 @@ export async function SiteHeader() {
           flex: 1 1 auto;
           min-width: 0;
           gap: var(--space-2);
+        }
+
+        .sh__prefs {
+          display: flex;
+          align-items: center;
+          gap: 0.125rem;
+        }
+        /* On the narrowest phones, two extra controls plus search/bell/logout/
+           identity is too much for one row — the language pills are the one
+           part that also lives reachably inside the footer's reach on mobile
+           (the header's own icon row still carries the theme toggle). */
+        @media (max-width: 420px) {
+          .sh__prefs .lsw { display: none; }
         }
 
         .sh__icon-link {
@@ -321,11 +347,14 @@ export async function SiteHeader() {
             margin-inline-start: var(--space-4);
           }
           .sh__icon-link { display: none; }
-          /* The bell is the exception: the search icon disappears here because
-             the text navigation already carries "Найти жильё", but nothing in
-             that navigation carries unread state, so hiding the bell on
-             desktop would hide the count exactly where there is room for it. */
-          .sh__bell { display: inline-flex; }
+          /* The bell, theme toggle and logout button are exceptions: the
+             search icon disappears here because the text navigation already
+             carries "Найти жильё", but none of these three has a text-nav
+             equivalent to fall back on — hiding them on desktop would make
+             them simply unreachable there, not redundant. */
+          .sh__bell,
+          .sh__prefs .tgl,
+          .lgo { display: inline-flex; }
           /* The identity block gives up width by dropping the name rather than
              by squeezing it to a clipped stub next to the monogram. */
           .sh__name { display: none; }

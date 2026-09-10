@@ -1,0 +1,57 @@
+{
+  "Faq": {
+    "title": "FAQ",
+    "metaDescription": "How to book an apartment, how to cancel a request, what documents are needed for verification, and whether Kvaterka.by has hidden fees.",
+    "breadcrumbLabel": "Breadcrumbs",
+    "breadcrumbHome": "Home",
+    "lede": "A short rundown of how the platform actually works — no \"it depends on the manager\": every answer here has a mechanism in the code that behaves exactly this way.",
+    "booking": {
+      "heading": "Booking",
+      "howToBook": {
+        "question": "How do I book an apartment?",
+        "answer": "Find a place through search and send a request for the dates you want — this is not yet a booking, just a message to the host. While you're messaging, only the neighborhood shows on the map: the exact address opens once the host confirms the request. Once confirmed, the dates are locked in for you and both sides get each other's contact details.",
+        "moreLink": "More about how it works"
+      },
+      "cancel": {
+        "question": "How do I cancel a request or an already-confirmed booking?",
+        "answerP1": "As long as the host hasn't answered your request, you can withdraw it at any time — the calendar isn't occupied yet, so nothing is affected. Once a booking is confirmed, either side can cancel it from the booking page; if the host does it, the platform records that separately — those cancellations hit the tenant hardest.",
+        "answerP2": "No 5% fee is charged on a cancelled or unrealized rental — the fee applies only to a rental that actually happened."
+      },
+      "noResponse": {
+        "question": "What happens if the host doesn't respond to a request?",
+        "answer": "A request doesn't hang forever. If the host doesn't respond in time, it expires on its own — you're not left in limbo and can go look at another option."
+      }
+    },
+    "money": {
+      "heading": "Money and trust",
+      "hiddenFees": {
+        "question": "Are there any hidden fees?",
+        "answer": "Posting a listing, searching, and messaging are free for everyone. The platform's only fee is {rate}% charged to the host, taken once, only after both sides confirm the rental happened. The tenant pays the host exactly the amount you agreed on — the platform takes nothing from them.",
+        "feesLink": "How the fee is calculated"
+      },
+      "verification": {
+        "question": "What documents are needed for verification?",
+        "answer": "Right now — none. The basic \"Newcomer\" tier is confirmed by email and phone, and that's available to everyone right away. The \"Identity confirmed\" and \"Verified\" tiers are built around documents, but document intake is temporarily switched off pending a legal decision, so nobody is granted those tiers yet — we don't show a badge that stands for nothing.",
+        "trustLink": "More about verification tiers"
+      },
+      "contactHost": {
+        "question": "How do I contact the host before booking?",
+        "answer": "Only through messaging inside Kvaterka — that's the only channel until the booking is confirmed. If a message contains a phone number, a link to a messenger app, or another way to take the conversation off the platform, that part is hidden and the sender is told why. Once the booking is confirmed, contact details open up for both sides."
+      }
+    },
+    "living": {
+      "heading": "During the stay",
+      "nightCheckin": {
+        "question": "Can I check in at night?",
+        "answer": "There's no single rule across the platform — the host sets the check-in time in the listing, and it varies. If you need a late-night check-in, discuss it in messages before confirming: the host will either agree or suggest another time."
+      },
+      "somethingWrong": {
+        "question": "What do I do if something goes wrong during the stay?",
+        "answerP1": "Open the booking page and click \"Open a dispute\". A staff member reviews the dispute based on the message history and check-in/check-out marks, not on one side's word alone, and the decision is recorded in an immutable log.",
+        "trustLink": "How trust is built",
+        "supportLink": "Support"
+      }
+    },
+    "moreRich": "Didn't find your answer? The <link>support section</link> will point you where to go next."
+  }
+}

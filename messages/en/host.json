@@ -1,0 +1,41 @@
+{
+  "Host": {
+    "title": "List your apartment",
+    "metaDescription": "Posting is free, and the 5% fee applies only after a completed rental. How to list an apartment on Kvaterka.by.",
+    "breadcrumbLabel": "Breadcrumbs",
+    "breadcrumbHome": "Home",
+    "lede": "Posting is free. The platform earns only once you have: 5% after a rental that both sides confirmed.",
+    "howHeading": "How to list",
+    "steps": {
+      "describe": {
+        "title": "Describe the apartment",
+        "body": "A draft saves itself at every step, so you can fill it in over several sittings."
+      },
+      "photos": {
+        "title": "Add photos",
+        "body": "Photos are the main thing people look at. A listing can't be published without them."
+      },
+      "dates": {
+        "title": "Set the dates and price",
+        "body": "The term is set as a range of nights, so one listing can work for a week or for several months."
+      },
+      "moderation": {
+        "title": "Send it for moderation",
+        "body": "We check the listing and publish it. If something's off, we send it back with a clear reason, not a rejection without explanation."
+      }
+    },
+    "calendar": {
+      "heading": "The calendar is yours",
+      "bodyRich": "Dates you've closed off can't be booked — that's a constraint of the database itself, not a check in the interface. Double-booking the same dates is also impossible — <strong>by construction</strong>, not by attentiveness."
+    },
+    "requests": {
+      "heading": "Requests and responses",
+      "body": "The tenant sends a request, you respond. An unanswered request expires on its own — the tenant isn't left hanging, and you don't accumulate a backlog of overdue ones."
+    },
+    "money": {
+      "heading": "Money",
+      "bodyRich": "The tenant pays you the rent and deposit directly. The platform doesn't accept or hold them. The 5% fee is charged after the rental is completed — <link>more about the fee</link>.",
+      "cta": "List your apartment"
+    }
+  }
+}

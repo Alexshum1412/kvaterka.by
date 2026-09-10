@@ -1,0 +1,32 @@
+{
+  "StaffReports": {
+    "title": "Reports",
+    "subtitle": "Reports filed by users — on listings, profiles, messages and reviews.",
+    "badgeQueue": "In queue",
+    "notice": "This list does not resolve reports itself. Each one links to the screen where the decision is actually made.",
+    "emptyTitle": "No reports",
+    "emptyBody": "No open reports left in the queue.",
+    "targetTypeProperty": "Listing",
+    "targetTypeUser": "User",
+    "targetTypeMessage": "Message",
+    "targetTypeReview": "Review",
+    "statusOpen": "New",
+    "statusReviewing": "Under review",
+    "detailNone": "No comment",
+    "reporterLabel": "Reported by:",
+    "targetLabel": "Target:",
+    "goToProperty": "Open listing",
+    "goToUser": "Open profile",
+    "goToReviewsQueue": "Open review queue",
+    "goToMessagesQueue": "Open message queue",
+    "reviewsHint": "There's no direct link to this review — find it in the queue by author or text.",
+    "categorySpam": "Spam",
+    "categoryAbuse": "Abuse",
+    "categoryFraud": "Fraud",
+    "categoryOffPlatform": "Off-platform",
+    "categoryOther": "Other",
+    "categoryFalseInformation": "False information",
+    "categoryPrivateData": "Private data",
+    "categoryNotAboutStay": "Not about the stay"
+  }
+}

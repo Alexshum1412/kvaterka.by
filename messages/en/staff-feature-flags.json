@@ -1,0 +1,28 @@
+{
+  "StaffFeatureFlags": {
+    "title": "Feature flags",
+    "subtitle": "Turn platform features on and off. Every change needs a reason and lands in the audit log.",
+    "loading": "Loading flags…",
+    "loadError": "Could not load feature flags",
+    "retry": "Retry",
+    "empty": "No flags yet",
+    "stateOn": "On",
+    "stateOff": "Off",
+    "legalRequired": "Needs legal approval",
+    "noDescription": "No description",
+    "updatedAt": "Updated {date}",
+    "neverUpdated": "Never changed",
+    "toggleAria": "{key}: {state}",
+    "reasonLabel": "Reason for the change",
+    "reasonPlaceholder": "E.g. enabling for the pilot city group",
+    "reasonHint": "At least 3 characters — this reason lands in the audit log.",
+    "legalLabel": "Legal approval reference",
+    "legalHint": "This flag requires a legal opinion",
+    "legalPlaceholder": "Document number or a link to the opinion",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "saved": "Changes saved",
+    "saveError": "Could not save the flag"
+  }
+}

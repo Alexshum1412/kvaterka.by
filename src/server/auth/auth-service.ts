@@ -39,6 +39,10 @@ const DUMMY_HASH =
 
 export const SESSION_TTL_DAYS = 30;
 export const VERIFICATION_TTL_HOURS = 24;
+/** A staff-created account's setup link lives longer than a self-service
+ * reset (2h): nobody is locked out waiting on it, so there is no reason to
+ * rush the person it was sent to. */
+export const STAFF_ACCOUNT_SETUP_TTL_HOURS = 72;
 export const MAX_FAILED_LOGINS = 8;
 
 export interface RegisterInput {
@@ -525,6 +529,109 @@ export class AuthService {
         reason,
         source: 'admin',
       });
+    });
+  }
+
+  /**
+   * The other half of `grantRole`. Kept as a hard delete on `user_role`
+   * rather than a soft-revoke flag: a role is either held or it is not, and
+   * `permissionsFor()` reads this table directly — a "revoked but still a
+   * row" state would need every reader to know to filter it out.
+   *
+   * Refuses to take away someone's own TENANT role via this path — that is
+   * what account closure is for, and doing it through role revocation would
+   * leave the account in a state the rest of the product does not expect.
+   */
+  async revokeRole(userId: string, role: Role, revokedBy: string, reason: string): Promise<void> {
+    if (!reason?.trim()) throw invalid('Укажите причину отзыва роли');
+    if (role === 'TENANT') throw invalid('Роль TENANT нельзя отозвать — для этого есть закрытие аккаунта');
+    await this.db.transaction(async (tx) => {
+      const { rowCount } = await tx.query(`DELETE FROM user_role WHERE user_id=$1 AND role=$2`, [userId, role]);
+      if (rowCount === 0) return;
+      await writeAudit(tx, {
+        actorUserId: revokedBy,
+        actorRole: 'ADMIN',
+        action: 'auth.revoke_role',
+        targetType: 'user',
+        targetId: userId,
+        changes: { role: { from: role, to: null } },
+        reason,
+        source: 'admin',
+      });
+    });
+  }
+
+  /** Every role currently held, for the admin user-detail screen. */
+  async listRoles(userId: string): Promise<Role[]> {
+    const { rows } = await this.db.query<{ role: Role }>(`SELECT role FROM user_role WHERE user_id=$1 ORDER BY role`, [
+      userId,
+    ]);
+    return rows.map((r) => r.role);
+  }
+
+  /**
+   * Staff-initiated account creation (support setting someone up with an
+   * operator role, an admin onboarding another admin). Distinct from
+   * `register`: there is no password from the caller — one is generated and
+   * never handed back, so the new account is unusable until its owner sets
+   * their own via the password-reset flow, delivered to the address the
+   * admin typed. If that email is wrong, the account simply sits unusable
+   * rather than being usable by whoever fat-fingered it.
+   */
+  async createStaffManagedAccount(
+    input: { email?: string; phone?: string; displayName: string; roles: readonly Role[] },
+    createdBy: string,
+    reason: string,
+  ): Promise<{ userId: string; resetToken: string }> {
+    if (!reason?.trim()) throw invalid('Укажите причину создания учётной записи');
+    if (!input.email && !input.phone) throw invalid('Укажите email или телефон');
+    if (input.displayName.trim().length < 2) throw invalid('Укажите имя');
+
+    const userId = uuidv7();
+    // Unusable password: a random hash nobody can ever type. The account
+    // becomes usable only once its owner sets a real password via the reset
+    // token below — there is never a moment where an admin-known password
+    // could authenticate as this user.
+    const passwordHash = await hashPassword(generateToken());
+
+    return this.db.transaction(async (tx) => {
+      try {
+        await tx.query(
+          `INSERT INTO app_user (id, email, phone, password_hash, display_name, account_kind, locale)
+           VALUES ($1,$2,$3,$4,$5,'PRIVATE','ru')`,
+          [userId, input.email?.trim() ?? null, input.phone?.trim() ?? null, passwordHash, input.displayName.trim()],
+        );
+      } catch (e) {
+        if (hasErrorCode(e, PG_ERROR.UNIQUE_VIOLATION)) {
+          throw new DomainError('ALREADY_EXISTS', 'Учётная запись с этими данными уже существует');
+        }
+        throw e;
+      }
+
+      await tx.query(`INSERT INTO user_role (user_id, role) VALUES ($1,'TENANT')`, [userId]);
+      for (const role of input.roles) {
+        if (role === 'TENANT') continue;
+        await tx.query(`INSERT INTO user_role (user_id, role, granted_by) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [
+          userId,
+          role,
+          createdBy,
+        ]);
+      }
+
+      const resetToken = await this.issueAuthToken(tx, userId, 'PASSWORD_RESET', STAFF_ACCOUNT_SETUP_TTL_HOURS);
+
+      await writeAudit(tx, {
+        actorUserId: createdBy,
+        actorRole: 'ADMIN',
+        action: 'auth.create_staff_account',
+        targetType: 'user',
+        targetId: userId,
+        changes: { roles: { from: null, to: input.roles } },
+        reason,
+        source: 'admin',
+      });
+
+      return { userId, resetToken };
     });
   }
 

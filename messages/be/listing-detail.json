@@ -1,0 +1,130 @@
+{
+  "ListingDetail": {
+    "meta": {
+      "notFoundTitle": "Аб'ява не знойдзена",
+      "descriptionFallback": "Арэнда: {title} у горадзе {city}."
+    },
+    "breadcrumbs": {
+      "aria": "Хлебныя крошкі",
+      "home": "Галоўная"
+    },
+    "header": {
+      "reviewCount": "{count, plural, one {# водгук} few {# водгукі} many {# водгукаў} other {# водгукаў}}"
+    },
+    "facts": {
+      "rooms": "Пакояў",
+      "area": "Плошча",
+      "areaValue": "{value} м²",
+      "floor": "Паверх",
+      "floorOf": "{floor} з {total}",
+      "beds": "Спальных месцаў",
+      "bathrooms": "Санвузлоў",
+      "maxGuests": "Максімум гасцей"
+    },
+    "duration": {
+      "text": "Здаецца <strongMin>ад {min}</strongMin> да <strongMax>{max}</strongMax>"
+    },
+    "amenitiesTitle": "Зручнасці",
+    "amenities": {
+      "confirmed": "пацвердзілі {confirmed} з {total}",
+      "note": "Адзнаку «пацвердзілі» ставяць госці пасля завершанай арэнды — гэта іх назіранне, а не абяцанне гаспадара."
+    },
+    "rulesTitle": "Правілы",
+    "policy": {
+      "smoking": {
+        "PROHIBITED": "Курэнне забаронена",
+        "ALLOWED": "Курэнне дазволена",
+        "BALCONY_ONLY": "Курэнне толькі на балконе"
+      },
+      "pets": {
+        "PROHIBITED": "З жывёламі нельга",
+        "ALLOWED": "Можна з жывёламі",
+        "SMALL_ONLY": "Толькі невялікія жывёлы",
+        "ON_REQUEST": "З жывёламі па дамоўленасці"
+      }
+    },
+    "rules": {
+      "childrenAllowed": "Можна з дзецьмі",
+      "childrenNotAllowed": "Не падыходзіць для дзяцей",
+      "partiesAllowed": "Мерапрыемствы дазволены",
+      "partiesNotAllowed": "Вечарыны і мерапрыемствы забаронены",
+      "checkInOut": "Заезд з {from}, выезд да {to}",
+      "quietHours": "Ціхія гадзіны: з {from} да {to}"
+    },
+    "reviews": {
+      "title": "Водгукі",
+      "titleWithCount": "Водгукі · {count}",
+      "empty": "Водгукаў пакуль няма. Іх можна пакінуць толькі пасля завершанай арэнды, таму тут не бывае выпадковых ацэнак.",
+      "thin": "{count, plural, one {Пакуль # водгук} few {Пакуль # водгукі} many {Пакуль # водгукаў} other {Пакуль # водгукаў}} — гэтага мала, каб меркаваць пра ацэнку. Глядзіце на тэкст водгуку, а не на лічбу.",
+      "wouldRentAgain": "Арандаваў бы зноў"
+    },
+    "dimensions": {
+      "cleanliness": "Чысціня",
+      "accuracy": "Адпаведнасць апісанню",
+      "communication": "Зносіны",
+      "checkIn": "Засяленне",
+      "location": "Размяшчэнне",
+      "value": "Цана і якасць",
+      "rulesClarity": "Зразумеласць правілаў"
+    },
+    "location": {
+      "title": "Размяшчэнне",
+      "note": "{place}. Паказана прыблізнае размяшчэнне — дакладны адрас адкрываецца пасля пацвярджэння браніравання."
+    },
+    "owner": {
+      "title": "Гаспадар",
+      "company": "Кампанія",
+      "private": "Прыватны гаспадар",
+      "completedRentals": "{count, plural, one {# завершаная здзелка} few {# завершаныя здзелкі} many {# завершаных здзелак} other {# завершаных здзелак}}",
+      "profileLink": "Профіль"
+    },
+    "aside": {
+      "utilitiesNote": "Камунальныя плацяжы па лічыльніку аплачваюцца асобна і загадзя невядомыя.",
+      "cleaningFeeNote": "Абавязковая ўборка <money></money> ужо ўключана ў выніковую суму."
+    },
+    "dock": {
+      "requestButton": "Адправіць запыт",
+      "bookButton": "Забраніраваць"
+    },
+    "priceUnit": {
+      "perMonth": "у месяц",
+      "perNight": "за ноч"
+    },
+    "gallery": {
+      "empty": "Фотаздымкаў пакуль няма",
+      "mainAlt": "{title} — асноўнае фота",
+      "photoAlt": "{title} — фота {index}",
+      "morePhotos": "{count} фота"
+    },
+    "booking": {
+      "doneTitleConfirmed": "Браніраванне пацверджана",
+      "doneTitleRequested": "Запыт адпраўлены",
+      "doneTextConfirmed": "Даты замацаваны за вамі. Дакладны адрас і кантакты гаспадара цяпер даступныя ў вашым браніраванні.",
+      "doneTextRequested": "Гаспадар адкажа на працягу 48 гадзін. Даты пакуль не заблакіраваны — іх можа заняць іншы запыт, пацверджаны раней.",
+      "goToBooking": "Перайсці да браніравання",
+      "term": "ад {min} да {max}",
+      "checkInLabel": "Заезд",
+      "checkOutLabel": "Выезд",
+      "guestsLabel": "Гасцей",
+      "durationError": "Гэты аб'ект здаецца на тэрмін ад {min} да {max}. Вы выбралі {nights, plural, one {# ноч} few {# ночы} many {# начэй} other {# начэй}}.",
+      "quoteHead": "{nights, plural, one {Разлік за # ноч} few {Разлік за # ночы} many {Разлік за # начэй} other {Разлік за # начэй}}",
+      "meterBilled": "па лічыльніку",
+      "totalLabel": "Разам да аплаты гаспадару",
+      "depositNote": "Дадаткова зваротны залог {amount} BYN — вяртаецца пры выездзе.",
+      "variableCostsNote": "Камунальныя плацяжы аплачваюцца па лічыльніку і не ўваходзяць у суму вышэй.",
+      "submitError": "Не ўдалося адправіць запыт",
+      "instantBookButton": "Забраніраваць адразу",
+      "requestButton": "Адправіць заяўку",
+      "confirmLeadInstant": "Даты будуць замацаваны адразу пасля пацвярджэння.",
+      "confirmLeadRequest": "Гаспадар адкажа на заяўку. Даты пакуль не замацоўваюцца.",
+      "messageLabel": "Паведамленне гаспадару",
+      "messagePlaceholder": "Добры дзень! Планую прыехаць у Мінск на некалькі дзён…",
+      "messageHint": "Неабавязкова. Кантакты і спасылкі на іншыя сэрвісы ў перапісцы хаваюцца — да пацверджанага браніравання зносіны ідуць тут.",
+      "backButton": "Назад",
+      "confirmButtonSubmitting": "Адпраўляем…",
+      "confirmButtonInstant": "Пацвердзіць браніраванне",
+      "confirmButtonRequest": "Адправіць заяўку",
+      "footerNote": "Аплата арэнды адбываецца напрамую паміж вамі і гаспадаром. Платформа не прымае арэндную плату і не з'яўляецца бокам дагавора."
+    }
+  }
+}

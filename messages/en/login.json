@@ -1,0 +1,29 @@
+{
+  "Login": {
+    "meta": { "title": "Sign in" },
+    "title": {
+      "login": "Sign in to Kvaterka",
+      "register": "Sign up"
+    },
+    "lede": {
+      "login": "Sign in to book a place to stay or manage your listings.",
+      "register": "An account is needed to book, message hosts, and leave reviews."
+    },
+    "nameLabel": "Your name",
+    "identifierLabel": {
+      "login": "Email or phone",
+      "register": "Email"
+    },
+    "passwordLabel": "Password",
+    "passwordHint": "At least 10 characters. A long passphrase is safer than a short password with special characters.",
+    "networkError": "Couldn't connect to the server. Check your internet connection and try again.",
+    "submitBusy": "Please wait…",
+    "submitLogin": "Sign in",
+    "submitRegister": "Create account",
+    "forgotPassword": "Forgot your password?",
+    "switchPromptLogin": "Don't have an account?",
+    "switchPromptRegister": "Already have an account?",
+    "switchActionLogin": "Create account",
+    "switchActionRegister": "Sign in"
+  }
+}

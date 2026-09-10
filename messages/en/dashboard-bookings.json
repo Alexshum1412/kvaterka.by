@@ -1,0 +1,21 @@
+{
+  "DashboardBookings": {
+    "meta": { "title": "Requests and bookings" },
+    "backToDashboard": "Dashboard",
+    "title": "Requests and bookings",
+    "requestsWaiting": "{count, plural, one {# request is awaiting a response} other {# requests are awaiting a response}}",
+    "noNewRequests": "No new requests.",
+    "statusAriaLabel": "Status",
+    "tabRequested": "New requests",
+    "tabConfirmed": "Upcoming",
+    "tabActive": "Staying",
+    "tabCompletion": "Awaiting confirmation",
+    "tabHistory": "History",
+    "reviewsAriaLabel": "Reviews",
+    "inviteTitle": "You can review this tenant",
+    "inviteText": "Both reviews are published at the same time — the tenant won't see your rating until they write their own.",
+    "leaveReview": "Leave a review",
+    "emptyTitle": "Nothing here yet",
+    "emptyHintRequested": "New requests from tenants will appear here."
+  }
+}

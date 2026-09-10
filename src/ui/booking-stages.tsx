@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { Icon } from '@/ui/icons.tsx';
 
 /**
@@ -14,11 +15,11 @@ import { Icon } from '@/ui/icons.tsx';
  */
 
 const STAGES = [
-  { key: 'REQUEST', label: 'Заявка', icon: 'message' as const },
-  { key: 'CONFIRMED', label: 'Подтверждено', icon: 'checkCircle' as const },
-  { key: 'STAY', label: 'Проживание', icon: 'key' as const },
-  { key: 'COMPLETION', label: 'Подтверждение', icon: 'clock' as const },
-  { key: 'DONE', label: 'Завершено', icon: 'star' as const },
+  { key: 'REQUEST', labelKey: 'stageRequest', icon: 'message' as const },
+  { key: 'CONFIRMED', labelKey: 'stageConfirmed', icon: 'checkCircle' as const },
+  { key: 'STAY', labelKey: 'stageStay', icon: 'key' as const },
+  { key: 'COMPLETION', labelKey: 'stageCompletion', icon: 'clock' as const },
+  { key: 'DONE', labelKey: 'stageDone', icon: 'star' as const },
 ] as const;
 
 /** Booking state → index of the step it is currently at. */
@@ -42,13 +43,15 @@ const OFF_PATH = new Set([
   'DISPUTED',
 ]);
 
-export function BookingStages({ status }: { status: string }) {
+export async function BookingStages({ status }: { status: string }) {
   if (OFF_PATH.has(status)) return null;
   const current = STAGE_OF[status];
   if (current === undefined) return null;
 
+  const t = await getTranslations('Booking');
+
   return (
-    <ol className="bs" aria-label="Этап аренды">
+    <ol className="bs" aria-label={t('stagesAriaLabel')}>
       {STAGES.map((stage, index) => {
         const state = index < current ? 'past' : index === current ? 'now' : 'future';
         return (
@@ -56,10 +59,10 @@ export function BookingStages({ status }: { status: string }) {
             <span className="bs__mark" aria-hidden="true">
               {state === 'past' ? <Icon name="check" size={13} /> : <Icon name={stage.icon} size={13} />}
             </span>
-            <span className="bs__label">{stage.label}</span>
+            <span className="bs__label">{t(stage.labelKey)}</span>
             {/* The only accessible statement of position — the visual states
                 above are decoration, and colour alone never carries it. */}
-            {state === 'now' && <span className="sr-only">— текущий этап</span>}
+            {state === 'now' && <span className="sr-only">{t('currentStageSrOnly')}</span>}
           </li>
         );
       })}

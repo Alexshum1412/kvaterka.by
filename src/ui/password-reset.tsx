@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { Link, useRouter } from '@/i18n/navigation.ts';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from './icons.tsx';
 
@@ -31,6 +31,7 @@ import { Icon } from './icons.tsx';
  */
 
 export function PasswordResetRequest({ deliverable }: { deliverable: boolean }) {
+  const t = useTranslations('PasswordReset');
   const [identifier, setIdentifier] = useState('');
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -46,7 +47,7 @@ export function PasswordResetRequest({ deliverable }: { deliverable: boolean }) 
     } catch (e) {
       // Only a rate limit or a malformed address can land here; a missing
       // account cannot, by design.
-      setError(e instanceof ApiError ? e.message : 'Не удалось отправить запрос');
+      setError(e instanceof ApiError ? e.message : t('request.genericError'));
     } finally {
       setBusy(false);
     }
@@ -59,24 +60,17 @@ export function PasswordResetRequest({ deliverable }: { deliverable: boolean }) 
           <Icon name="check" size={20} />
         </span>
         <div>
-          <h2>Запрос принят</h2>
-          <p>
-            Если такая учётная запись существует, мы отправили на её адрес ссылку для смены пароля.
-            Мы не сообщаем, зарегистрирован ли адрес — иначе эту форму можно было бы использовать,
-            чтобы узнавать чужие адреса.
-          </p>
+          <h2>{t('request.doneTitle')}</h2>
+          <p>{t('request.doneBody')}</p>
           {!deliverable && (
             <p className="pr__warn">
               <Icon name="alert" size={16} />
-              <span>
-                Отправка писем в этой установке пока не настроена, поэтому письмо не придёт. Если вы
-                не можете войти — обратитесь в поддержку.
-              </span>
+              <span>{t('request.undeliverableWarning')}</span>
             </p>
           )}
           <p className="pr__links">
             <Link href="/login" className="link">
-              Вернуться ко входу
+              {t('request.backToLogin')}
             </Link>
           </p>
         </div>
@@ -87,7 +81,7 @@ export function PasswordResetRequest({ deliverable }: { deliverable: boolean }) 
   return (
     <form className="pr__form" onSubmit={submit} noValidate>
       <label className="field">
-        <span className="label">Почта или телефон</span>
+        <span className="label">{t('request.identifierLabel')}</span>
         <input
           type="text"
           className="input"
@@ -106,12 +100,12 @@ export function PasswordResetRequest({ deliverable }: { deliverable: boolean }) 
       )}
 
       <button type="submit" className="btn btn-primary" disabled={busy || identifier.trim().length < 3}>
-        {busy ? 'Отправляем…' : 'Прислать ссылку'}
+        {busy ? t('request.submitBusy') : t('request.submitButton')}
       </button>
 
       <p className="pr__links">
         <Link href="/login" className="link">
-          Вспомнили пароль? Войти
+          {t('request.rememberedLink')}
         </Link>
       </p>
 
@@ -121,6 +115,7 @@ export function PasswordResetRequest({ deliverable }: { deliverable: boolean }) 
 }
 
 export function PasswordResetConfirm({ token }: { token: string }) {
+  const t = useTranslations('PasswordReset');
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -135,11 +130,7 @@ export function PasswordResetConfirm({ token }: { token: string }) {
       await api.post('/auth/password-reset/confirm', { token, password });
       setDone(true);
     } catch (e) {
-      setError(
-        e instanceof ApiError
-          ? e.message
-          : 'Не удалось сменить пароль. Возможно, ссылка устарела — запросите новую.',
-      );
+      setError(e instanceof ApiError ? e.message : t('confirm.genericError'));
     } finally {
       setBusy(false);
     }
@@ -152,13 +143,13 @@ export function PasswordResetConfirm({ token }: { token: string }) {
           <Icon name="check" size={20} />
         </span>
         <div>
-          <h2>Пароль изменён</h2>
+          <h2>{t('confirm.doneTitle')}</h2>
           {/* The server revokes every session on reset, which is the point: a
               password is reset precisely when somebody else may be holding
               one. Saying so turns an inconvenience into a reassurance. */}
-          <p>Все открытые сеансы завершены — на всех устройствах нужно войти заново.</p>
+          <p>{t('confirm.doneBody')}</p>
           <button type="button" className="btn btn-primary" onClick={() => router.push('/login')}>
-            Войти
+            {t('confirm.loginButton')}
           </button>
         </div>
         <style>{FORM_CSS}</style>
@@ -169,7 +160,7 @@ export function PasswordResetConfirm({ token }: { token: string }) {
   return (
     <form className="pr__form" onSubmit={submit} noValidate>
       <label className="field">
-        <span className="label">Новый пароль</span>
+        <span className="label">{t('confirm.passwordLabel')}</span>
         <input
           type="password"
           className="input"
@@ -179,7 +170,7 @@ export function PasswordResetConfirm({ token }: { token: string }) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        <span className="hint">Не короче 10 символов.</span>
+        <span className="hint">{t('confirm.passwordHint')}</span>
       </label>
 
       {error && (
@@ -189,7 +180,7 @@ export function PasswordResetConfirm({ token }: { token: string }) {
       )}
 
       <button type="submit" className="btn btn-primary" disabled={busy || password.length < 10}>
-        {busy ? 'Сохраняем…' : 'Сохранить пароль'}
+        {busy ? t('confirm.submitBusy') : t('confirm.submitButton')}
       </button>
 
       <style>{FORM_CSS}</style>

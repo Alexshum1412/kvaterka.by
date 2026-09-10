@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation.ts';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from '@/ui/icons.tsx';
 import {
@@ -37,19 +38,12 @@ export interface AvailableAction {
   requiresReason: boolean;
 }
 
-const ACTION_META: Record<
-  string,
-  { label: string; tone: 'primary' | 'secondary' | 'danger' | 'ghost'; hint: string }
-> = {
-  TAKE: { label: 'Взять в работу', tone: 'primary', hint: 'Заявка закрепится за вами.' },
-  REQUEST_INFO: {
-    label: 'Запросить уточнения',
-    tone: 'secondary',
-    hint: 'Заявитель увидит причины и сможет дополнить заявку, не заполняя всё заново.',
-  },
-  APPROVE: { label: 'Подтвердить', tone: 'primary', hint: 'Уровень доверия будет выдан.' },
-  REJECT: { label: 'Отклонить', tone: 'danger', hint: 'Нужна хотя бы одна причина.' },
-  EXPIRE: { label: 'Закрыть как истёкшую', tone: 'ghost', hint: 'Заявитель не отвечает.' },
+const ACTION_TONE: Record<string, 'primary' | 'secondary' | 'danger' | 'ghost'> = {
+  TAKE: 'primary',
+  REQUEST_INFO: 'secondary',
+  APPROVE: 'primary',
+  REJECT: 'danger',
+  EXPIRE: 'ghost',
 };
 
 export function VerificationDecision({
@@ -69,6 +63,7 @@ export function VerificationDecision({
   currentUserId: string;
   canReadDocuments: boolean;
 }) {
+  const t = useTranslations('StaffVerification');
   const router = useRouter();
   const [open, setOpen] = useState<string | null>(null);
   const [codes, setCodes] = useState<VerificationReasonCode[]>([]);
@@ -107,8 +102,8 @@ export function VerificationDecision({
       );
       reset();
       router.refresh();
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось сохранить решение');
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : t('decision.errorSaveFailed'));
       setBusy(false);
     }
   }
@@ -120,8 +115,8 @@ export function VerificationDecision({
       await api.post(`/admin/verification/requests/${requestId}/assign`, { assigneeId });
       setBusy(false);
       router.refresh();
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось назначить исполнителя');
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : t('decision.errorAssignFailed'));
       setBusy(false);
     }
   }
@@ -130,7 +125,9 @@ export function VerificationDecision({
     setCodes((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
   }
 
-  const pending = open ? ACTION_META[open] : null;
+  const pending = open
+    ? { tone: ACTION_TONE[open]!, label: t(`decision.action.${open}.label`), hint: t(`decision.action.${open}.hint`) }
+    : null;
   const needsCodes = open === 'REJECT';
 
   return (
@@ -141,12 +138,9 @@ export function VerificationDecision({
 
           <fieldset className="vd__codes">
             <legend className="label">
-              Причины{needsCodes ? '' : ' — по желанию'}
+              {needsCodes ? t('decision.reasonsLegendRequired') : t('decision.reasonsLegendOptional')}
             </legend>
-            <p className="hint">
-              Код определяет, что увидит заявитель и на какой шаг его отправить. Выберите точнее —
-              это разница между «исправьте фото» и «непонятно, что не так».
-            </p>
+            <p className="hint">{t('decision.reasonsHint')}</p>
             <div className="vd__chips">
               {VERIFICATION_REASON_CODES.map((code) => (
                 <button
@@ -163,34 +157,29 @@ export function VerificationDecision({
           </fieldset>
 
           <label className="field">
-            <span className="label">Сообщение заявителю</span>
+            <span className="label">{t('decision.applicantMessageLabel')}</span>
             <textarea
               className="textarea"
               rows={3}
               maxLength={2000}
               value={applicantMessage}
               onChange={(e) => setApplicantMessage(e.target.value)}
-              placeholder="Что человеку сделать. Этот текст он увидит."
+              placeholder={t('decision.applicantMessagePlaceholder')}
             />
-            <span className="hint">
-              К выбранным причинам платформа сама добавит понятные пояснения — здесь только то, что
-              нужно добавить своими словами.
-            </span>
+            <span className="hint">{t('decision.applicantMessageHint')}</span>
           </label>
 
           <label className="field">
-            <span className="label">Внутренняя заметка</span>
+            <span className="label">{t('decision.internalNoteLabel')}</span>
             <textarea
               className="textarea"
               rows={3}
               maxLength={4000}
               value={internalNote}
               onChange={(e) => setInternalNote(e.target.value)}
-              placeholder="Что вы заметили. Заявитель этого не увидит."
+              placeholder={t('decision.internalNotePlaceholder')}
             />
-            <span className="hint">
-              Видна только сотрудникам и не удаляется — история заявки только дополняется.
-            </span>
+            <span className="hint">{t('decision.internalNoteHint')}</span>
           </label>
 
           {error && (
@@ -201,7 +190,7 @@ export function VerificationDecision({
 
           <div className="vd__row">
             <button type="button" className="btn btn-ghost" onClick={reset} disabled={busy}>
-              Отмена
+              {t('decision.cancel')}
             </button>
             <button
               type="button"
@@ -209,7 +198,7 @@ export function VerificationDecision({
               disabled={busy || (needsCodes && codes.length === 0)}
               onClick={() => void run(open, false)}
             >
-              {busy ? 'Сохраняем…' : pending.label}
+              {busy ? t('decision.saving') : pending.label}
             </button>
           </div>
         </div>
@@ -224,45 +213,45 @@ export function VerificationDecision({
 
           <div className="vd__buttons">
             {actions.map((a) => {
-              const meta = ACTION_META[a.action];
-              if (!meta) return null;
+              const tone = ACTION_TONE[a.action];
+              if (!tone) return null;
+              const label = t(`decision.action.${a.action}.label`);
+              const hint = t(`decision.action.${a.action}.hint`);
               const blocked = a.action === 'APPROVE' && !evidence.sufficient;
               return (
                 <button
                   key={a.action}
                   type="button"
-                  className={`btn btn-${meta.tone === 'ghost' ? 'ghost' : meta.tone}`}
+                  className={`btn btn-${tone === 'ghost' ? 'ghost' : tone}`}
                   disabled={busy || blocked}
-                  title={blocked ? evidence.explanation : meta.hint}
+                  title={blocked ? evidence.explanation : hint}
                   onClick={() => void run(a.action, a.requiresReason)}
                 >
-                  {meta.label}
+                  {label}
                 </button>
               );
             })}
             {actions.length === 0 && (
               <p className="text-sm muted">
-                {canReadDocuments
-                  ? 'По этой заявке сейчас нет доступных действий.'
-                  : 'Без права на документы можно только смотреть очередь.'}
+                {canReadDocuments ? t('decision.noActionsWithAccess') : t('decision.noActionsNoAccess')}
               </p>
             )}
           </div>
 
           <div className="vd__assign">
             <label className="field">
-              <span className="label">Исполнитель</span>
+              <span className="label">{t('decision.assigneeLabel')}</span>
               <select
                 className="select"
                 value={assignedTo ?? ''}
                 disabled={busy}
                 onChange={(e) => void assign(e.target.value || null)}
               >
-                <option value="">Без исполнителя</option>
+                <option value="">{t('decision.unassignedOption')}</option>
                 {assignableStaff.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.displayName}
-                    {s.id === currentUserId ? ' (вы)' : ''}
+                    {s.id === currentUserId ? t('decision.youSuffix') : ''}
                   </option>
                 ))}
               </select>

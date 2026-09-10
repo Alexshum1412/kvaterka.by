@@ -1,0 +1,109 @@
+{
+  "Listing": {
+    "durationMode": {
+      "short": "Да месяца",
+      "medium": "1–6 месяцаў",
+      "long": "Ад паўгода"
+    },
+    "guestsCount": "{count, plural, one {# госць} few {# госці} many {# гасцей} other {# гасцей}}",
+    "roomsCount": "{count, plural, one {# пакой} few {# пакоі} many {# пакояў} other {# пакояў}}",
+
+    "form": {
+      "ariaLabel": "Пошук жылля",
+      "presets": {
+        "1": "Суткі",
+        "3": "3 ночы",
+        "7": "Тыдзень",
+        "30": "Месяц",
+        "90": "3 месяцы",
+        "180": "Паўгода",
+        "365": "Год"
+      },
+      "customDates": "Свае даты",
+      "anyDuration": "Любы тэрмін",
+      "whereLabel": "Дзе?",
+      "cityPlaceholder": "Мінск",
+      "durationLabel": "На які тэрмін?",
+      "whenLabel": "Калі?",
+      "checkIn": "Заезд",
+      "checkOut": "Выезд",
+      "guestsLabel": "Госці",
+      "guestsAny": "Неважна",
+      "guestsCountMax": "{count}+ гасцей",
+      "submit": "Знайсці",
+      "dateOrderError": "Дата выезду павінна быць пазней за дату заезду",
+      "untilDate": "па {date} · {duration}"
+    },
+
+    "filters": {
+      "sort": {
+        "relevance": "Па рэлевантнасці",
+        "priceAsc": "Спачатку таннейшыя",
+        "priceDesc": "Спачатку даражэйшыя",
+        "rating": "Па рэйтынгу",
+        "newest": "Спачатку новыя"
+      },
+      "otherAmenityCategory": "Іншае",
+      "toggle": "Фільтры",
+      "onMap": "На карце",
+      "sortSrOnly": "Сартаванне",
+      "priceLegend": "Цана за ноч або месяц, BYN",
+      "priceFromLabel": "Ад",
+      "priceToLabel": "Да",
+      "pricePlaceholderMin": "0",
+      "pricePlaceholderMax": "Любая",
+      "roomsLegend": "Пакояў",
+      "durationLegend": "Тэрмін арэнды",
+      "guestsLegend": "Гасцей",
+      "propertyTypeLegend": "Тып жылля",
+      "bedsLegend": "Спальных месцаў, не менш",
+      "ratingLegend": "Рэйтынг гаспадара",
+      "ratingFrom": "ад {value}",
+      "rulesLegend": "Правілы і браніраванне",
+      "petsAllowed": "Можна з жывёламі",
+      "childrenAllowed": "Можна з дзецьмі",
+      "smokingAllowed": "Можна курыць",
+      "verifiedOnly": "Толькі правераныя",
+      "instantBooking": "Імгненнае браніраванне",
+      "showAllAmenities": "Паказаць усе зручнасці",
+      "collapseAmenities": "Схаваць зручнасці",
+      "reset": "Скінуць",
+      "showResults": "Паказаць вынікі",
+      "removeFilterSrOnly": "— прыбраць фільтр",
+      "priceChipRange": "{min}–{max} BYN",
+      "priceChipMin": "ад {min} BYN",
+      "priceChipMax": "да {max} BYN",
+      "roomsChipMax": "{count}+ пакоі",
+      "bedsChip": "ад {count, plural, one {# спальнага месца} few {# спальных месцаў} many {# спальных месцаў} other {# спальных месцаў}}",
+      "ratingChip": "рэйтынг ад {value}"
+    },
+
+    "map": {
+      "empty": "Няма аб'ектаў у гэтай вобласці",
+      "ariaLabel": "Карта аб'ектаў",
+      "approximateLocation": "Паказана прыблізнае размяшчэнне",
+      "notice": "Картаграфічны пласт яшчэ не падключаны. Кропкі паказаны ў рэальным узаемным размяшчэнні."
+    },
+
+    "card": {
+      "instantFlag": "Імгненна",
+      "distanceMeters": "{value} м",
+      "distanceKm": "{value} км",
+      "areaSqm": "{value} м²",
+      "floorOf": "{floor}/{total} пав.",
+      "stayNoteWithNights": "за {nights, plural, one {# ноч} few {# ночы} many {# начэй} other {# начэй}}, усё ўключана",
+      "stayNoteAllInclusive": "усё ўключана",
+      "perMonth": "/ месяц",
+      "perNight": "/ ноч",
+      "fromDuration": "ад {duration}",
+      "outOfFive": "з 5",
+      "reviewsCount": ", {count, plural, one {# водгук} few {# водгукі} many {# водгукаў} other {# водгукаў}}",
+      "propertyVerified": "Аб'ект правераны"
+    },
+
+    "favourite": {
+      "add": "Дадаць у абранае",
+      "remove": "Прыбраць з абранага"
+    }
+  }
+}

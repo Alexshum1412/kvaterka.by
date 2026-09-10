@@ -1,0 +1,38 @@
+{
+  "About": {
+    "title": "About",
+    "metaDescription": "Kvaterka.by is a platform for listing homes and connecting hosts and tenants in Belarus, built around trust rather than search alone.",
+    "breadcrumbLabel": "Breadcrumbs",
+    "breadcrumbHome": "Home",
+    "heroTag": "Trust infrastructure for renting housing in Belarus",
+    "lede": "Kvaterka isn't a classifieds board. It's a rental platform built around one question: can you trust the person on the other side of the listing.",
+    "whatWeDo": {
+      "heading": "What we do",
+      "p1": "Kvaterka.by is a platform for posting housing listings and connecting hosts and tenants. We are not a party to the rental agreement: we don't collect rent, don't hold a deposit, and don't guarantee that a home looks exactly like its photos — payment and the viewing happen directly between the parties.",
+      "p2": "What the platform gives back is what usually gets lost in messenger chats: a single conversation history that stays with both sides, reviews that can only be left after a completed rental, and a staff-handled dispute review when something goes wrong."
+    },
+    "whyNeeded": {
+      "heading": "Why it matters",
+      "intro": "In Belarus's short- and long-term rental market, the hardest part isn't finding a place — it's figuring out whether you can trust the person on the other side of the listing. That's what trust infrastructure actually means here, not a marketing phrase:",
+      "li1": "A review is tied to one specific completed rental and can't be bought or written \"just because\".",
+      "li2": "Verification tiers explain exactly what's confirmed, instead of hiding behind a single number.",
+      "li3": "Messages before confirmation stay inside the platform — a dispute has something to stand on.",
+      "trustLink": "More about trust and safety"
+    },
+    "howWeEarn": {
+      "heading": "How we make money",
+      "body": "Posting a listing, searching, and messaging cost nothing. The platform's only source of revenue is a {rate}% fee charged to the host, taken once and only after the rental has ended and both sides confirmed it. No subscription fee, no fee for search placement, no commission from the tenant.",
+      "feesLink": "How the fee is calculated"
+    },
+    "contact": {
+      "heading": "Contact us",
+      "body": "There's no dedicated support channel — email, chat, or a form — on the platform yet, and we're not pretending there is. If you have a question about a booking, profile verification, or a listing, the support page tells you where to take it.",
+      "supportLink": "Support",
+      "faqLink": "FAQ"
+    },
+    "cta": {
+      "browse": "Browse apartments",
+      "publish": "List your apartment"
+    }
+  }
+}

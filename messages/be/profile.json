@@ -1,0 +1,33 @@
+{
+  "Profile": {
+    "meta": {
+      "titleSuffix": " — профіль",
+      "notFoundTitle": "Профіль не знойдзены",
+      "description": "Профіль на Кватэрка.by: пацверджанні, водгукі і аб'явы."
+    },
+    "kindCompany": "Кампанія",
+    "kindIndividual": "Прыватная асоба",
+    "memberSince": "на Кватэрцы з {date}",
+    "trustBand": {
+      "NEW": "Новы ўдзельнік",
+      "DEVELOPING": "Набірае вопыт",
+      "ESTABLISHED": "Дасведчаны ўдзельнік",
+      "HIGH": "Высокі ўзровень даверу"
+    },
+    "statsAria": "Паказчыкі",
+    "reviewsCount": "{count, plural, one {# водгук} few {# водгукі} many {# водгукаў} other {# водгукаў}}",
+    "rentalsAsLandlord": "{count, plural, one {# здача жылля} few {# здачы жылля} many {# здач жылля} other {# здач жылля}}",
+    "rentalsAsTenant": "{count, plural, one {# арэнда} few {# арэнды} many {# арэнд} other {# арэнд}}",
+    "activeListings": "{count, plural, one {# аб'ява} few {# аб'явы} many {# аб'яў} other {# аб'яў}}",
+    "responseRate": "адказаў на заяўкі",
+    "freshNotice": "Пакуль няма завершаных здзелак і водгукаў. Гэта не значыць, што нешта не так — проста гісторыя яшчэ не назбіралася.",
+    "listingsHeading": "Аб'явы",
+    "reviewsHeading": "Водгукі",
+    "reviewsHeadingCount": "Водгукі · {count}",
+    "noReviews": "Водгукаў пакуль няма. Іх можна пакінуць толькі пасля завершанай арэнды, таму тут не бывае выпадковых ацэнак.",
+    "reviewAsTenant": "як арандатар",
+    "reviewAsLandlord": "як гаспадар",
+    "privacyNote": "Тэлефон, email і дакладны адрас не публікуюцца. Кантактамі бакі абменьваюцца пасля пацверджанага браніравання.",
+    "backToSearch": "Да пошуку жылля"
+  }
+}

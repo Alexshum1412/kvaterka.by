@@ -1,0 +1,46 @@
+{
+  "DashboardFinance": {
+    "meta": { "title": "Balance and service fee" },
+    "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    "backToDashboard": "Dashboard",
+    "title": "Service fee",
+    "intro": "Kvaterka.by charges a commission only on completed rentals. We do not accept or transfer rent payments.",
+    "summaryAriaLabel": "Balance",
+    "debtLabel": "Outstanding balance",
+    "balanceLabel": "Balance",
+    "unpaidFeesHint": "{count, plural, one {# unpaid fee} other {# unpaid fees}}",
+    "noOpenCharges": "No open charges",
+    "restrictionsTitle": "Unavailable until the balance is settled",
+    "restriction": {
+      "CANNOT_PUBLISH_NEW_LISTINGS": "Publishing new listings",
+      "CANNOT_ACCEPT_NEW_BOOKINGS": "Confirming new bookings",
+      "CANNOT_USE_PROMOTION": "Paid promotion",
+      "INSTANT_BOOKING_DISABLED": "Instant booking"
+    },
+    "restrictionsNote": "Active bookings, messaging, and confirming a completed rental keep working — the restrictions apply only to new commercial activity.",
+    "noRestrictions": "No restrictions on your account.",
+    "feesHeading": "Rental charges",
+    "noFeesYet": "No charges yet. A fee appears here only after a completed rental.",
+    "feeRef": "No. {reference}",
+    "accruedLabel": "Charged {date}",
+    "dueBySuffix": " · due by {date}",
+    "settledSuffix": " · settled {date}",
+    "mismatchWarning": "this calculation needs review — please contact support",
+    "entryType": {
+      "FEE_ACCRUED": "Service fee charged",
+      "FEE_WAIVED": "Fee waived by the platform",
+      "PAYMENT_RECEIVED": "Payment applied",
+      "ADJUSTMENT": "Adjustment",
+      "REFUND": "Refund"
+    },
+    "feeStatus": {
+      "PAYABLE": "Payable",
+      "PAID": "Paid",
+      "WAIVED": "Waived",
+      "CANCELLED": "Cancelled"
+    },
+    "balanceMovementHeading": "Balance activity",
+    "noEntriesYet": "No entries yet.",
+    "legalNote": "The platform is not a payment agent and does not hold rent payments. Service-fee payment arrangements are agreed separately; in-app payment methods are not yet connected."
+  }
+}

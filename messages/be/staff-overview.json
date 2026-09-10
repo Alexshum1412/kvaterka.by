@@ -1,0 +1,29 @@
+{
+  "StaffOverview": {
+    "metaTitle": "Аперацыі",
+    "title": "Аперацыі",
+    "subtitle": "Толькі тое, па чым трэба прыняць рашэнне.",
+    "noUrgent": "Тэрміновых зваротаў няма.",
+    "screenNotReady": "Экран яшчэ не гатовы — дадзеныя даступныя праз API",
+    "cardPressingLabel": "Патрабуюць увагі зараз",
+    "cardPressingDetail": "Бяспека, шахрайства або актыўнае пражыванне.",
+    "cardOpenLabel": "Новыя звароты",
+    "cardOpenDetail": "Іх яшчэ ніхто не ўзяў у працу.",
+    "cardEscalatedLabel": "Перададзены вышэй",
+    "cardEscalatedDetail": "Чакаюць рашэння адміністратара.",
+    "cardMineLabel": "На вас",
+    "cardMineDetail": "Прызначаныя вам і яшчэ не закрытыя.",
+    "cardUnassignedLabel": "Без выканаўцы",
+    "cardUnassignedDetail": "Адкрыты і ні на каго не прызначаны.",
+    "cardListingsLabel": "Аб'явы на праверцы",
+    "cardListingsDetail": "Гаспадары чакаюць адказу.",
+    "cardFrozenLabel": "Браніраванні ў спрэчцы",
+    "cardFrozenDetail": "Збор не налічваецца, пакуль ідзе разбор.",
+    "cardFlaggedLabel": "Паведамленні на праверцы",
+    "cardFlaggedDetail": "Фільтр кантактаў пазначыў іх.",
+    "cardReportsLabel": "Скаргі",
+    "cardReportsDetail": "На аб'явы, водгукі і паведамленні.",
+    "cardVerificationLabel": "Заяўкі на верыфікацыю",
+    "cardVerificationDetail": "Дакументы адкрывае толькі VERIFIER."
+  }
+}

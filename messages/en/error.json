@@ -1,0 +1,8 @@
+{
+  "Error": {
+    "title": "Something went wrong",
+    "body": "We couldn't display this page. The error has been logged — try refreshing, and if it happens again, send us the code below.",
+    "tryAgain": "Try again",
+    "backHome": "Back to home"
+  }
+}

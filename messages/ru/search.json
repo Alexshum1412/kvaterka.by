@@ -1,0 +1,23 @@
+{
+  "Search": {
+    "meta": {
+      "titleCity": "Аренда жилья в городе {city}",
+      "titleDefault": "Поиск жилья",
+      "descriptionCity": "Квартиры и дома в аренду в городе {city}: посуточно, на месяц и на длительный срок. Честная итоговая цена.",
+      "descriptionDefault": "Поиск жилья в аренду по всей Беларуси."
+    },
+    "breadcrumbsAria": "Хлебные крошки",
+    "home": "Главная",
+    "current": "Поиск",
+    "loadingTitle": "Поиск",
+    "resultsCount": "{count, plural, one {# вариант} few {# варианта} many {# вариантов} other {# вариантов}}",
+    "inCity": " в городе {city}",
+    "forDuration": "на {duration}",
+    "guestsSummary": "{count, plural, one {# гость} few {# гостя} many {# гостей} other {# гостей}}",
+    "errorTitle": "Не удалось выполнить поиск",
+    "errorDetail": "{failure} Измените параметры и попробуйте снова.",
+    "emptyTitle": "Ничего не нашли",
+    "emptyDescription": "Попробуйте изменить район или срок аренды — или уберите часть фильтров.",
+    "mapAria": "Карта результатов"
+  }
+}

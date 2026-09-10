@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from './icons.tsx';
 
@@ -52,6 +53,7 @@ export function NotificationPreferences({
   rows: readonly PreferenceRow[];
   channels: readonly ChannelInfo[];
 }) {
+  const t = useTranslations('Account');
   const [state, setState] = useState<Record<string, Record<string, boolean>>>(() =>
     Object.fromEntries(rows.map((r) => [r.category, { ...r.channels }])),
   );
@@ -70,7 +72,7 @@ export function NotificationPreferences({
       // Put it back. A settings row that shows a state the server rejected is
       // worse than one that visibly bounced.
       setState((s) => ({ ...s, [category]: { ...s[category], [channel]: !next } }));
-      setError(e instanceof ApiError ? e.message : 'Не удалось сохранить настройку');
+      setError(e instanceof ApiError ? e.message : t('notifications.error'));
     } finally {
       setPending(null);
     }
@@ -80,18 +82,15 @@ export function NotificationPreferences({
 
   return (
     <section className="np">
-      <h2 className="np__h2">Что присылать</h2>
-      <p className="np__lede">
-        Уведомления о безопасности, задолженности и решениях модерации отключить нельзя — они
-        касаются вашего аккаунта и денег.
-      </p>
+      <h2 className="np__h2">{t('notifications.title')}</h2>
+      <p className="np__lede">{t('notifications.lede')}</p>
 
       {unavailable.length > 0 && (
         <p className="np__notice">
           <Icon name="info" size={16} />
           <span>
-            {unavailable.map((c) => `${c.label}: ${c.note}`).join('. ')}. Пока это так, письма и
-            сообщения не отправляются — всё приходит в раздел «Уведомления».
+            {unavailable.map((c) => `${c.label}: ${c.note}`).join('. ')}
+            {t('notifications.unavailableSuffix')}
           </span>
         </p>
       )}
@@ -106,7 +105,7 @@ export function NotificationPreferences({
         <table className="np__table">
           <thead>
             <tr>
-              <th scope="col">Событие</th>
+              <th scope="col">{t('notifications.columnEvent')}</th>
               {channels.map((c) => (
                 <th key={c.channel} scope="col" className="np__ch">
                   {c.label}
@@ -131,7 +130,7 @@ export function NotificationPreferences({
                         type="checkbox"
                         checked={checked}
                         disabled={disabled}
-                        aria-label={`${row.title} — ${c.label}${locked ? ' (отключить нельзя)' : ''}`}
+                        aria-label={`${row.title} — ${c.label}${locked ? t('notifications.lockedSuffix') : ''}`}
                         onChange={(e) => void toggle(row.category, c.channel, e.target.checked)}
                       />
                     </td>

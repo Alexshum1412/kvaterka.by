@@ -1,12 +1,8 @@
-import Link from 'next/link';
+import { getLocale, getTranslations } from 'next-intl/server';
+import { Link } from '@/i18n/navigation.ts';
 import { Icon } from '@/ui/icons.tsx';
-import {
-  BOOKING_STATUS_LABEL,
-  Money,
-  bookingTone,
-  formatNights,
-  plural,
-} from '@/ui/primitives.tsx';
+import { Money, bookingStatusLabel, bookingTone, formatNightsLocalized } from '@/ui/primitives.tsx';
+import type { AppLocale } from '@/i18n/routing.ts';
 
 /**
  * A list of bookings, shared by the tenant's "мои поездки" and the
@@ -35,17 +31,21 @@ export interface BookingListRow {
   message_count?: number;
 }
 
-const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+const MONTHS_SHORT: Record<AppLocale, readonly string[]> = {
+  ru: ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'],
+  be: ['студз', 'лют', 'сак', 'крас', 'май', 'чэрв', 'ліп', 'жн', 'вер', 'кастр', 'ліст', 'снеж'],
+  en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+};
 
-function range(from: string, to: string): string {
+function range(from: string, to: string, locale: AppLocale): string {
   const f = (iso: string) => {
     const [, m, d] = iso.split('-');
-    return `${Number(d)} ${MONTHS_SHORT[Number(m) - 1]}`;
+    return `${Number(d)} ${MONTHS_SHORT[locale][Number(m) - 1]}`;
   };
   return `${f(from)} — ${f(to)}`;
 }
 
-export function BookingList({
+export async function BookingList({
   rows,
   viewerRole,
   emptyTitle,
@@ -56,6 +56,9 @@ export function BookingList({
   emptyTitle: string;
   emptyHint?: string;
 }) {
+  const locale = (await getLocale()) as AppLocale;
+  const t = await getTranslations('BookingList');
+
   if (rows.length === 0) {
     return (
       <div className="bl__empty">
@@ -87,20 +90,20 @@ export function BookingList({
             <span className="bl__main">
               <span className="bl__top">
                 <span className={`badge badge-${bookingTone(r.status)}`}>
-                  {BOOKING_STATUS_LABEL[r.status] ?? r.status}
+                  {bookingStatusLabel(r.status, locale)}
                 </span>
                 <strong className="bl__title truncate">{r.property_title}</strong>
               </span>
               <span className="bl__meta">
-                {range(r.stay_from, r.stay_to)} · {formatNights(Number(r.nights))} ·{' '}
-                {r.guests} {plural(Number(r.guests), 'гость', 'гостя', 'гостей')}
+                {range(r.stay_from, r.stay_to, locale)} · {formatNightsLocalized(Number(r.nights), locale)} ·{' '}
+                {t('guests', { count: Number(r.guests) })}
               </span>
               <span className="bl__meta">
-                {viewerRole === 'TENANT' ? 'Хозяин' : 'Арендатор'}: {r.counterparty_name}
+                {viewerRole === 'TENANT' ? t('landlord') : t('tenant')}: {r.counterparty_name}
                 {r.counterparty_verified >= 1 && (
                   <span className="bl__ok">
                     <Icon name="checkCircle" size={12} />
-                    подтверждён
+                    {t('verified')}
                   </span>
                 )}
                 {' · '}

@@ -1,0 +1,21 @@
+{
+  "DashboardBookings": {
+    "meta": { "title": "Заяўкі і браніраванні" },
+    "backToDashboard": "Кабінет",
+    "title": "Заяўкі і браніраванні",
+    "requestsWaiting": "{count, plural, one {# заяўка чакае адказу} few {# заяўкі чакаюць адказу} many {# заяўак чакаюць адказу} other {# заяўак чакаюць адказу}}",
+    "noNewRequests": "Новых заявак няма.",
+    "statusAriaLabel": "Статус",
+    "tabRequested": "Новыя заяўкі",
+    "tabConfirmed": "Прадстаячыя",
+    "tabActive": "Пражываюць",
+    "tabCompletion": "Чакаюць пацвярджэння",
+    "tabHistory": "Гісторыя",
+    "reviewsAriaLabel": "Водгукі",
+    "inviteTitle": "Можна пакінуць водгук пра арандатара",
+    "inviteText": "Водгукі абодвух бакоў публікуюцца адначасова — арандатар не ўбачыць вашу ацэнку, пакуль не напіша сваю.",
+    "leaveReview": "Пакінуць водгук",
+    "emptyTitle": "Тут пакуль пуста",
+    "emptyHintRequested": "Новыя заяўкі ад арандатараў з'явяцца тут."
+  }
+}

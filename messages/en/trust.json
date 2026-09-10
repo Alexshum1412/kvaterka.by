@@ -1,0 +1,41 @@
+{
+  "Trust": {
+    "title": "Trust and safety",
+    "metaDescription": "How Kvaterka.by tells a reliable host from a random listing: verification, reviews after a real stay, and dispute resolution.",
+    "breadcrumbLabel": "Breadcrumbs",
+    "breadcrumbHome": "Home",
+    "lede": "The main problem with renting isn't finding a place — it's whether you can trust this person. Everything below is built around that.",
+    "review": {
+      "heading": "A review can't be bought",
+      "p1": "A review is tied to a specific completed booking: one from each side, and only if the stay actually happened. There's no way to write a review \"just because\" — no path exists that would get it into the database.",
+      "p2Rich": "Both sides' reviews are published <strong>at the same time</strong>. Neither party can read the other's first and adjust their own, and neither can stay silent hoping the other will too: once the deadline passes, a lone review publishes on its own.",
+      "p3": "A review shows the length of the stay, but never the exact dates. Publishing while a flat stood empty would create a safety problem."
+    },
+    "tiers": {
+      "heading": "Verification tiers",
+      "basic": { "title": "Basic", "body": "Confirmed email address or phone number." },
+      "verified": { "title": "Verified", "body": "Additional confirmations reviewed by staff." },
+      "identity": {
+        "title": "Verified identity",
+        "body": "Requires a document — document submission is currently switched off pending a legal decision, and this tier isn't granted."
+      },
+      "footerRich": "A person makes the verification decision, it's logged with a reason, and the applicant is told the result. <link>Your verification status</link>."
+    },
+    "rating": {
+      "heading": "The trust rating is explainable",
+      "body": "The profile page shows not just a number but what it's made of: how many completed stays, which confirmations exist, what the reviews say. An opaque automatic rating of a person is both a product mistake and a risk."
+    },
+    "comms": {
+      "heading": "Conversations stay on the platform",
+      "body": "Before a booking is confirmed, messages stay inside Kvaterka, and attempts to take the conversation elsewhere are hidden — with an explanation to the sender of what was hidden and why. This isn't about retention: outside the platform there's no record of what was agreed and no way to resolve a dispute."
+    },
+    "dispute": {
+      "heading": "If something goes wrong",
+      "body": "A dispute can be opened from the booking card. A staff member reviews it using the message history and the check-in/check-out marks. The decision can't be rewritten after the fact — the action log is immutable even for administrators."
+    },
+    "promise": {
+      "heading": "What we don't promise",
+      "bodyRich": "Moderator review of a listing is a review of the <strong>listing</strong>. We don't inspect flats, don't verify ownership, and don't guarantee that a place matches its photos. See the place in person before handing over any money."
+    }
+  }
+}

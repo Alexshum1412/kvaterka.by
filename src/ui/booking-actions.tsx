@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation.ts';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from '@/ui/icons.tsx';
 
@@ -17,7 +18,8 @@ import { Icon } from '@/ui/icons.tsx';
  */
 
 /**
- * FSM event → the endpoint that performs it and how it reads to a human.
+ * FSM event → the endpoint that performs it. Text (label/confirm) is resolved
+ * from translations inside the component, keyed off this same event name.
  *
  * THE KEYS MUST BE FSM EVENT NAMES. They were `ACCEPT` and `DECLINE` while the
  * transition table emits `ACCEPT_REQUEST` and `DECLINE_REQUEST`, so every
@@ -31,37 +33,36 @@ import { Icon } from '@/ui/icons.tsx';
  */
 const ACTIONS: Record<
   string,
-  { path: string; label: string; tone: 'primary' | 'secondary' | 'danger'; confirm?: string; needsReason?: boolean }
+  { path: string; labelKey: string; tone: 'primary' | 'secondary' | 'danger'; confirmKey?: string; needsReason?: boolean }
 > = {
-  ACCEPT_REQUEST: { path: 'accept', label: 'Принять заявку', tone: 'primary' },
-  DECLINE_REQUEST: { path: 'decline', label: 'Отклонить', tone: 'secondary', needsReason: true },
+  ACCEPT_REQUEST: { path: 'accept', labelKey: 'actionAcceptLabel', tone: 'primary' },
+  DECLINE_REQUEST: { path: 'decline', labelKey: 'actionDeclineLabel', tone: 'secondary', needsReason: true },
   WITHDRAW: {
     path: 'withdraw',
-    label: 'Отозвать заявку',
+    labelKey: 'actionWithdrawLabel',
     tone: 'secondary',
-    confirm: 'Отозвать заявку? Хозяин больше не увидит её в списке.',
+    confirmKey: 'actionWithdrawConfirm',
   },
   CANCEL_BY_TENANT: {
     path: 'cancel',
-    label: 'Отменить бронирование',
+    labelKey: 'actionCancelLabel',
     tone: 'danger',
-    confirm: 'Отменить подтверждённое бронирование?',
+    confirmKey: 'actionCancelTenantConfirm',
     needsReason: true,
   },
   CANCEL_BY_LANDLORD: {
     path: 'cancel',
-    label: 'Отменить бронирование',
+    labelKey: 'actionCancelLabel',
     tone: 'danger',
-    confirm: 'Отменить подтверждённое бронирование? Арендатор уже рассчитывает на эти даты.',
+    confirmKey: 'actionCancelLandlordConfirm',
     needsReason: true,
   },
-  CHECK_IN: { path: 'check-in', label: 'Подтвердить заселение', tone: 'primary' },
+  CHECK_IN: { path: 'check-in', labelKey: 'actionCheckInLabel', tone: 'primary' },
   CHECK_OUT: {
     path: 'check-out',
-    label: 'Проживание закончилось',
+    labelKey: 'actionCheckOutLabel',
     tone: 'primary',
-    confirm:
-      'Отметить, что проживание закончилось? После этого обе стороны подтверждают, состоялась ли аренда.',
+    confirmKey: 'actionCheckOutConfirm',
   },
 };
 
@@ -72,6 +73,7 @@ export function BookingActions({
   bookingId: string;
   actions: readonly string[];
 }) {
+  const t = useTranslations('Booking');
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +85,8 @@ export function BookingActions({
 
   async function run(event: string) {
     const config = ACTIONS[event]!;
-    if (config.confirm && !window.confirm(config.confirm)) return;
+    const confirmText = config.confirmKey ? t(config.confirmKey) : null;
+    if (confirmText && !window.confirm(confirmText)) return;
     if (config.needsReason && reasonFor !== event) {
       setReasonFor(event);
       return;
@@ -102,7 +105,7 @@ export function BookingActions({
       setReason('');
       router.refresh();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось выполнить действие');
+      setError(e instanceof ApiError ? e.message : t('actionFailedError'));
     } finally {
       setBusy(null);
     }
@@ -113,14 +116,14 @@ export function BookingActions({
       {reasonFor && (
         <div className="ba__reason">
           <label className="field">
-            <span className="label">Причина</span>
+            <span className="label">{t('reasonLabel')}</span>
             <textarea
               className="textarea"
               rows={3}
               maxLength={500}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Коротко объясните — это увидит другая сторона."
+              placeholder={t('reasonPlaceholder')}
             />
           </label>
           <div className="ba__reasonActions">
@@ -132,7 +135,7 @@ export function BookingActions({
                 setReason('');
               }}
             >
-              Отмена
+              {t('cancelButton')}
             </button>
             <button
               type="button"
@@ -140,7 +143,7 @@ export function BookingActions({
               disabled={busy !== null}
               onClick={() => void run(reasonFor)}
             >
-              {busy ? 'Отправляем…' : 'Подтвердить'}
+              {busy ? t('sendingEllipsis') : t('confirmButton')}
             </button>
           </div>
         </div>
@@ -158,7 +161,7 @@ export function BookingActions({
                 disabled={busy !== null}
                 onClick={() => void run(event)}
               >
-                {busy === event ? 'Отправляем…' : config.label}
+                {busy === event ? t('sendingEllipsis') : t(config.labelKey)}
               </button>
             );
           })}

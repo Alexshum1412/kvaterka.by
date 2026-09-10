@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Link } from '@/i18n/navigation.ts';
+import type { AppLocale } from '@/i18n/routing.ts';
 import { api } from '@/lib/api-client.ts';
 import { Icon } from './icons.tsx';
-import { formatNightsGenitive, plural } from './primitives.tsx';
+import { formatNightsGenitiveLocalized } from './primitives.tsx';
 
 interface QuoteLine {
   code: string;
@@ -56,6 +59,9 @@ export function BookingPanel({
   const [confirming, setConfirming] = useState<'REQUEST' | 'INSTANT' | null>(null);
   const [message, setMessage] = useState('');
 
+  const t = useTranslations('ListingDetail');
+  const locale = useLocale() as AppLocale;
+
   const instantAvailable = bookingMode === 'INSTANT' || bookingMode === 'INSTANT_AND_REQUEST';
   const nights =
     from && to ? Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) : 0;
@@ -101,7 +107,7 @@ export function BookingPanel({
       setResult(booking);
       setConfirming(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не удалось отправить запрос');
+      setError(e instanceof Error ? e.message : t('booking.submitError'));
     } finally {
       setSubmitting(false);
     }
@@ -116,16 +122,14 @@ export function BookingPanel({
           <Icon name={result.status === 'CONFIRMED' ? 'checkCircle' : 'message'} size={24} />
         </span>
         <h3 className="bp__doneTitle">
-          {result.status === 'CONFIRMED' ? 'Бронирование подтверждено' : 'Запрос отправлен'}
+          {result.status === 'CONFIRMED' ? t('booking.doneTitleConfirmed') : t('booking.doneTitleRequested')}
         </h3>
         <p className="bp__doneText">
-          {result.status === 'CONFIRMED'
-            ? 'Даты закреплены за вами. Точный адрес и контакты хозяина теперь доступны в вашем бронировании.'
-            : 'Хозяин ответит в течение 48 часов. Даты пока не заблокированы — их может занять другой запрос, подтверждённый раньше.'}
+          {result.status === 'CONFIRMED' ? t('booking.doneTextConfirmed') : t('booking.doneTextRequested')}
         </p>
-        <a className="btn btn-primary btn-block" href={`/bookings/${result.id}`}>
-          Перейти к бронированию
-        </a>
+        <Link className="btn btn-primary btn-block" href={`/bookings/${result.id}`}>
+          {t('booking.goToBooking')}
+        </Link>
         <PanelStyles />
       </div>
     );
@@ -136,18 +140,21 @@ export function BookingPanel({
       <div className="bp__head">
         <p className="bp__price">
           <strong className="numeric">{basePriceFormatted}</strong>
-          <span className="bp__unit">{priceUnit === 'MONTH' ? 'в месяц' : 'за ночь'}</span>
+          <span className="bp__unit">{priceUnit === 'MONTH' ? t('priceUnit.perMonth') : t('priceUnit.perNight')}</span>
         </p>
         <p className="bp__term">
           <Icon name="calendar" size={14} />
-          от {formatNightsGenitive(minNights)} до {formatNightsGenitive(maxNights)}
+          {t('booking.term', {
+            min: formatNightsGenitiveLocalized(minNights, locale),
+            max: formatNightsGenitiveLocalized(maxNights, locale),
+          })}
         </p>
       </div>
 
       <div className="bp__dates">
         <div className="field">
           <label className="label" htmlFor="bp-from">
-            Заезд
+            {t('booking.checkInLabel')}
           </label>
           <input
             id="bp-from"
@@ -160,7 +167,7 @@ export function BookingPanel({
         </div>
         <div className="field">
           <label className="label" htmlFor="bp-to">
-            Выезд
+            {t('booking.checkOutLabel')}
           </label>
           <input
             id="bp-to"
@@ -175,7 +182,7 @@ export function BookingPanel({
 
       <div className="field">
         <label className="label" htmlFor="bp-guests">
-          Гостей
+          {t('booking.guestsLabel')}
         </label>
         <input
           id="bp-guests"
@@ -190,8 +197,11 @@ export function BookingPanel({
 
       {from && to && nights > 0 && !durationValid && (
         <p className="error-text" role="alert">
-          Этот объект сдаётся на срок от {formatNightsGenitive(minNights)} до{' '}
-          {formatNightsGenitive(maxNights)}. Вы выбрали {nights} {plural(nights, 'ночь', 'ночи', 'ночей')}.
+          {t('booking.durationError', {
+            min: formatNightsGenitiveLocalized(minNights, locale),
+            max: formatNightsGenitiveLocalized(maxNights, locale),
+            nights,
+          })}
         </p>
       )}
 
@@ -201,7 +211,7 @@ export function BookingPanel({
         {quote && (
           <div className="bp__quote">
             <p className="bp__quoteHead">
-              Расчёт за {quote.nights} {plural(quote.nights, 'ночь', 'ночи', 'ночей')}
+              {t('booking.quoteHead', { nights: quote.nights })}
             </p>
 
             {quote.lines
@@ -211,13 +221,13 @@ export function BookingPanel({
                   <span className="bp__lineLabel">{line.label}</span>
                   <span className="numeric bp__lineValue">
                     {/* A variable line shows a dash, never a made-up figure. */}
-                    {line.variable ? 'по счётчику' : `${line.amountFormatted} BYN`}
+                    {line.variable ? t('booking.meterBilled') : `${line.amountFormatted} BYN`}
                   </span>
                 </div>
               ))}
 
             <div className="bp__total">
-              <span className="bp__totalLabel">Итого к оплате хозяину</span>
+              <span className="bp__totalLabel">{t('booking.totalLabel')}</span>
               <strong className="numeric bp__totalValue">
                 {quote.lines.find((l) => l.code === 'RENT') ? formatTotal(quote.totalExpectedMinor) : '—'} BYN
               </strong>
@@ -225,12 +235,11 @@ export function BookingPanel({
 
             {quote.depositMinor !== '0' && (
               <p className="hint">
-                Дополнительно возвратный залог {formatTotal(quote.depositMinor)} BYN — возвращается при
-                выезде.
+                {t('booking.depositNote', { amount: formatTotal(quote.depositMinor) })}
               </p>
             )}
             {quote.hasVariableCosts && (
-              <p className="hint">Коммунальные платежи оплачиваются по счётчику и не входят в сумму выше.</p>
+              <p className="hint">{t('booking.variableCostsNote')}</p>
             )}
           </div>
         )}
@@ -251,7 +260,7 @@ export function BookingPanel({
               disabled={!quote || submitting}
               onClick={() => setConfirming('INSTANT')}
             >
-              Забронировать сразу
+              {t('booking.instantBookButton')}
             </button>
           )}
           <button
@@ -260,30 +269,27 @@ export function BookingPanel({
             disabled={!quote || submitting}
             onClick={() => setConfirming('REQUEST')}
           >
-            Отправить заявку
+            {t('booking.requestButton')}
           </button>
         </div>
       ) : (
         <div className="bp__confirm">
           <p className="bp__confirmLead">
-            {confirming === 'INSTANT'
-              ? 'Даты будут закреплены сразу после подтверждения.'
-              : 'Хозяин ответит на заявку. Даты пока не закрепляются.'}
+            {confirming === 'INSTANT' ? t('booking.confirmLeadInstant') : t('booking.confirmLeadRequest')}
           </p>
 
           <label className="field">
-            <span className="label">Сообщение хозяину</span>
+            <span className="label">{t('booking.messageLabel')}</span>
             <textarea
               className="textarea"
               rows={4}
               maxLength={2000}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Здравствуйте! Планирую приехать в Минск на несколько дней…"
+              placeholder={t('booking.messagePlaceholder')}
             />
             <span className="hint">
-              Необязательно. Контакты и ссылки на другие сервисы в переписке скрываются — до
-              подтверждённого бронирования общение идёт здесь.
+              {t('booking.messageHint')}
             </span>
           </label>
 
@@ -294,7 +300,7 @@ export function BookingPanel({
               disabled={submitting}
               onClick={() => setConfirming(null)}
             >
-              Назад
+              {t('booking.backButton')}
             </button>
             <button
               type="button"
@@ -302,15 +308,18 @@ export function BookingPanel({
               disabled={submitting}
               onClick={() => submit(confirming === 'INSTANT')}
             >
-              {submitting ? 'Отправляем…' : confirming === 'INSTANT' ? 'Подтвердить бронирование' : 'Отправить заявку'}
+              {submitting
+                ? t('booking.confirmButtonSubmitting')
+                : confirming === 'INSTANT'
+                  ? t('booking.confirmButtonInstant')
+                  : t('booking.confirmButtonRequest')}
             </button>
           </div>
         </div>
       )}
 
       <p className="hint">
-        Оплата аренды происходит напрямую между вами и хозяином. Платформа не принимает арендную плату и
-        не является стороной договора.
+        {t('booking.footerNote')}
       </p>
 
       <PanelStyles />

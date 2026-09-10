@@ -1,0 +1,207 @@
+{
+  "StaffVerification": {
+    "metaTitle": "Верификация",
+    "detailMetaTitle": "Заявка на проверку",
+
+    "queue": {
+      "title": "Заявки на проверку",
+      "subtitle": "Сверху — те, у кого объявление уже сдаётся, а профиль ещё не подтверждён.",
+      "badgeActive": "В работе",
+      "badgeOverdue": "Просрочено на странице",
+      "noticeRich": "У вас нет права <code>document.read</code>: заявки видны, документы — нет, и подтвердить уровень нельзя. Подтверждение требует, чтобы решение принимал тот, кто мог посмотреть документы.",
+      "statusAriaLabel": "Статус",
+      "tabs": {
+        "ACTIVE": "В работе",
+        "SUBMITTED": "Новые",
+        "IN_REVIEW": "Проверяем",
+        "NEEDS_INFO": "Ждём уточнений",
+        "APPROVED": "Подтверждены",
+        "REJECTED": "Отклонены",
+        "ALL": "Все"
+      },
+      "sorts": {
+        "PRIORITY": "Сначала важные",
+        "WAITING_LONGEST": "Дольше всех ждут",
+        "OLDEST": "Сначала старые",
+        "NEWEST": "Сначала новые"
+      },
+      "priority": {
+        "HIGH": "Высокий",
+        "NORMAL": "Обычный",
+        "LOW": "Низкий"
+      },
+      "searchLabel": "Поиск по имени, объявлению или городу",
+      "searchPlaceholder": "Имя, объявление или город",
+      "levelFieldLabel": "Уровень",
+      "levelAny": "Любой уровень",
+      "level1": "Уровень 1 — личность",
+      "level2": "Уровень 2 — право сдачи",
+      "priorityFieldLabel": "Приоритет",
+      "priorityAny": "Любой приоритет",
+      "assignedFieldLabel": "Исполнитель",
+      "assignedAny": "Любой исполнитель",
+      "assignedMe": "Назначено мне",
+      "assignedUnassigned": "Без исполнителя",
+      "cityFieldLabel": "Город",
+      "cityPlaceholder": "Город",
+      "sortFieldLabel": "Сортировка",
+      "apply": "Применить",
+      "emptyTitle": "Здесь пусто",
+      "emptyActive": "Заявок в работе нет.",
+      "emptyFiltered": "Под этот фильтр ничего не подходит.",
+      "listingLiveBadge": "объявление сдаётся",
+      "kindIdentity": "Личность",
+      "kindOwnership": "Право сдачи · {title}",
+      "kindOwnershipFallback": "объект",
+      "nowLevel": "сейчас {level}",
+      "documentsCount": "{count, plural, one {# документ} few {# документа} many {# документов} other {# документов}}",
+      "assignedToName": "на {name}",
+      "unassigned": "без исполнителя",
+      "justNow": "только что",
+      "hoursAgo": "{count, plural, one {# час} few {# часа} many {# часов} other {# часов}}",
+      "daysAgo": "{count, plural, one {# день} few {# дня} many {# дней} other {# дней}}",
+      "overdueTag": "просрочено",
+      "pagerAriaLabel": "Страницы",
+      "back": "Назад",
+      "next": "Дальше"
+    },
+
+    "case": {
+      "title": "{name} — уровень {level}",
+      "subtitleIdentity": "Подтверждение личности",
+      "subtitleOwnership": "Подтверждение права сдавать жильё",
+      "back": "К очереди",
+      "priorityHigh": "Высокий приоритет",
+      "priorityNormal": "Обычный приоритет",
+      "overdueTag": "просрочено · цель {hours} ч",
+      "waiting": "ждёт {count, plural, one {# час} few {# часа} many {# часов} other {# часов}}",
+      "months": ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"],
+
+      "applicant": {
+        "sectionTitle": "Заявитель",
+        "factNow": "Сейчас",
+        "factWants": "Просит",
+        "factMemberSince": "На платформе с",
+        "factRentals": "Аренд",
+        "rentalsValue": "{tenant} как арендатор · {landlord} как хозяин",
+        "factRating": "Рейтинг",
+        "noReviews": "нет отзывов",
+        "ratingValue": "{rating} по {count}",
+        "factContacts": "Контакты",
+        "emailVerified": "email ✓",
+        "emailUnverified": "email ✗",
+        "phoneVerified": "телефон ✓",
+        "phoneUnverified": "телефон ✗",
+        "listingLiveBadge": "объявление уже сдаётся",
+        "accountStatusBadge": "аккаунт: {status}",
+        "publicProfileLink": "Публичный профиль",
+        "hint": "Телефон и email не показываются — только то, подтверждены ли они. Для решения по документам содержимое контактов не нужно."
+      },
+
+      "property": {
+        "sectionTitle": "Объект и заявленное основание",
+        "factListing": "Объявление",
+        "factWhere": "Где",
+        "factStatus": "Статус",
+        "factVerified": "Проверен",
+        "yes": "да",
+        "no": "нет",
+        "openListingLink": "Открыть объявление",
+        "unavailable": "Объект недоступен.",
+        "expectedDocument": "Ожидаемый документ: {doc}",
+        "notStated": "Основание не указано.",
+        "declaredHint": "Это заявление, а не доказательство. Само по себе оно основанием не является — домен всё равно требует документ.",
+        "addressHint": "Точный адрес не показывается: он доступен только через проверку прав (DEC-020). Сверяйте адрес в документе с городом и районом объявления."
+      },
+
+      "documents": {
+        "sectionTitle": "Документы",
+        "legalNoticeRich": "Сбор документов, удостоверяющих личность, отключён флагом <code>verification.identity_documents</code> до юридического заключения (LEGAL-004). Пока он отключён, документов не будет и уровень не выдаётся.",
+        "none": "Документов нет.",
+        "docType": {
+          "PASSPORT": "Паспорт",
+          "ID_CARD": "ID-карта",
+          "SELFIE": "Селфи",
+          "OWNERSHIP_CERTIFICATE": "Свидетельство о праве",
+          "POWER_OF_ATTORNEY": "Доверенность",
+          "UTILITY_BILL": "Коммунальный счёт",
+          "OTHER": "Другое"
+        },
+        "uploadedAt": "загружен {date}",
+        "purgedSuffix": "удалён по политике хранения",
+        "openedCount": "{count, plural, one {открывали # раз} few {открывали # раза} many {открывали # раз} other {открывали # раз}}",
+        "neverOpened": "ещё не открывали",
+        "readOnlyLogged": "открыть можно через журналируемый запрос",
+        "lockedPurged": "удалён",
+        "lockedNoAccess": "нет права document.read"
+      },
+
+      "prior": {
+        "sectionTitle": "Прежние заявки",
+        "levelLine": "уровень {level} · {date}",
+        "hint": "Повторяющиеся отказы по одной причине — это сигнал. Один отказ обычно нет."
+      },
+
+      "signals": {
+        "sectionTitle": "Сигналы риска",
+        "weight": "вес",
+        "hint": "Только для сотрудников. Заявителю причина «подозрительная активность» сообщается без подробностей — иначе это инструкция, чего избегать в следующий раз."
+      },
+
+      "timeline": {
+        "sectionTitle": "История",
+        "event": {
+          "SUBMITTED": "Заявка отправлена",
+          "STATUS_TAKE": "Взято в работу",
+          "STATUS_REQUEST_INFO": "Запрошены уточнения",
+          "STATUS_APPROVE": "Подтверждено",
+          "STATUS_REJECT": "Отклонено",
+          "STATUS_EXPIRE": "Закрыто как истёкшая",
+          "DECISION_APPROVE": "Заявителю сообщено: подтверждено",
+          "DECISION_REJECT": "Заявителю сообщено: отклонено",
+          "DECISION_REQUEST_INFO": "Заявителю сообщено: нужны уточнения",
+          "ASSIGNED": "Назначен исполнитель",
+          "UNASSIGNED": "Исполнитель снят"
+        },
+        "internalTag": "только для сотрудников",
+        "seenTag": "видно заявителю"
+      },
+
+      "aside": {
+        "whatHappensTitle": "Что будет при подтверждении",
+        "whatHappensHint": "Именно это увидят арендаторы. Формулировка говорит, что проверила платформа, и не обещает юридической экспертизы или гарантии.",
+        "decisionTitle": "Решение",
+        "internalNoteTitle": "Внутренняя заметка",
+        "internalNoteHint": "Не отправляется заявителю ни одним путём."
+      }
+    },
+
+    "decision": {
+      "action": {
+        "TAKE": { "label": "Взять в работу", "hint": "Заявка закрепится за вами." },
+        "REQUEST_INFO": { "label": "Запросить уточнения", "hint": "Заявитель увидит причины и сможет дополнить заявку, не заполняя всё заново." },
+        "APPROVE": { "label": "Подтвердить", "hint": "Уровень доверия будет выдан." },
+        "REJECT": { "label": "Отклонить", "hint": "Нужна хотя бы одна причина." },
+        "EXPIRE": { "label": "Закрыть как истёкшую", "hint": "Заявитель не отвечает." }
+      },
+      "reasonsLegendRequired": "Причины",
+      "reasonsLegendOptional": "Причины — по желанию",
+      "reasonsHint": "Код определяет, что увидит заявитель и на какой шаг его отправить. Выберите точнее — это разница между «исправьте фото» и «непонятно, что не так».",
+      "applicantMessageLabel": "Сообщение заявителю",
+      "applicantMessagePlaceholder": "Что человеку сделать. Этот текст он увидит.",
+      "applicantMessageHint": "К выбранным причинам платформа сама добавит понятные пояснения — здесь только то, что нужно добавить своими словами.",
+      "internalNoteLabel": "Внутренняя заметка",
+      "internalNotePlaceholder": "Что вы заметили. Заявитель этого не увидит.",
+      "internalNoteHint": "Видна только сотрудникам и не удаляется — история заявки только дополняется.",
+      "cancel": "Отмена",
+      "saving": "Сохраняем…",
+      "noActionsWithAccess": "По этой заявке сейчас нет доступных действий.",
+      "noActionsNoAccess": "Без права на документы можно только смотреть очередь.",
+      "assigneeLabel": "Исполнитель",
+      "unassignedOption": "Без исполнителя",
+      "youSuffix": " (вы)",
+      "errorSaveFailed": "Не удалось сохранить решение",
+      "errorAssignFailed": "Не удалось назначить исполнителя"
+    }
+  }
+}

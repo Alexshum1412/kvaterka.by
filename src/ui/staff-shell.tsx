@@ -1,4 +1,5 @@
-import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
+import { Link } from '@/i18n/navigation.ts';
 import { can, type Permission, type Role } from '@/server/auth/rbac.ts';
 import { Icon, type IconName } from '@/ui/icons.tsx';
 
@@ -22,7 +23,7 @@ import { Icon, type IconName } from '@/ui/icons.tsx';
 
 interface Section {
   href: string;
-  label: string;
+  labelKey: string;
   icon: IconName;
   permission: Permission;
   /** Matches this section when the current path starts with one of these. */
@@ -30,16 +31,23 @@ interface Section {
 }
 
 const SECTIONS: Section[] = [
-  { href: '/staff', label: 'Обзор', icon: 'home', permission: 'case.view', match: ['/staff'] },
-  { href: '/staff/disputes', label: 'Обращения', icon: 'alert', permission: 'case.view', match: ['/staff/disputes'] },
-  { href: '/moderation', label: 'Модерация', icon: 'checkCircle', permission: 'listing.moderate', match: ['/moderation'] },
+  { href: '/staff', labelKey: 'overview', icon: 'home', permission: 'case.view', match: ['/staff'] },
+  { href: '/staff/disputes', labelKey: 'disputes', icon: 'alert', permission: 'case.view', match: ['/staff/disputes'] },
+  { href: '/moderation', labelKey: 'moderation', icon: 'checkCircle', permission: 'listing.moderate', match: ['/moderation'] },
   // VERIFIER's only section. Until now a verifier had no way into the console
   // at all: they hold neither `case.view` nor `listing.moderate`, so every
   // existing entry was invisible to them and the header link showed nothing.
-  { href: '/staff/verification', label: 'Верификация', icon: 'shieldCheck', permission: 'verification.review', match: ['/staff/verification'] },
+  { href: '/staff/verification', labelKey: 'verification', icon: 'shieldCheck', permission: 'verification.review', match: ['/staff/verification'] },
   // Held by SUPPORT, MODERATOR and ADMIN, and deliberately not by VERIFIER:
   // whoever can open a passport must not also decide whether it is kept.
-  { href: '/staff/retention', label: 'Хранение', icon: 'clock', permission: 'retention.hold', match: ['/staff/retention'] },
+  { href: '/staff/retention', labelKey: 'retention', icon: 'clock', permission: 'retention.hold', match: ['/staff/retention'] },
+  { href: '/staff/reports', labelKey: 'reports', icon: 'info', permission: 'case.view', match: ['/staff/reports'] },
+  { href: '/staff/reviews', labelKey: 'reviews', icon: 'star', permission: 'review.moderate', match: ['/staff/reviews'] },
+  { href: '/staff/messages', labelKey: 'messages', icon: 'message', permission: 'message.review', match: ['/staff/messages'] },
+  { href: '/staff/users', labelKey: 'users', icon: 'users', permission: 'user.view', match: ['/staff/users'] },
+  { href: '/staff/metrics', labelKey: 'metrics', icon: 'gauge', permission: 'analytics.view', match: ['/staff/metrics'] },
+  { href: '/staff/feature-flags', labelKey: 'featureFlags', icon: 'sliders', permission: 'feature_flag.write', match: ['/staff/feature-flags'] },
+  { href: '/staff/audit', labelKey: 'auditLog', icon: 'list', permission: 'audit.read', match: ['/staff/audit'] },
 ];
 
 /**
@@ -51,12 +59,12 @@ const SECTIONS: Section[] = [
  */
 const SECURITY_SECTION = {
   href: '/staff/security',
-  label: 'Безопасность',
+  labelKey: 'security',
   icon: 'shield' as const,
   match: ['/staff/security'],
 };
 
-export function StaffShell({
+export async function StaffShell({
   roles,
   withheldRoles,
   current,
@@ -75,6 +83,7 @@ export function StaffShell({
   badges?: { label: string; count: number; tone?: string }[];
   children: React.ReactNode;
 }) {
+  const t = await getTranslations('StaffNav');
   const visible = SECTIONS.filter((s) => can(roles, s.permission));
   /* A staff member whose roles are withheld sees an empty nav and would
      reasonably conclude the product is broken. One line saying what happened
@@ -89,7 +98,7 @@ export function StaffShell({
 
   return (
     <div className="container stf">
-      <nav className="stf__nav" aria-label="Операции">
+      <nav className="stf__nav" aria-label={t('navAria')}>
         {visible.map((s) => (
           <Link
             key={s.href}
@@ -98,7 +107,7 @@ export function StaffShell({
             aria-current={s.href === activeHref ? 'page' : undefined}
           >
             <Icon name={s.icon} size={16} />
-            {s.label}
+            {t(s.labelKey)}
           </Link>
         ))}
         <Link
@@ -107,9 +116,9 @@ export function StaffShell({
           aria-current={current.startsWith(SECURITY_SECTION.href) ? 'page' : undefined}
         >
           <Icon name={SECURITY_SECTION.icon} size={16} />
-          {SECURITY_SECTION.label}
+          {t(SECURITY_SECTION.labelKey)}
         </Link>
-        <span className="stf__roles" title="Ваши роли">
+        <span className="stf__roles" title={t('yourRoles')}>
           {roles.filter((r) => r !== 'TENANT' && r !== 'LANDLORD').join(' · ') || '—'}
         </span>
       </nav>
@@ -117,11 +126,9 @@ export function StaffShell({
       {withheld.length > 0 && (
         <div className="stf__withheld" role="status">
           <Icon name="shield" size={16} />
-          <span>
-            Служебный доступ ({withheld.join(' · ')}) закрыт до подтверждения второго фактора.
-          </span>
-          <Link href="/staff/security" className="btn btn--secondary btn--sm">
-            Подтвердить
+          <span>{t('withheldNotice', { roles: withheld.join(' · ') })}</span>
+          <Link href="/staff/security" className="btn btn-secondary btn-sm">
+            {t('confirm')}
           </Link>
         </div>
       )}

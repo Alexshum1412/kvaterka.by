@@ -1,0 +1,130 @@
+{
+  "ListingDetail": {
+    "meta": {
+      "notFoundTitle": "Объявление не найдено",
+      "descriptionFallback": "Аренда: {title} в городе {city}."
+    },
+    "breadcrumbs": {
+      "aria": "Хлебные крошки",
+      "home": "Главная"
+    },
+    "header": {
+      "reviewCount": "{count, plural, one {# отзыв} few {# отзыва} many {# отзывов} other {# отзывов}}"
+    },
+    "facts": {
+      "rooms": "Комнат",
+      "area": "Площадь",
+      "areaValue": "{value} м²",
+      "floor": "Этаж",
+      "floorOf": "{floor} из {total}",
+      "beds": "Спальных мест",
+      "bathrooms": "Санузлов",
+      "maxGuests": "Максимум гостей"
+    },
+    "duration": {
+      "text": "Сдаётся <strongMin>от {min}</strongMin> до <strongMax>{max}</strongMax>"
+    },
+    "amenitiesTitle": "Удобства",
+    "amenities": {
+      "confirmed": "подтвердили {confirmed} из {total}",
+      "note": "Отметку «подтвердили» ставят гости после завершённой аренды — это их наблюдение, а не обещание хозяина."
+    },
+    "rulesTitle": "Правила",
+    "policy": {
+      "smoking": {
+        "PROHIBITED": "Курение запрещено",
+        "ALLOWED": "Курение разрешено",
+        "BALCONY_ONLY": "Курение только на балконе"
+      },
+      "pets": {
+        "PROHIBITED": "С животными нельзя",
+        "ALLOWED": "Можно с животными",
+        "SMALL_ONLY": "Только небольшие животные",
+        "ON_REQUEST": "С животными по согласованию"
+      }
+    },
+    "rules": {
+      "childrenAllowed": "Можно с детьми",
+      "childrenNotAllowed": "Не подходит для детей",
+      "partiesAllowed": "Мероприятия разрешены",
+      "partiesNotAllowed": "Вечеринки и мероприятия запрещены",
+      "checkInOut": "Заезд с {from}, выезд до {to}",
+      "quietHours": "Тихие часы: с {from} до {to}"
+    },
+    "reviews": {
+      "title": "Отзывы",
+      "titleWithCount": "Отзывы · {count}",
+      "empty": "Отзывов пока нет. Их можно оставить только после завершённой аренды, поэтому здесь не бывает случайных оценок.",
+      "thin": "{count, plural, one {Пока # отзыв} few {Пока # отзыва} many {Пока # отзывов} other {Пока # отзывов}} — этого мало, чтобы судить об оценке. Смотрите на текст отзыва, а не на цифру.",
+      "wouldRentAgain": "Снял бы снова"
+    },
+    "dimensions": {
+      "cleanliness": "Чистота",
+      "accuracy": "Соответствие описанию",
+      "communication": "Общение",
+      "checkIn": "Заселение",
+      "location": "Расположение",
+      "value": "Цена и качество",
+      "rulesClarity": "Понятность правил"
+    },
+    "location": {
+      "title": "Расположение",
+      "note": "{place}. Показано примерное расположение — точный адрес открывается после подтверждения бронирования."
+    },
+    "owner": {
+      "title": "Хозяин",
+      "company": "Компания",
+      "private": "Частный хозяин",
+      "completedRentals": "{count, plural, one {# завершённая сделка} few {# завершённые сделки} many {# завершённых сделок} other {# завершённых сделок}}",
+      "profileLink": "Профиль"
+    },
+    "aside": {
+      "utilitiesNote": "Коммунальные платежи по счётчику оплачиваются отдельно и заранее не известны.",
+      "cleaningFeeNote": "Обязательная уборка <money></money> уже включена в итоговую сумму."
+    },
+    "dock": {
+      "requestButton": "Отправить запрос",
+      "bookButton": "Забронировать"
+    },
+    "priceUnit": {
+      "perMonth": "в месяц",
+      "perNight": "за ночь"
+    },
+    "gallery": {
+      "empty": "Фотографий пока нет",
+      "mainAlt": "{title} — основное фото",
+      "photoAlt": "{title} — фото {index}",
+      "morePhotos": "{count} фото"
+    },
+    "booking": {
+      "doneTitleConfirmed": "Бронирование подтверждено",
+      "doneTitleRequested": "Запрос отправлен",
+      "doneTextConfirmed": "Даты закреплены за вами. Точный адрес и контакты хозяина теперь доступны в вашем бронировании.",
+      "doneTextRequested": "Хозяин ответит в течение 48 часов. Даты пока не заблокированы — их может занять другой запрос, подтверждённый раньше.",
+      "goToBooking": "Перейти к бронированию",
+      "term": "от {min} до {max}",
+      "checkInLabel": "Заезд",
+      "checkOutLabel": "Выезд",
+      "guestsLabel": "Гостей",
+      "durationError": "Этот объект сдаётся на срок от {min} до {max}. Вы выбрали {nights, plural, one {# ночь} few {# ночи} many {# ночей} other {# ночей}}.",
+      "quoteHead": "{nights, plural, one {Расчёт за # ночь} few {Расчёт за # ночи} many {Расчёт за # ночей} other {Расчёт за # ночей}}",
+      "meterBilled": "по счётчику",
+      "totalLabel": "Итого к оплате хозяину",
+      "depositNote": "Дополнительно возвратный залог {amount} BYN — возвращается при выезде.",
+      "variableCostsNote": "Коммунальные платежи оплачиваются по счётчику и не входят в сумму выше.",
+      "submitError": "Не удалось отправить запрос",
+      "instantBookButton": "Забронировать сразу",
+      "requestButton": "Отправить заявку",
+      "confirmLeadInstant": "Даты будут закреплены сразу после подтверждения.",
+      "confirmLeadRequest": "Хозяин ответит на заявку. Даты пока не закрепляются.",
+      "messageLabel": "Сообщение хозяину",
+      "messagePlaceholder": "Здравствуйте! Планирую приехать в Минск на несколько дней…",
+      "messageHint": "Необязательно. Контакты и ссылки на другие сервисы в переписке скрываются — до подтверждённого бронирования общение идёт здесь.",
+      "backButton": "Назад",
+      "confirmButtonSubmitting": "Отправляем…",
+      "confirmButtonInstant": "Подтвердить бронирование",
+      "confirmButtonRequest": "Отправить заявку",
+      "footerNote": "Оплата аренды происходит напрямую между вами и хозяином. Платформа не принимает арендную плату и не является стороной договора."
+    }
+  }
+}

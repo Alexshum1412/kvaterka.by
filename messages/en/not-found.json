@@ -1,0 +1,8 @@
+{
+  "NotFound": {
+    "title": "Looks like this page doesn't exist",
+    "body": "The address may be mistyped, the listing may have been unpublished, or this page may belong to someone else.",
+    "cta": "Back to home",
+    "searchLabel": "Or search again"
+  }
+}

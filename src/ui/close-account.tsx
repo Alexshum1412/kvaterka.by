@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from '@/ui/icons.tsx';
 
@@ -21,6 +22,7 @@ import { Icon } from '@/ui/icons.tsx';
 const PHRASE = 'ЗАКРЫТЬ';
 
 export function CloseAccount() {
+  const t = useTranslations('Account');
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState('');
@@ -31,13 +33,10 @@ export function CloseAccount() {
   if (!open) {
     return (
       <section className="card acc__danger">
-        <h2 className="acc__h2">Закрыть учётную запись</h2>
-        <p className="acc__muted">
-          Доступ прекратится сразу, на всех устройствах. Объявления снимутся с публикации. Отменить это самостоятельно
-          не получится.
-        </p>
-        <button type="button" className="btn btn--secondary" onClick={() => setOpen(true)}>
-          Перейти к закрытию
+        <h2 className="acc__h2">{t('closeAccount.collapsedTitle')}</h2>
+        <p className="acc__muted">{t('closeAccount.collapsedBody')}</p>
+        <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>
+          {t('closeAccount.openButton')}
         </button>
       </section>
     );
@@ -45,7 +44,7 @@ export function CloseAccount() {
 
   return (
     <section className="card acc__danger">
-      <h2 className="acc__h2">Подтверждение</h2>
+      <h2 className="acc__h2">{t('closeAccount.confirmTitle')}</h2>
       <form
         onSubmit={async (e) => {
           e.preventDefault();
@@ -60,15 +59,13 @@ export function CloseAccount() {
             router.push('/');
             router.refresh();
           } catch (err) {
-            setError(err instanceof ApiError ? err.message : 'Не удалось закрыть учётную запись');
+            setError(err instanceof ApiError ? err.message : t('closeAccount.error'));
             setBusy(false);
           }
         }}
       >
         <label className="field">
-          <span className="label">
-            Введите <strong>{PHRASE}</strong>, чтобы подтвердить
-          </span>
+          <span className="label">{t('closeAccount.confirmLabel', { phrase: PHRASE })}</span>
           <input
             className="input"
             value={confirm}
@@ -79,7 +76,7 @@ export function CloseAccount() {
         </label>
 
         <label className="field">
-          <span className="label">Причина — необязательно, но помогает нам</span>
+          <span className="label">{t('closeAccount.reasonLabel')}</span>
           <textarea className="input" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={2000} />
         </label>
 
@@ -91,11 +88,11 @@ export function CloseAccount() {
         )}
 
         <div className="acc__actions">
-          <button type="submit" className="btn btn--danger" disabled={busy || confirm !== PHRASE}>
-            {busy ? 'Закрываем…' : 'Закрыть учётную запись'}
+          <button type="submit" className="btn btn-danger" disabled={busy || confirm !== PHRASE}>
+            {busy ? t('closeAccount.submittingButton') : t('closeAccount.submitButton')}
           </button>
-          <button type="button" className="btn btn--ghost" onClick={() => setOpen(false)} disabled={busy}>
-            Отмена
+          <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)} disabled={busy}>
+            {t('closeAccount.cancelButton')}
           </button>
         </div>
       </form>

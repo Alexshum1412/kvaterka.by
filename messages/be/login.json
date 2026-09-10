@@ -1,0 +1,29 @@
+{
+  "Login": {
+    "meta": { "title": "Уваход" },
+    "title": {
+      "login": "Уваход у Кватэрку",
+      "register": "Рэгістрацыя"
+    },
+    "lede": {
+      "login": "Увайдзіце, каб браніраваць жыллё або кіраваць сваімі кватэрамі.",
+      "register": "Акаунт патрэбны, каб браніраваць, перапісвацца і пакідаць водгукі."
+    },
+    "nameLabel": "Як вас клічуць",
+    "identifierLabel": {
+      "login": "Email або тэлефон",
+      "register": "Email"
+    },
+    "passwordLabel": "Пароль",
+    "passwordHint": "Не карацей за 10 сімвалаў. Доўгая фраза надзейней кароткага пароля са спецсімваламі.",
+    "networkError": "Не ўдалося злучыцца з серверам. Праверце інтэрнэт і паспрабуйце зноў.",
+    "submitBusy": "Пачакайце…",
+    "submitLogin": "Увайсці",
+    "submitRegister": "Стварыць акаунт",
+    "forgotPassword": "Забылі пароль?",
+    "switchPromptLogin": "Яшчэ няма акаунта?",
+    "switchPromptRegister": "Ужо ёсць акаунт?",
+    "switchActionLogin": "Стварыць акаунт",
+    "switchActionRegister": "Увайсці"
+  }
+}

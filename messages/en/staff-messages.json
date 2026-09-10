@@ -1,0 +1,28 @@
+{
+  "StaffMessages": {
+    "title": "Messages under review",
+    "subtitle": "The contact filter flagged these. View-only for now — there's no decision action yet; making a call will be a separate step once it exists.",
+    "badgeQueue": "In queue",
+    "readOnlyNotice": "This list is read-only. Deciding on a message isn't wired up yet — you can see what happened and what was actually typed.",
+    "emptyTitle": "No messages",
+    "emptyBody": "The contact filter hasn't flagged anything.",
+    "stateFlagged": "Flagged",
+    "stateRedacted": "Redacted",
+    "stateBlocked": "Blocked",
+    "confidenceLabel": "Filter confidence:",
+    "seenLabel": "What the other party saw",
+    "bodyEmpty": "Empty — the message was never sent",
+    "originalLabel": "What was actually typed",
+    "sameNote": "The text wasn't changed on delivery — the filter only flagged it for review.",
+    "senderLabel": "Sender:",
+    "conversationLabel": "Conversation:",
+    "detectorEmail": "email",
+    "detectorEmailObfuscated": "email (obfuscated)",
+    "detectorPhoneDigits": "phone (digits)",
+    "detectorPhoneSpelledOut": "phone (spelled out)",
+    "detectorMessengerKeyword": "messenger mention",
+    "detectorHandle": "handle / username",
+    "detectorUrl": "link",
+    "detectorSocialNetwork": "social network"
+  }
+}

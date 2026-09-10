@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/navigation.ts';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from '@/ui/icons.tsx';
 import {
@@ -29,7 +30,7 @@ import {
  * retention window is set reads as the product being careful.
  */
 
-function useAction() {
+function useAction(errorFallback: string) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +43,7 @@ function useAction() {
       router.refresh();
       return true;
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось выполнить действие');
+      setError(e instanceof ApiError ? e.message : errorFallback);
       return false;
     } finally {
       setBusy(false);
@@ -65,18 +66,19 @@ export function PlaceHold({
   targetId?: string;
   compact?: boolean;
 }) {
+  const t = useTranslations('Retention');
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<HoldTargetType>(targetType ?? 'user');
   const [id, setId] = useState(targetId ?? '');
   const [code, setCode] = useState<HoldReasonCode>('DISPUTE_OPEN');
   const [reason, setReason] = useState('');
-  const { busy, error, run } = useAction();
+  const { busy, error, run } = useAction(t('errorGeneric'));
 
   if (!open) {
     return (
-      <button type="button" className={compact ? 'btn btn--ghost btn--sm' : 'btn btn--secondary'} onClick={() => setOpen(true)}>
+      <button type="button" className={compact ? 'btn btn-ghost btn-sm' : 'btn btn-secondary'} onClick={() => setOpen(true)}>
         <Icon name="shield" size={16} />
-        Наложить удержание
+        {t('placeHoldButton')}
       </button>
     );
   }
@@ -92,17 +94,15 @@ export function PlaceHold({
         if (ok) setOpen(false);
       }}
     >
-      <p className="ret__formNote">
-        Удержание запрещает фоновому заданию уничтожать эти данные. Оно ничего не удаляет и ничего не открывает.
-      </p>
+      <p className="ret__formNote">{t('placeHoldFormNote')}</p>
 
       {!targetType && (
         <label className="field">
-          <span className="field__label">Что удерживаем</span>
+          <span className="field__label">{t('placeHoldTargetLabel')}</span>
           <select className="input" value={type} onChange={(e) => setType(e.target.value as HoldTargetType)}>
-            {HOLD_TARGET_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {HOLD_TARGET_LABEL[t]}
+            {HOLD_TARGET_TYPES.map((tt) => (
+              <option key={tt} value={tt}>
+                {HOLD_TARGET_LABEL[tt]}
               </option>
             ))}
           </select>
@@ -111,13 +111,19 @@ export function PlaceHold({
 
       {!targetId && (
         <label className="field">
-          <span className="field__label">Идентификатор</span>
-          <input className="input" value={id} onChange={(e) => setId(e.target.value)} required placeholder="UUID" />
+          <span className="field__label">{t('placeHoldIdLabel')}</span>
+          <input
+            className="input"
+            value={id}
+            onChange={(e) => setId(e.target.value)}
+            required
+            placeholder={t('placeHoldIdPlaceholder')}
+          />
         </label>
       )}
 
       <label className="field">
-        <span className="field__label">Причина</span>
+        <span className="field__label">{t('placeHoldReasonCodeLabel')}</span>
         <select className="input" value={code} onChange={(e) => setCode(e.target.value as HoldReasonCode)}>
           {HOLD_REASON_CODES.map((c) => (
             <option key={c} value={c}>
@@ -128,7 +134,7 @@ export function PlaceHold({
       </label>
 
       <label className="field">
-        <span className="field__label">Пояснение — его прочитает тот, кто будет снимать удержание</span>
+        <span className="field__label">{t('placeHoldExplanationLabel')}</span>
         <textarea
           className="input"
           rows={3}
@@ -137,18 +143,18 @@ export function PlaceHold({
           required
           minLength={3}
           maxLength={2000}
-          placeholder="Например: запрос от 12.08, дело №…"
+          placeholder={t('placeHoldExplanationPlaceholder')}
         />
       </label>
 
       {error && <p className="ret__error" role="alert">{error}</p>}
 
       <div className="ret__formActions">
-        <button type="submit" className="btn btn--primary" disabled={busy || reason.trim().length < 3}>
-          {busy ? 'Сохраняем…' : 'Наложить'}
+        <button type="submit" className="btn btn-primary" disabled={busy || reason.trim().length < 3}>
+          {busy ? t('saving') : t('placeButton')}
         </button>
-        <button type="button" className="btn btn--ghost" onClick={() => setOpen(false)} disabled={busy}>
-          Отмена
+        <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)} disabled={busy}>
+          {t('cancelButton')}
         </button>
       </div>
     </form>
@@ -160,14 +166,15 @@ export function PlaceHold({
  * ------------------------------------------------------------------ */
 
 export function ReleaseHold({ holdId }: { holdId: string }) {
+  const t = useTranslations('Retention');
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
-  const { busy, error, run } = useAction();
+  const { busy, error, run } = useAction(t('errorGeneric'));
 
   if (!open) {
     return (
-      <button type="button" className="btn btn--ghost btn--sm" onClick={() => setOpen(true)}>
-        Снять удержание
+      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>
+        {t('releaseHoldButton')}
       </button>
     );
   }
@@ -183,10 +190,10 @@ export function ReleaseHold({ holdId }: { holdId: string }) {
     >
       <p className="ret__formNote ret__formNote--warn">
         <Icon name="alert" size={16} />
-        Снятие снова разрешает уничтожение этих данных. Причина сохранится в журнале.
+        {t('releaseHoldFormNote')}
       </p>
       <label className="field">
-        <span className="field__label">Почему удержание больше не нужно</span>
+        <span className="field__label">{t('releaseHoldReasonLabel')}</span>
         <textarea
           className="input"
           rows={2}
@@ -198,11 +205,11 @@ export function ReleaseHold({ holdId }: { holdId: string }) {
       </label>
       {error && <p className="ret__error" role="alert">{error}</p>}
       <div className="ret__formActions">
-        <button type="submit" className="btn btn--danger btn--sm" disabled={busy || reason.trim().length < 3}>
-          {busy ? 'Снимаем…' : 'Снять'}
+        <button type="submit" className="btn btn-danger btn-sm" disabled={busy || reason.trim().length < 3}>
+          {busy ? t('releasing') : t('releaseButton')}
         </button>
-        <button type="button" className="btn btn--ghost btn--sm" onClick={() => setOpen(false)} disabled={busy}>
-          Отмена
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)} disabled={busy}>
+          {t('cancelButton')}
         </button>
       </div>
     </form>
@@ -214,16 +221,17 @@ export function ReleaseHold({ holdId }: { holdId: string }) {
  * ------------------------------------------------------------------ */
 
 export function RunRetention({ storageConfigured }: { storageConfigured: boolean }) {
+  const t = useTranslations('Retention');
   const [report, setReport] = useState<{ processed: number; skipped: number; failed: number; notes: string[] } | null>(
     null,
   );
-  const { busy, error, run } = useAction();
+  const { busy, error, run } = useAction(t('errorGeneric'));
 
   return (
     <div className="ret__run">
       <button
         type="button"
-        className="btn btn--secondary"
+        className="btn btn-secondary"
         disabled={busy}
         onClick={() =>
           run(async () => {
@@ -236,23 +244,18 @@ export function RunRetention({ storageConfigured }: { storageConfigured: boolean
         }
       >
         <Icon name="clock" size={16} />
-        {busy ? 'Выполняем…' : 'Запустить сейчас'}
+        {busy ? t('running') : t('runButton')}
       </button>
 
-      {!storageConfigured && (
-        <p className="ret__runNote">
-          Хранилище документов не настроено, поэтому документы уничтожены не будут. Задание удалит только истёкшие
-          сессии, одноразовые токены и служебные счётчики.
-        </p>
-      )}
+      {!storageConfigured && <p className="ret__runNote">{t('runNoteStorageMissing')}</p>}
 
       {error && <p className="ret__error" role="alert">{error}</p>}
 
       {report && (
         <div className="ret__report" role="status">
           <p>
-            Обработано: <strong>{report.processed}</strong> · Пропущено: <strong>{report.skipped}</strong> · Ошибок:{' '}
-            <strong>{report.failed}</strong>
+            {t('tableProcessed')}: <strong>{report.processed}</strong> · {t('tableSkipped')}:{' '}
+            <strong>{report.skipped}</strong> · {t('tableFailed')}: <strong>{report.failed}</strong>
           </p>
           {report.notes.map((n) => (
             <p key={n} className="ret__runNote">

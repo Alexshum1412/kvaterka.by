@@ -1,0 +1,12 @@
+{
+  "Favorites": {
+    "meta": { "title": "Favorites" },
+    "title": "Favorites",
+    "subtitleEmpty": "Save listings to come back to them later.",
+    "subtitleCount": "{count, plural, one {# listing} other {# listings}} in your list.",
+    "emptyTitle": "Nothing saved yet",
+    "emptyText": "Tap the heart on any listing — it will appear here.",
+    "emptyButton": "Browse listings",
+    "missing": "{count, plural, one {One saved listing is currently unavailable — the host unpublished it.} other {# saved listings are currently unavailable — the hosts unpublished them.}}"
+  }
+}

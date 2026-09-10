@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/navigation.ts';
 import { Icon } from '@/ui/icons.tsx';
 import { formatMoney, fromStorage } from '@/server/domain/money.ts';
 
@@ -33,6 +34,7 @@ export interface MapMarker {
  * never sent to the client before a booking is confirmed (DEC-020).
  */
 export function MapPanel({ markers }: { markers: MapMarker[] }) {
+  const t = useTranslations('Listing');
   const [active, setActive] = useState<string | null>(null);
   const styleUrl = process.env.NEXT_PUBLIC_MAP_STYLE_URL;
 
@@ -61,7 +63,7 @@ export function MapPanel({ markers }: { markers: MapMarker[] }) {
           <span className="map-panel__emptyMark">
             <Icon name="map" size={28} />
           </span>
-          <p>Нет объектов в этой области</p>
+          <p>{t('map.empty')}</p>
         </div>
         <style>{MAP_CSS}</style>
       </div>
@@ -73,7 +75,7 @@ export function MapPanel({ markers }: { markers: MapMarker[] }) {
   return (
     <div className="map-panel">
       <div className="map-panel__viewport">
-        <div className="map-panel__canvas" role="group" aria-label="Карта объектов">
+        <div className="map-panel__canvas" role="group" aria-label={t('map.ariaLabel')}>
           {projected.map((m) => (
             <button
               key={m.id}
@@ -99,7 +101,7 @@ export function MapPanel({ markers }: { markers: MapMarker[] }) {
                 </span>
                 <Icon name="chevronRight" size={16} />
               </span>
-              <span className="map-card__note">Показано примерное расположение</span>
+              <span className="map-card__note">{t('map.approximateLocation')}</span>
             </Link>
           </div>
         )}
@@ -108,7 +110,7 @@ export function MapPanel({ markers }: { markers: MapMarker[] }) {
       {!styleUrl && (
         <p className="map-panel__notice">
           <Icon name="info" size={14} />
-          Картографический слой ещё не подключён. Точки показаны в реальном взаимном расположении.
+          {t('map.notice')}
         </p>
       )}
 
