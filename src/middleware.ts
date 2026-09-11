@@ -45,7 +45,9 @@ const handleI18nRouting = createIntlMiddleware(routing);
  * `img-src` allows `data:` because the QR code on the two-factor screen is
  * drawn in the browser and never leaves it, which is the point of drawing it
  * there. The media bucket is added when configured, since listing photos
- * redirect to it.
+ * redirect to it. OpenStreetMap's tile hosts are allowed for the same
+ * concrete reason: the Leaflet map panel requests raster tiles directly from
+ * `*.tile.openstreetmap.org`, and nothing else on the site does.
  */
 
 const STATIC_ASSET = /^\/(?:_next\/static|_next\/image|favicon\.ico|icon\.svg|robots\.txt|sitemap\.xml)/;
@@ -82,7 +84,10 @@ export default function middleware(request: NextRequest): NextResponse {
       process.env.NODE_ENV === 'development' ? ` 'unsafe-eval'` : ''
     }`,
     `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' data: blob:${media ? ` ${media}` : ''}`,
+    // OpenStreetMap's tile servers, for the Leaflet map (LEGAL-014) — the
+    // browser fetches these directly, so OSM's servers see the visitor's IP
+    // for every tile the same way any third-party <img> host would.
+    `img-src 'self' data: blob: https://*.tile.openstreetmap.org${media ? ` ${media}` : ''}`,
     `font-src 'self'`,
     // No third-party analytics, no external API. If that changes, this line is
     // the place it has to be argued for.

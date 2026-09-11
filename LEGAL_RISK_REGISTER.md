@@ -62,32 +62,53 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-004 — Identity documents (passport data)
+### LEGAL-004 — Identity documents (passport data) and property-ownership documents
 
-**Question.** What is required to collect and store passport/ID images and selfies for verification? Is explicit consent needed? Is there a mandatory retention limit or deletion duty? Are additional security measures legally required? Is a third-party KYC provider permissible?
+**Status as of 0018: the identity-document half is retired, not merely gated.** The user made an explicit product call: passport/ID collection is removed from this product outright, on the reasoning that in Belarus a mobile phone number is already tied to its owner at the point of sale by the operator, so proving control of a real, phone-backed messenger account (Telegram, VK or WhatsApp) is treated as the equivalent identity signal — without this platform ever asking for, receiving or storing a passport image. This is **the user's own product decision, stated to me directly, not a legal finding** — everything else in this register's epistemic posture (see "Read this first" above) still applies: no legal research was performed, and this paragraph is not a substitute for one.
 
-**Product decision riding on it.** Documents are in a separate private bucket, reachable only by the `VERIFIER` role, with every read written to an append-only `document_access_log`, and a per-document `purge_after` making the retention policy a stored value rather than an implicit convention.
+**Question, narrowed to what is now actually live.** Two separable things used to share one flag; they no longer do, and the open legal question is now only about the second:
 
-**If unfavourable.** Retention windows change (a data change), or verification moves to a licensed provider (the schema already isolates documents behind a request abstraction).
+1. ~~Passport/ID images and selfies for identity verification~~ — **removed from the product.** `VerificationService.submit()` refuses every new `targetLevel: 1` (IDENTITY) request outright (`FEATURE_DISABLED`), `evidenceSufficiency()` in `domain/verification.ts` can never find an IDENTITY-kind request sufficient regardless of what evidence it carries, and the document-type enum on `POST /me/verification/:id/documents` no longer accepts `PASSPORT`/`ID_CARD`/`SELFIE`. Level 1 is now granted automatically and without staff review the moment a phone is verified — see the phone-verification sub-entry below.
+2. **Property-ownership documents (ownership certificate, power of attorney, utility bill) for a Level 2 request — still live, and this is what remains open.** Same question as before: is explicit consent needed, is there a mandatory retention limit, are additional security measures required. The user's stated view is that this category carries no legal issue ("с этим никаких юр проблем нету") — again, the user's own assessment, not a legal opinion this register can vouch for. The flag that gates it, `feature_flag.verification.property_documents` (renamed from `verification.identity_documents` in migration `0018_phone_verification.sql`, which also flips it to `enabled = true`), is ON in this codebase on the strength of that instruction alone.
 
-**Where this now lives in code (added by the verification slice).** The question was previously abstract because nothing collected anything. It is now the gate on a built pipeline, and these are the exact places that change if the answer changes:
+**Product decision riding on it (documents, still applicable to property documents).** Documents are in a separate private bucket, reachable only by the `VERIFIER` role, with every read written to an append-only `document_access_log`, and a per-document `purge_after` making the retention policy a stored value rather than an implicit convention. None of this infrastructure changed in 0018 — only which category of document it is allowed to hold.
+
+**If unfavourable (property documents).** Retention windows change (a data change), or verification moves to a licensed provider (the schema already isolates documents behind a request abstraction), or the flag is switched back off — a one-row change, not a rewrite.
+
+**Where this now lives in code.**
 
 | Place | What it does today |
 |---|---|
-| `feature_flag.verification.identity_documents` | Off. Every path below reads it. |
-| `VerificationService.attachDocument` | Refuses with `FEATURE_DISABLED` while the flag is off, and with `NOT_IMPLEMENTED` when no private bucket is configured. Two independent gates, both failing closed. |
-| `evidenceSufficiency()` in `domain/verification.ts` | Refuses EVERY approval while the flag is off, so no trust badge can be granted with nothing behind it. |
-| `GET /admin/verification/documents/:id` | Pre-existing. `document.read` (VERIFIER alone), a stated purpose, and an append-only `document_access_log` row written before the key is returned. |
-| `verification_document_is_private` CHECK (0012) | A document row cannot exist outside the `private/` namespace, which the public media route refuses to serve. |
-| `verification_document.purge_after` | **Left NULL.** It used to be written as now + 1 year — the only retention period committed to code anywhere in this repository, chosen by nobody with authority to choose it. NULL means «срок не установлен», and the retention domain treats that as never eligible for purge. |
-| `POST /admin/retention/run` | The purge job exists and runs. It refuses every document twice over: once because `purge_after` is NULL, once because no object store is configured. It destroys expired sessions and tokens, and no personal data. |
-| `legal_hold` | A hold on a user, request or document blocks the purge, re-checked inside the purge transaction rather than only in the candidate query. |
+| `feature_flag.verification.property_documents` | **On**, per the user's explicit instruction. Renamed + flipped by migration 0018 (was `verification.identity_documents`, off). |
+| `VerificationService.submit()` | Refuses `targetLevel: 1` unconditionally, before any other check. |
+| `VerificationService.attachDocument` | Only ever reached for PROPERTY_OWNERSHIP requests now. Refuses with `FEATURE_DISABLED` while the flag is off, and with `NOT_IMPLEMENTED` when no private bucket is configured — that second gate is UNCHANGED and still refuses everything, because `DOCUMENTS_BUCKET_URL` remains unconfigured (see below). |
+| `evidenceSufficiency()` in `domain/verification.ts` | IDENTITY: always insufficient, no matter the inputs. PROPERTY_OWNERSHIP: sufficient once a property document and a declared ownership basis exist and the flag above is on. |
+| `NotificationService.beginPhoneVerification` / `completePhoneVerification{Telegram,Vk,Whatsapp}` | The new Level-1 path — see the phone-verification sub-entry below. |
+| `GET /admin/verification/documents/:id` | Unchanged. `document.read` (VERIFIER alone), a stated purpose, and an append-only `document_access_log` row written before the key is returned. |
+| `verification_document_is_private` CHECK (0012) | Unchanged. A document row cannot exist outside the `private/` namespace, which the public media route refuses to serve. |
+| `verification_document.purge_after` | Unchanged: left NULL on attachment, since no retention window has been chosen by anyone with authority to choose it. |
+| `POST /admin/retention/run` | Unchanged. Refuses every document twice over: `purge_after` is NULL, and no object store is configured either. |
+| `legal_hold` | Unchanged. |
 
-**What a favourable answer still would not give us.** The retention slice built the purge path, so one of the two gaps named here is closed. What remains: there is no private object storage configured anywhere (the variable is `DOCUMENTS_BUCKET_URL` — an earlier gate read a name nobody sets, which failed closed but for the wrong reason and is now fixed), and no client implements one. Turning the flag on without storage would mean collecting passports with nowhere lawful to put them, so the flag alone is still not the green light.
+**What turning the flag on did NOT do.** There is still no private object storage configured anywhere (`DOCUMENTS_BUCKET_URL` is unset in every environment this product runs in). `attachDocument` therefore still refuses every real attempt with `NOT_IMPLEMENTED`, flag or no flag — the two gates fail closed independently, exactly as before 0018. Enabling the flag reflects the user's product decision about the legal *question*; it does not, by itself, make document collection actually work, because nowhere lawful exists to put a document yet.
 
-**Answering this question is now a configuration change, not a coding task**, which was the design intent. It means: choose a window, set `purge_after` on attachment and backfill existing rows. The job, the holds, the audit trail and the console already exist and are tested.
+---
 
-**Lawyer:** yes. Highest sensitivity item in the product, and now the one with a built pipeline waiting behind it.
+#### Phone verification as the identity signal (new in 0018) — its own, separate open questions
+
+**Question.** Verifying "controls a Telegram/VK/WhatsApp account" as a proxy for identity is a product decision, not a settled legal one. What actually needs asking: does relying on a third-party messenger's own phone-verification as this platform's identity signal carry any disclosure obligation; does routing a Belarusian user's verification through Telegram/VK/WhatsApp raise the same cross-border personal-data question LEGAL-003 and LEGAL-015 already ask about Telegram notifications; and — the part that is a plain technical fact, not a legal question — the three channels do not prove the same thing to the same degree:
+
+- **Telegram** hands this platform the account's real phone number (via `request_contact`), already verified by Telegram itself. Strong proof.
+- **WhatsApp**, via the official Cloud API, also hands this platform a real, WhatsApp-verified phone number (the webhook's sender field). Strong proof, same tier as Telegram.
+- **VK** proves control of a VK account, not a phone number — VK's community-bot messaging API (Callback API) has no equivalent of Telegram's contact-share button and does not expose the user's phone number to a bot at all. `phone_verified_via='VK'` is recorded honestly as a weaker signal than the other two; `app_user.phone` is never overwritten from a VK link.
+
+**Product decision riding on it.** `app_user.phone_verified_at` + `phone_verified_via` record which channel and when. `vk_connection` mirrors the existing `telegram_connection` table (itself already covered by LEGAL-015's Telegram question). No WhatsApp connection table is needed — WhatsApp verification is stateless, keyed only by the one-time token.
+
+**A deliberate substitution, stated plainly.** The user's original instruction named `whatsapp-web.js`/Baileys — unofficial libraries that puppet a real WhatsApp account through the consumer app's own protocol. That was NOT built: it is against WhatsApp's terms of service (risking the number being banned, with no recourse), and it requires a persistent logged-in browser session (Puppeteer/Chromium) this product's shared cPanel/LiteSpeed hosting cannot run reliably. The official WhatsApp Business Cloud API was built instead — a plain HTTPS webhook, ToS-compliant, and it fits the hosting. It still requires the operator to complete Meta Business / WhatsApp Business Platform setup (a manual step, comparable to the Google OAuth Client and Telegram BotFather setup this product already needed) before it does anything.
+
+**If unfavourable.** The channel-specific pieces are independent and can be disabled one at a time (`TELEGRAM_BOT_TOKEN` / `VK_GROUP_TOKEN` / `WHATSAPP_ACCESS_TOKEN` unset ⇒ that channel simply stops being offered — see `router.ts`'s phone gate, which also stops applying to anyone if NONE of the three are configured, so a misconfigured deployment fails open rather than locking every user out).
+
+**Lawyer:** yes, on both halves above — the property-document question (item 2), and whether phone-verification-via-messenger needs its own disclosure or carries LEGAL-003/LEGAL-015's cross-border question. Passport collection itself is no longer a live question for this product; it was removed, not merely deferred.
 
 ---
 
@@ -201,9 +222,11 @@ What this register *is* good for: it names the questions precisely, records the 
 
 **Question.** Are there restrictions on displaying property locations, on the mapping providers usable in Belarus, or on precision of location data for residential addresses?
 
-**Product decision riding on it.** Approximate location by default, with a deterministic public offset; exact address released only from `CONFIRMED`. Map provider is abstracted so it can be swapped.
+**Product decision riding on it.** Approximate location by default, with a deterministic public offset; exact address released only from `CONFIRMED`.
 
-**Lawyer:** yes.
+**Now user-facing.** The map panel (`src/ui/map-panel.tsx`) renders real OpenStreetMap tiles via Leaflet — the user's own explicit, direct choice of provider, not one made silently. Concretely: every visitor's browser fetches tiles straight from `*.tile.openstreetmap.org`, so OSM's own servers see that visitor's IP address for each map view, the same way any third-party `<img>` host would. No personal data beyond the already-blurred public coordinate is sent — the exact address still never reaches the client before `CONFIRMED` — but the tile requests themselves are a new third party in the request path that was not there while the panel was a static placeholder. This is the concrete provider choice the question above is actually about now, rather than an abstract "provider TBD".
+
+**Lawyer:** yes — specifically, whether routing every visitor's IP to OpenStreetMap's tile infrastructure needs disclosure in the privacy policy, and whether OSM's tile usage policy is compatible with expected production traffic (their standard tile servers are meant for light use; a self-hosted or paid tile provider may be the right call before this scales).
 
 ---
 
@@ -268,7 +291,7 @@ What this register *is* good for: it names the questions precisely, records the 
 | Item | Blocks |
 |---|---|
 | LEGAL-003 | Choice of hosting region — answer before provisioning infrastructure |
-| LEGAL-004 | Launching identity verification |
+| LEGAL-004 | Launching property-document verification (identity verification via passport is retired, not blocked); whether phone-verification-via-messenger needs its own disclosure |
 | LEGAL-012 | Any rewards feature — currently gated and safe |
 | LEGAL-016 | Charging the service fee at all |
 | LEGAL-002, 005 | Invoicing and accounting setup |

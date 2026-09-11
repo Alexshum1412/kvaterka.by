@@ -143,7 +143,10 @@ export async function seedDemoData(db: Db): Promise<{ listings: number }> {
   for (const [key, enabled, description, legal] of [
     ['rewards.lottery', false, 'Prize draw. Requires LEGAL-012.', true],
     ['fee.enforcement', true, 'Whether an unpaid fee restricts the account. The fee is recorded either way. LEGAL-016 unverified.', true],
-    ['verification.identity_documents', false, 'Identity document collection. Requires LEGAL-004.', true],
+    // No entry for verification.property_documents here: migrations 0006 and
+    // 0018 already create and rename this row, in that order, before this
+    // function ever runs — inserting it again would just leave a stale
+    // 'verification.identity_documents' row nothing reads.
     ['notifications.telegram', true, 'Telegram channel, opt-in per user.', false],
   ] as const) {
     await db.query(
@@ -244,9 +247,9 @@ export async function seedDemoData(db: Db): Promise<{ listings: number }> {
      only from the `DATABASE_URL=pglite` branch, and pglite throws outright when
      NODE_ENV is production.
 
-     Note that this account still cannot open a document today — the
-     `verification.identity_documents` flag is off pending LEGAL-004, and the
-     route refuses regardless of role. That is the point. */
+     Property-ownership documents (the only kind collected now — identity
+     verification moved to phone linking, see 0018) are gated behind
+     `verification.property_documents`, which is on. */
   const verifierId = uuidv7();
   await db.query(
     `INSERT INTO app_user (id, email, display_name, password_hash, email_verified_at, verification_level)

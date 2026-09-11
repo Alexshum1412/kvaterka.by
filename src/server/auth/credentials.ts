@@ -3,7 +3,7 @@
  */
 
 import { hash as argonHash, verify as argonVerify } from '@node-rs/argon2';
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 
 /**
  * @node-rs/argon2 exports `Algorithm` as an ambient const enum, which cannot be
@@ -85,6 +85,18 @@ export async function verifyPassword(storedHash: string, password: string): Prom
  */
 export function generateToken(bytes = 32): string {
   return randomBytes(bytes).toString('base64url');
+}
+
+/**
+ * A short numeric code, for a person to type back rather than click — email
+ * clients that mangle links, or a code read off one device and typed into
+ * another, both still work. `randomInt` rather than a modulo of `randomBytes`
+ * because the modulo of a byte range that does not evenly divide 10 biases
+ * the low digits; `crypto.randomInt` doesn't have that problem.
+ */
+export function generateNumericCode(digits = 6): string {
+  const max = 10 ** digits;
+  return randomInt(max).toString().padStart(digits, '0');
 }
 
 /**

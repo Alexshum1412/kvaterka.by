@@ -69,7 +69,7 @@ export const verificationSelfRoutes: AnyRoute[] = [
     // Deliberately tight. A verification request costs a human being time, and
     // the partial unique index already refuses a second live one per kind.
     rateLimit: { limit: 10, windowSeconds: 86_400, by: 'user', bucket: 'verification:submit' },
-    legalReview: 'LEGAL-004 — identity document handling is unconfirmed',
+    legalReview: 'LEGAL-004 — property-document handling; identity documents are retired (0018)',
     body: z.object({
       targetLevel: z.union([z.literal(1), z.literal(2)]),
       propertyId: z.string().uuid().optional(),
@@ -126,17 +126,12 @@ export const verificationSelfRoutes: AnyRoute[] = [
     summary: 'Attach a document to the caller’s own request',
     tags: ['verification'],
     auth: 'required',
-    legalReview: 'LEGAL-004 — collection is gated by verification.identity_documents',
+    legalReview: 'LEGAL-004 — collection is gated by verification.property_documents',
     body: z.object({
-      docType: z.enum([
-        'PASSPORT',
-        'ID_CARD',
-        'SELFIE',
-        'OWNERSHIP_CERTIFICATE',
-        'POWER_OF_ATTORNEY',
-        'UTILITY_BILL',
-        'OTHER',
-      ]),
+      // PASSPORT/ID_CARD/SELFIE are gone: identity is phone-verified now
+      // (0018), so this endpoint — reachable only for PROPERTY_OWNERSHIP
+      // requests — accepts only property-relevant document types.
+      docType: z.enum(['OWNERSHIP_CERTIFICATE', 'POWER_OF_ATTORNEY', 'UTILITY_BILL', 'OTHER']),
     }),
     successStatus: 201,
     async handler({ params, body, ctx, caller }) {

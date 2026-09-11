@@ -33,6 +33,7 @@
     "manualTo": "To",
 
     "dayAriaLabel": "{month} {day}, {status}",
+    "dayAriaLabelPast": "{month} {day}, already past",
 
     "loadFailed": "Couldn't load the calendar",
     "updateFailed": "Couldn't change the calendar",

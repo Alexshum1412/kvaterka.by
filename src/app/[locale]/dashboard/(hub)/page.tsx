@@ -94,6 +94,7 @@ export default async function DashboardPage() {
 
   const hasListings = summary.listings.length > 0;
   const inDebt = BigInt(stats.balanceMinor) < 0n;
+  const hasEarned = BigInt(stats.totalEarnedMinor) > 0n;
 
   return (
     <div className="container dash">
@@ -104,6 +105,45 @@ export default async function DashboardPage() {
           {accountSentence(t, summary.listings.length, stats.publishedListings, stats.pendingRequests)}
         </p>
       </header>
+
+      {/* Balance and earnings, right under the greeting — always visible
+          without scrolling past the listings below, which is the actual
+          primary content of this page. Two different figures on purpose:
+          the balance is what the platform's service fee ledger says (can be
+          a debt); earned is what tenants have actually paid the landlord
+          for completed stays (never a debt, never styled as one). */}
+      <section className="dash-section dash-summary" aria-label={t('summaryAriaLabel')}>
+        <div className={cx('card dash-summary__card', inDebt && 'is-debt')}>
+          <span className="dash-summary__icon" aria-hidden="true">
+            <Icon name="wallet" size={20} />
+          </span>
+          <div className="stack grow" style={{ gap: '0.2rem', minWidth: 0 }}>
+            <h2 className="dash-summary__label">{t('balanceHeading')}</h2>
+            <strong className={cx('dash-summary__value', inDebt && 'is-debt')}>
+              <Money minor={stats.balanceMinor} />
+            </strong>
+            <p className="hint dash-summary__hint">{inDebt ? t('balanceDebtHint') : t('balanceOkHint')}</p>
+          </div>
+          <Link href="/dashboard/finance" className="btn btn-secondary btn-sm dash-summary__cta">
+            {t('balanceMore')}
+          </Link>
+        </div>
+
+        <div className="card dash-summary__card">
+          <span className="dash-summary__icon dash-summary__icon--positive" aria-hidden="true">
+            <Icon name="checkCircle" size={20} />
+          </span>
+          <div className="stack grow" style={{ gap: '0.2rem', minWidth: 0 }}>
+            <h2 className="dash-summary__label">{t('earnedHeading')}</h2>
+            <strong className="dash-summary__value dash-summary__value--positive">
+              <Money minor={stats.totalEarnedMinor} />
+            </strong>
+            <p className="hint dash-summary__hint">
+              {hasEarned ? t('earnedSub', { count: stats.completedRentals }) : t('earnedHint')}
+            </p>
+          </div>
+        </div>
+      </section>
 
       {summary.attention.length > 0 ? (
         <section className="dash-section" aria-labelledby="attention-heading">
@@ -208,21 +248,6 @@ export default async function DashboardPage() {
         />
       </section>
 
-      <section className="dash-section dash-balance" aria-labelledby="balance-heading">
-        <div className="stack grow" style={{ gap: '0.2rem' }}>
-          <h2 id="balance-heading" className="dash-balance__label">
-            {t('balanceHeading')}
-          </h2>
-          <strong className={cx('dash-balance__value', inDebt && 'is-debt')}>
-            <Money minor={stats.balanceMinor} />
-          </strong>
-          <p className="hint dash-balance__hint">{inDebt ? t('balanceDebtHint') : t('balanceOkHint')}</p>
-        </div>
-        <Link href="/dashboard/finance" className="btn btn-secondary">
-          {t('balanceMore')}
-        </Link>
-      </section>
-
       {/* The account screen was reachable only by typing its address: nothing
           in the product linked to it, so the one place a person can see what
           happens to their data and close their account was, in practice,
@@ -255,6 +280,41 @@ export default async function DashboardPage() {
 
         .dash-section { margin-top: var(--space-6); }
         @media (min-width: 768px) { .dash-section { margin-top: var(--space-7); } }
+
+        /* --- баланс и доход ------------------------------------------- *
+         * The one section deliberately placed right under the greeting
+         * rather than after the listings: a landlord who owes a fee, or
+         * wants to see what a rental brought in, should never have to
+         * scroll to find out. Two cards, not one — a debt and an income
+         * figure read as opposite things and must never share a tone. */
+        .dash-summary {
+          display: grid; gap: var(--space-3);
+          grid-template-columns: 1fr;
+          margin-top: var(--space-5);
+        }
+        @media (min-width: 640px) { .dash-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        .dash-summary__card {
+          display: flex; align-items: flex-start; gap: var(--space-3);
+          flex-wrap: wrap;
+        }
+        .dash-summary__icon {
+          display: inline-flex; align-items: center; justify-content: center;
+          flex: 0 0 auto; width: 2.5rem; height: 2.5rem;
+          border-radius: var(--radius-full);
+          background: var(--surface-sunken); color: var(--text-secondary);
+        }
+        .dash-summary__card.is-debt .dash-summary__icon { background: var(--error-soft); color: var(--error); }
+        .dash-summary__icon--positive { background: var(--success-soft); color: var(--success); }
+        .dash-summary__label {
+          font-size: var(--text-sm); font-weight: 500;
+          letter-spacing: 0; color: var(--text-secondary);
+        }
+        .dash-summary__value { font-size: var(--text-2xl); font-weight: 650; letter-spacing: -0.025em; }
+        .dash-summary__value.is-debt { color: var(--error); }
+        .dash-summary__value--positive { color: var(--success); }
+        .dash-summary__hint { max-width: 40ch; }
+        .dash-summary__cta { flex: 0 0 auto; margin-left: auto; }
+        @media (max-width: 400px) { .dash-summary__cta { margin-left: 0; width: 100%; justify-content: center; } }
         .dash-section__head {
           display: flex; align-items: center; justify-content: space-between;
           gap: var(--space-3); flex-wrap: wrap;
@@ -386,19 +446,6 @@ export default async function DashboardPage() {
         .dash-fig__value.is-emphasis { color: var(--primary); }
         .dash-fig:hover .dash-fig__value { color: var(--primary); }
         .dash-fig__sub { font-size: var(--text-2xs); color: var(--text-tertiary); }
-
-        .dash-balance {
-          display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap;
-          border-top: 1px solid var(--border);
-          padding-top: var(--space-5);
-        }
-        .dash-balance__label {
-          font-size: var(--text-sm); font-weight: 500;
-          letter-spacing: 0; color: var(--text-secondary);
-        }
-        .dash-balance__value { font-size: var(--text-2xl); font-weight: 650; letter-spacing: -0.025em; }
-        .dash-balance__value.is-debt { color: var(--error); }
-        .dash-balance__hint { max-width: 48ch; }
       `}</style>
     </div>
   );

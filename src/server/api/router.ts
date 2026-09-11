@@ -14,7 +14,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { Db } from '../db/sql.ts';
-import { can } from '../auth/rbac.ts';
+import { can, isStaff } from '../auth/rbac.ts';
 import { needsStepUp, stepUpSatisfied } from '../domain/two-factor.ts';
 import { DomainError } from '../services/errors.ts';
 import type { Services } from '../services/container.ts';
@@ -127,6 +127,14 @@ export interface DispatchDeps {
    * reachable only by a human holding the permission.
    */
   readonly jobToken?: string | undefined;
+  /**
+   * Whether at least one phone-verification channel (Telegram, VK, WhatsApp)
+   * is configured — see the phone gate below. Defaults to false when omitted
+   * (the shape every existing test fixture already has), which is also the
+   * fail-open behaviour a deployment with nothing configured yet needs: a
+   * caller cannot be required to clear a gate that has no door in it.
+   */
+  readonly phoneVerificationAvailable?: boolean;
 }
 
 /** Extract the session token from a cookie, falling back to a bearer header. */
@@ -194,6 +202,7 @@ export async function dispatch(
             roles: session.roles,
             displayName: session.displayName,
             emailVerified: session.emailVerified,
+            phoneVerified: session.phoneVerified,
             withheldRoles: session.withheldRoles,
             stepUpAt: session.stepUpAt,
             twoFactorEnrolled: session.twoFactorEnrolled,
@@ -208,6 +217,35 @@ export async function dispatch(
 
       if (route.auth === 'required' && !caller && !machine) {
         throw new DomainError('UNAUTHENTICATED', 'Требуется вход в аккаунт');
+      }
+
+      /* THE PHONE GATE. Fail closed like the 2FA enforcement above it: gated
+         by default, and a route opts out (`phoneGateExempt`) rather than
+         every other route needing to opt in.
+         `machine` is exempt outright — a scheduler has no phone to verify.
+         STAFF is exempt too, including a staff member currently withheld
+         pending 2FA: those accounts are created internally by another staff
+         member (`user.create`), never through public self-registration, so
+         the anti-fraud reason this gate exists for a tenant/landlord signup
+         does not apply — and without this exemption an administrator could
+         deploy this gate and lock themself out of every staff action.
+         `deps.phoneVerificationAvailable` is the escape hatch for a
+         deployment with no channel configured yet: a required gate nothing
+         can satisfy must not apply, or nobody — including whoever is trying
+         to configure the first channel — could use the site at all. */
+      if (
+        caller &&
+        !caller.phoneVerified &&
+        route.auth === 'required' &&
+        !route.phoneGateExempt &&
+        !isStaff(caller.roles) &&
+        caller.withheldRoles.length === 0 &&
+        deps.phoneVerificationAvailable
+      ) {
+        throw new DomainError(
+          'PHONE_VERIFICATION_REQUIRED',
+          'Подтвердите номер телефона, чтобы продолжить',
+        );
       }
     }
 

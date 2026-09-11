@@ -16,7 +16,7 @@ import { hasErrorCode, PG_ERROR } from '../db/sql.ts';
 import { uuidv7 } from '../../lib/id.ts';
 import { DomainError, invalid, notFound as notFoundError } from '../services/errors.ts';
 import { writeAudit } from '../services/audit.ts';
-import { generateToken, hashPassword, hashToken, verifyPassword } from './credentials.ts';
+import { generateNumericCode, generateToken, hashPassword, hashToken, tokensMatch, verifyPassword } from './credentials.ts';
 import type { Role } from './rbac.ts';
 import {
   effectiveRoles,
@@ -38,12 +38,16 @@ const DUMMY_HASH =
   '$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHRzb21lc2FsdA$J8mQKzZ0m1WQ0mQZ8mQKzZ0m1WQ0mQZ8mQKzZ0m1WQ0';
 
 export const SESSION_TTL_DAYS = 30;
-export const VERIFICATION_TTL_HOURS = 24;
 /** A staff-created account's setup link lives longer than a self-service
  * reset (2h): nobody is locked out waiting on it, so there is no reason to
  * rush the person it was sent to. */
 export const STAFF_ACCOUNT_SETUP_TTL_HOURS = 72;
 export const MAX_FAILED_LOGINS = 8;
+export const REGISTRATION_CODE_TTL_MINUTES = 30;
+/** 6 digits is a million combinations; capping wrong guesses here is what
+ * keeps that a real barrier rather than something a script exhausts before
+ * the code even expires. */
+export const MAX_REGISTRATION_CODE_ATTEMPTS = 6;
 
 export interface RegisterInput {
   readonly email?: string;
@@ -68,6 +72,8 @@ export interface SessionContext {
   readonly displayName: string;
   readonly status: string;
   readonly emailVerified: boolean;
+  /** Verified via a linked Telegram, VK or WhatsApp account — see 0018. */
+  readonly phoneVerified: boolean;
   readonly authLevel: AuthLevel;
   /** Staff roles held but not currently usable, so the UI can explain. */
   readonly withheldRoles: readonly Role[];
@@ -98,23 +104,52 @@ export class AuthService {
 
   /* ---------------------------------------------------------------- */
 
-  async register(input: RegisterInput, meta: RequestMeta = {}): Promise<{ userId: string; verificationToken: string }> {
+  /**
+   * Step 1 of registration: prove the inputs are usable and hand back a code
+   * to send. Deliberately writes no `app_user` row — an email that nobody
+   * has proven they can read must not become a working account, or the cost
+   * of squatting a hundred addresses is zero. `pending_registration` is the
+   * holding area; `confirmRegistration` is the only door out of it.
+   */
+  async beginRegistration(input: RegisterInput, meta: RequestMeta = {}): Promise<{ identifier: string; code: string }> {
     if (!input.email && !input.phone) throw invalid('Укажите email или номер телефона');
     if (input.displayName.trim().length < 2) throw invalid('Укажите имя');
     if (input.accountKind === 'COMPANY' && !input.companyName?.trim()) {
       throw invalid('Для аккаунта компании укажите название компании');
     }
 
-    const passwordHash = await hashPassword(input.password);
-    const userId = uuidv7();
+    const identifier = (input.email ?? input.phone)!.trim();
 
-    return this.db.transaction(async (tx) => {
+    // Same vague-error posture the old flow used: confirming which addresses
+    // already hold a real account turns this into an enumeration oracle.
+    const { rows: existingRows } = await this.db.query<{ id: string }>(
+      `SELECT id FROM app_user WHERE (lower(email) = lower($1) OR phone = $1) AND deleted_at IS NULL`,
+      [identifier],
+    );
+    if (existingRows[0]) {
+      throw new DomainError('ALREADY_EXISTS', 'Не удалось создать аккаунт с этими данными');
+    }
+
+    const passwordHash = await hashPassword(input.password);
+    const code = generateNumericCode();
+    const pendingId = uuidv7();
+
+    await this.db.transaction(async (tx) => {
+      // One live attempt per address. A second submission (lost email, typo,
+      // change of mind) replaces it outright rather than needing its own
+      // "resend" bookkeeping — registering again IS the resend.
+      await tx.query(
+        `DELETE FROM pending_registration
+          WHERE (email IS NOT NULL AND lower(email) = lower($1)) OR (phone IS NOT NULL AND phone = $1)`,
+        [identifier],
+      );
       try {
         await tx.query(
-          `INSERT INTO app_user (id, email, phone, password_hash, display_name, account_kind, company_name, locale)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          `INSERT INTO pending_registration
+             (id, email, phone, password_hash, display_name, account_kind, company_name, locale, code_hash, expires_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now() + ($10 || ' minutes')::interval)`,
           [
-            userId,
+            pendingId,
             input.email?.trim() ?? null,
             input.phone?.trim() ?? null,
             passwordHash,
@@ -122,13 +157,105 @@ export class AuthService {
             input.accountKind ?? 'PRIVATE',
             input.companyName?.trim() ?? null,
             input.locale ?? 'ru',
+            hashToken(code),
+            String(REGISTRATION_CODE_TTL_MINUTES),
           ],
         );
       } catch (e) {
         if (hasErrorCode(e, PG_ERROR.UNIQUE_VIOLATION)) {
-          // Deliberately vague: confirming which addresses are registered turns
-          // the signup form into an account-enumeration oracle.
           throw new DomainError('ALREADY_EXISTS', 'Не удалось создать аккаунт с этими данными');
+        }
+        throw e;
+      }
+    });
+
+    void meta; // reserved: no audit row yet — nothing has been created to audit.
+    return { identifier, code };
+  }
+
+  /**
+   * Step 2: spend the code, create the real account, and log it straight in.
+   *
+   * Auto-login is deliberate, not a shortcut — the person just proved control
+   * of the address AND typed the password that will protect the account, in
+   * the same breath a login normally happens in. Asking them to now log in
+   * separately would be a second form for no safety gained.
+   */
+  async confirmRegistration(
+    identifier: string,
+    code: string,
+    meta: RequestMeta = {},
+  ): Promise<{ session: IssuedSession; context: SessionContext }> {
+    const GENERIC = 'Код неверен или устарел';
+
+    /* THE ATTEMPT COUNTER IS WRITTEN OUTSIDE THE TRANSACTION THAT DECIDED IT,
+       AND THAT IS THE WHOLE POINT OF THIS SHAPE — same reasoning, and the
+       same bug it avoids, as `answerChallenge`'s own comment above.
+       Incrementing `attempts` and then throwing, both inside one
+       transaction, does not work: the throw rolls the transaction back and
+       takes the increment with it, so the counter never moves and the
+       lockout never engages no matter how many wrong codes arrive. So the
+       transaction below only ever DECIDES an outcome and returns it; nothing
+       that must survive a "wrong code" response is written inside a branch
+       that also throws. */
+    const outcome = await this.db.transaction(async (tx) => {
+      const { rows } = await tx.query<{
+        id: string;
+        email: string | null;
+        phone: string | null;
+        password_hash: string;
+        display_name: string;
+        account_kind: string;
+        company_name: string | null;
+        locale: string;
+        code_hash: Buffer;
+        attempts: number;
+        expires_at: Date;
+      }>(
+        `SELECT id, email, phone, password_hash, display_name, account_kind, company_name, locale,
+                code_hash, attempts, expires_at
+           FROM pending_registration
+          WHERE (email IS NOT NULL AND lower(email) = lower($1)) OR (phone IS NOT NULL AND phone = $1)
+          FOR UPDATE`,
+        [identifier.trim()],
+      );
+      const pending = rows[0];
+      if (!pending) return { kind: 'REJECT' as const };
+
+      if (pending.expires_at.getTime() <= Date.now()) {
+        await tx.query(`DELETE FROM pending_registration WHERE id = $1`, [pending.id]);
+        return { kind: 'REJECT' as const };
+      }
+      if (pending.attempts >= MAX_REGISTRATION_CODE_ATTEMPTS) {
+        return { kind: 'LOCKED' as const };
+      }
+      if (!tokensMatch(hashToken(code.trim()), pending.code_hash)) {
+        return { kind: 'WRONG' as const, pendingId: pending.id };
+      }
+
+      const userId = uuidv7();
+      try {
+        await tx.query(
+          `INSERT INTO app_user
+             (id, email, phone, password_hash, display_name, account_kind, company_name, locale, email_verified_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now())`,
+          [
+            userId,
+            pending.email,
+            pending.phone,
+            pending.password_hash,
+            pending.display_name,
+            pending.account_kind,
+            pending.company_name,
+            pending.locale,
+          ],
+        );
+      } catch (e) {
+        if (hasErrorCode(e, PG_ERROR.UNIQUE_VIOLATION)) {
+          // Somebody else finished registering this exact address first — a
+          // race, not a normal path. Either way this pending row is stale.
+          await tx.query(`DELETE FROM pending_registration WHERE id = $1`, [pending.id]);
+          return { kind: 'ALREADY_EXISTS' as const };
         }
         throw e;
       }
@@ -136,21 +263,158 @@ export class AuthService {
       // Everyone starts as a tenant; the landlord role is granted when a first
       // listing is created, so a browsing user carries no listing permissions.
       await tx.query(`INSERT INTO user_role (user_id, role) VALUES ($1,'TENANT')`, [userId]);
+      await tx.query(`DELETE FROM pending_registration WHERE id = $1`, [pending.id]);
 
-      const verificationToken = await this.issueAuthToken(tx, userId, 'EMAIL_VERIFICATION', VERIFICATION_TTL_HOURS);
+      const issued = await this.createSession(tx, userId, meta, null);
 
       await writeAudit(tx, {
         actorUserId: userId,
         action: 'auth.register',
         targetType: 'user',
         targetId: userId,
-        changes: { accountKind: { from: null, to: input.accountKind ?? 'PRIVATE' } },
+        changes: { accountKind: { from: null, to: pending.account_kind } },
         correlationId: meta.correlationId ?? null,
         ipHash: hashIp(meta.ip),
       });
+      await writeAudit(tx, {
+        actorUserId: userId,
+        action: 'auth.email_confirmed',
+        targetType: 'user',
+        targetId: userId,
+        correlationId: meta.correlationId ?? null,
+      });
 
-      return { userId, verificationToken };
+      return { kind: 'OK' as const, issued };
     });
+
+    if (outcome.kind === 'OK') {
+      const context = await this.resolveSession(outcome.issued.token);
+      if (!context) throw new DomainError('UNAUTHENTICATED', 'Не удалось создать сессию');
+      return { session: outcome.issued, context };
+    }
+
+    if (outcome.kind === 'ALREADY_EXISTS') {
+      throw new DomainError('ALREADY_EXISTS', 'Не удалось создать аккаунт с этими данными');
+    }
+
+    if (outcome.kind === 'LOCKED') {
+      throw new DomainError('RATE_LIMITED', 'Слишком много попыток. Запросите код ещё раз.');
+    }
+
+    if (outcome.kind === 'WRONG') {
+      // Its own statement, so it commits even though this call is about to
+      // throw — see the comment above.
+      await this.db.query(`UPDATE pending_registration SET attempts = attempts + 1 WHERE id = $1`, [
+        outcome.pendingId,
+      ]);
+    }
+
+    throw new DomainError('UNAUTHENTICATED', GENERIC);
+  }
+
+  /**
+   * A fresh code for a pending registration. Returns null rather than
+   * throwing when nothing is pending — same reasoning as
+   * `requestPasswordReset`: the caller must respond identically either way,
+   * or this becomes a second oracle for which addresses are mid-signup.
+   */
+  async resendRegistrationCode(identifier: string): Promise<string | null> {
+    return this.db.transaction(async (tx) => {
+      const { rows } = await tx.query<{ id: string }>(
+        `SELECT id FROM pending_registration
+          WHERE (email IS NOT NULL AND lower(email) = lower($1)) OR (phone IS NOT NULL AND phone = $1)
+          FOR UPDATE`,
+        [identifier.trim()],
+      );
+      const pending = rows[0];
+      if (!pending) return null;
+
+      const code = generateNumericCode();
+      await tx.query(
+        `UPDATE pending_registration
+            SET code_hash = $2, attempts = 0, expires_at = now() + ($3 || ' minutes')::interval
+          WHERE id = $1`,
+        [pending.id, hashToken(code), String(REGISTRATION_CODE_TTL_MINUTES)],
+      );
+      return code;
+    });
+  }
+
+  /**
+   * Sign in with Google — completes or begins the account in one step.
+   *
+   * Google has already proven control of the inbox (that is what
+   * `emailVerified` asserts on its side), so there is no code to type and no
+   * `pending_registration` row: a brand-new signer becomes a real, already-
+   * verified `app_user` immediately. This is the one path allowed to skip
+   * the pending table, and it is allowed to precisely because Google already
+   * did the work that table exists to require of everyone else.
+   */
+  async continueWithGoogle(
+    google: { sub: string; email: string; emailVerified: boolean; name: string | null },
+    meta: RequestMeta = {},
+  ): Promise<{ session: IssuedSession; context: SessionContext }> {
+    if (!google.emailVerified) {
+      throw new DomainError('VALIDATION_FAILED', 'Google сообщает, что этот email не подтверждён');
+    }
+
+    const session = await this.db.transaction(async (tx) => {
+      const bySub = await tx.query<{ id: string }>(
+        `SELECT id FROM app_user WHERE google_sub = $1 AND deleted_at IS NULL`,
+        [google.sub],
+      );
+      if (bySub.rows[0]) {
+        return this.createSession(tx, bySub.rows[0]!.id, meta, null);
+      }
+
+      const byEmail = await tx.query<{ id: string }>(
+        `SELECT id FROM app_user WHERE lower(email) = lower($1) AND deleted_at IS NULL`,
+        [google.email],
+      );
+      if (byEmail.rows[0]) {
+        // An existing password account signing in with Google for the first
+        // time: link it, rather than mint a second account for one person.
+        const userId = byEmail.rows[0]!.id;
+        await tx.query(`UPDATE app_user SET google_sub = $2 WHERE id = $1`, [userId, google.sub]);
+        await writeAudit(tx, {
+          actorUserId: userId,
+          action: 'auth.google_linked',
+          targetType: 'user',
+          targetId: userId,
+          correlationId: meta.correlationId ?? null,
+        });
+        return this.createSession(tx, userId, meta, null);
+      }
+
+      const userId = uuidv7();
+      // No password: this account can only sign in through Google until its
+      // owner sets one via "forgot password" — the same unusable-hash shape
+      // `createStaffManagedAccount` uses, and for the same reason: there must
+      // never be a moment where a guessed or default password authenticates
+      // as this user.
+      const passwordHash = await hashPassword(generateToken());
+      const displayName = google.name?.trim() || google.email.split('@')[0]!;
+      await tx.query(
+        `INSERT INTO app_user (id, email, password_hash, display_name, account_kind, locale, email_verified_at, google_sub)
+         VALUES ($1,$2,$3,$4,'PRIVATE','ru', now(), $5)`,
+        [userId, google.email, passwordHash, displayName, google.sub],
+      );
+      await tx.query(`INSERT INTO user_role (user_id, role) VALUES ($1,'TENANT')`, [userId]);
+      await writeAudit(tx, {
+        actorUserId: userId,
+        action: 'auth.register',
+        targetType: 'user',
+        targetId: userId,
+        changes: { accountKind: { from: null, to: 'PRIVATE' } },
+        correlationId: meta.correlationId ?? null,
+        ipHash: hashIp(meta.ip),
+      });
+      return this.createSession(tx, userId, meta, null);
+    });
+
+    const context = await this.resolveSession(session.token);
+    if (!context) throw new DomainError('UNAUTHENTICATED', 'Не удалось создать сессию');
+    return { session, context };
   }
 
   /* ---------------------------------------------------------------- */
@@ -231,6 +495,7 @@ export class AuthService {
       display_name: string;
       status: string;
       email_verified_at: string | null;
+      phone_verified_at: string | null;
       revoked_at: string | null;
       expired: boolean;
       auth_level: AuthLevel;
@@ -238,7 +503,7 @@ export class AuthService {
       totp_confirmed_at: Date | null;
     }>(
       `SELECT s.id AS session_id, u.id AS user_id, u.display_name, u.status,
-              u.email_verified_at, s.revoked_at, (s.expires_at <= now()) AS expired,
+              u.email_verified_at, u.phone_verified_at, s.revoked_at, (s.expires_at <= now()) AS expired,
               s.auth_level, s.step_up_at, t.confirmed_at AS totp_confirmed_at
          FROM user_session s
          JOIN app_user u ON u.id = s.user_id
@@ -278,6 +543,7 @@ export class AuthService {
       displayName: row.display_name,
       status: row.status,
       emailVerified: row.email_verified_at !== null,
+      phoneVerified: row.phone_verified_at !== null,
       authLevel: row.auth_level,
       withheldRoles: withheldRoles(granted, row.auth_level),
       stepUpAt: row.step_up_at,
@@ -358,20 +624,6 @@ export class AuthService {
   }
 
   /* ---------------------------------------------------------------- */
-
-  async verifyEmail(token: string): Promise<string> {
-    return this.db.transaction(async (tx) => {
-      const userId = await this.consumeAuthToken(tx, token, 'EMAIL_VERIFICATION');
-      await tx.query(`UPDATE app_user SET email_verified_at = now() WHERE id = $1`, [userId]);
-      await writeAudit(tx, {
-        actorUserId: userId,
-        action: 'auth.verify_email',
-        targetType: 'user',
-        targetId: userId,
-      });
-      return userId;
-    });
-  }
 
   async requestPasswordReset(identifier: string): Promise<string | null> {
     const { rows } = await this.db.query<{ id: string }>(
@@ -984,7 +1236,7 @@ export class AuthService {
   private async issueAuthToken(
     tx: Sql,
     userId: string,
-    purpose: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET' | 'PHONE_OTP' | 'TELEGRAM_LINK',
+    purpose: 'PASSWORD_RESET' | 'PHONE_OTP' | 'TELEGRAM_LINK',
     ttlHours: number,
   ): Promise<string> {
     // Only one live token per purpose: issuing a new reset link must invalidate

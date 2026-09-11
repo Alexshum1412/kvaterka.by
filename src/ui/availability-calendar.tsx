@@ -73,6 +73,10 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
     const now = new Date();
     return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   }, []);
+  /** The actual calendar date, not `today`'s month-start — used to block
+   * picking a day that has already passed, which `today` above cannot do
+   * since it only ever holds the 1st of a month. */
+  const todayIso = useMemo(() => iso(new Date()), []);
 
   const [month, setMonth] = useState(today);
   const [view, setView] = useState<CalendarView | null>(null);
@@ -134,6 +138,9 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
    * changes the selection.
    */
   function pick(date: string) {
+    // A day that has already passed cannot be blocked, unblocked or booked —
+    // there is nothing left to decide about it.
+    if (date < todayIso) return;
     const day = byDate.get(date);
     // A booked night is not the landlord's to reassign from here; that
     // belongs to the booking, which has its own cancellation rules.
@@ -158,6 +165,10 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+    // The `min` attribute on these inputs already stops most browsers from
+    // producing a past date, but that is a UI affordance, not enforcement —
+    // this is the actual guard.
+    if (value < todayIso) return;
     if (which === 'from') {
       setAnchor(value);
       if (!hover) setHover(value);
@@ -264,6 +275,7 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
             type="date"
             className="input"
             value={anchor ?? ''}
+            min={todayIso}
             onChange={(e) => pickManual('from', e.target.value)}
           />
         </label>
@@ -273,7 +285,7 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
             type="date"
             className="input"
             value={hover ?? ''}
-            min={anchor ?? undefined}
+            min={anchor ?? todayIso}
             onChange={(e) => pickManual('to', e.target.value)}
           />
         </label>
@@ -295,18 +307,23 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
           {Array.from({ length: daysInMonth }, (_, i) => {
             const date = iso(new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), i + 1)));
             const day = byDate.get(date);
+            const isPast = date < todayIso;
             const status: DayStatus = day?.status ?? 'AVAILABLE';
-            const locked = status === 'BOOKED' || status === 'PENDING';
+            const locked = status === 'BOOKED' || status === 'PENDING' || isPast;
             return (
               <button
                 key={date}
                 type="button"
                 role="gridcell"
                 className="cal__day"
-                data-status={status.toLowerCase()}
+                data-status={isPast ? 'past' : status.toLowerCase()}
                 data-selected={inSelection(date) ? 'true' : 'false'}
                 disabled={locked}
-                aria-label={t('dayAriaLabel', { day: i + 1, month: monthsGenitive[month.getUTCMonth()] ?? '', status: statusWord[status] })}
+                aria-label={
+                  isPast
+                    ? t('dayAriaLabelPast', { day: i + 1, month: monthsGenitive[month.getUTCMonth()] ?? '' })
+                    : t('dayAriaLabel', { day: i + 1, month: monthsGenitive[month.getUTCMonth()] ?? '', status: statusWord[status] })
+                }
                 onClick={() => pick(date)}
               >
                 <span className="cal__num">{i + 1}</span>
@@ -411,6 +428,9 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
         .cal__day[data-status='blocked'],
         .cal__day[data-status='maintenance'],
         .cal__day[data-status='owner_blocked'] { background: var(--surface-sunken); color: var(--text-tertiary); border-color: transparent; }
+        /* Past days: visibly inert rather than just unclickable — nothing
+           left to decide about a date that has already happened. */
+        .cal__day[data-status='past'] { background: transparent; color: var(--text-tertiary); border-color: transparent; opacity: 0.45; }
         .cal__day[data-selected='true'] { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
         .cal__num { line-height: 1; }
 

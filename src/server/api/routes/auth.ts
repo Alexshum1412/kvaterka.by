@@ -17,7 +17,7 @@ const phone = z
  * cross-site form post cannot ride it (CSRF), while ordinary navigation still
  * works; Secure everywhere except local development over http.
  */
-function sessionCookie(token: string, maxAgeSeconds: number): string {
+export function sessionCookie(token: string, maxAgeSeconds: number): string {
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
   return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure}`;
 }
@@ -45,21 +45,78 @@ export const authRoutes: AnyRoute[] = [
       })
       .refine((v) => v.email || v.phone, { message: 'Укажите email или телефон', path: ['email'] }),
     async handler({ body, ctx }) {
-      const result = await ctx.services.auth.register(body, {
+      const result = await ctx.services.auth.beginRegistration(body, {
         ip: ctx.ip,
         userAgent: ctx.userAgent,
         correlationId: ctx.correlationId,
       });
-      // The verification token is delivered by email, never returned in the
-      // response — returning it would let anyone who can POST verify any address.
-      await ctx.services.notifications.enqueue({
-        userId: result.userId,
-        category: 'SECURITY',
-        dedupeKey: `verify-email:${result.userId}`,
-        payload: { kind: 'EMAIL_VERIFICATION', token: result.verificationToken },
-        channels: ['EMAIL'],
+      // The code is delivered by email, never returned in the response —
+      // returning it would let anyone who can POST confirm any address.
+      // No app_user exists yet, so this cannot go through the ordinary
+      // notification queue (it reads `notification_preference` by userId,
+      // and there is no user row to key that on) — sent directly instead.
+      //
+      // Phone-only sign-up has no channel to deliver a code through: SMS was
+      // never built (see `PHONE_OTP` sitting unused in auth_token's purpose
+      // list). That gap predates this flow; it is not widened here, only
+      // left exactly where it was rather than silently crashing on it.
+      if (body.email) {
+        await ctx.services.delivery.sendRegistrationCode(body.email, result.code, result.identifier);
+      }
+      return ok({ identifier: result.identifier, verificationRequired: true }, 201);
+    },
+  }),
+
+  defineRoute({
+    method: 'POST',
+    path: '/auth/register/confirm',
+    summary: 'Confirm the code and finish creating the account',
+    tags: ['auth'],
+    auth: 'none',
+    rateLimit: { limit: 20, windowSeconds: 3600, by: 'ip', bucket: 'auth:register-confirm' },
+    body: z.object({
+      identifier: z.string().trim().min(3).max(200),
+      code: z.string().trim().min(4).max(10),
+    }),
+    async handler({ body, ctx }) {
+      const { session, context } = await ctx.services.auth.confirmRegistration(body.identifier, body.code, {
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        correlationId: ctx.correlationId,
       });
-      return ok({ userId: result.userId, verificationRequired: true }, 201);
+      return ok(
+        {
+          user: {
+            id: context.userId,
+            displayName: context.displayName,
+            roles: context.roles,
+            emailVerified: context.emailVerified,
+            permissions: [...permissionsFor(context.roles)],
+          },
+          expiresAt: session.expiresAt.toISOString(),
+        },
+        200,
+        { 'set-cookie': sessionCookie(session.token, SESSION_TTL_DAYS * 86_400) },
+      );
+    },
+  }),
+
+  defineRoute({
+    method: 'POST',
+    path: '/auth/register/resend',
+    summary: 'Send a fresh registration code',
+    tags: ['auth'],
+    auth: 'none',
+    rateLimit: { limit: 5, windowSeconds: 3600, by: 'ip', bucket: 'auth:register-resend' },
+    body: z.object({ identifier: z.string().trim().min(3).max(200) }),
+    async handler({ body, ctx }) {
+      const code = await ctx.services.auth.resendRegistrationCode(body.identifier);
+      if (code && email.safeParse(body.identifier).success) {
+        await ctx.services.delivery.sendRegistrationCode(body.identifier, code, body.identifier);
+      }
+      // Identical response either way: this must not reveal whether a
+      // registration is pending for this address.
+      return { ok: true };
     },
   }),
 
@@ -105,6 +162,9 @@ export const authRoutes: AnyRoute[] = [
     summary: 'Revoke the current session',
     tags: ['auth'],
     auth: 'required',
+    // Leaving is always reachable — an account stuck behind the phone gate
+    // must still be able to sign out.
+    phoneGateExempt: true,
     body: z.object({}).optional(),
     async handler({ ctx }) {
       const token = readSessionToken(ctx.headers);
@@ -139,28 +199,18 @@ export const authRoutes: AnyRoute[] = [
     summary: 'Current session identity',
     tags: ['auth'],
     auth: 'required',
+    // Must stay reachable WHILE gated: this is how the /verify-phone page
+    // itself finds out whether it can stop polling.
+    phoneGateExempt: true,
     async handler({ caller }) {
       return {
         id: caller.userId,
         displayName: caller.displayName,
         roles: caller.roles,
         emailVerified: caller.emailVerified,
+        phoneVerified: caller.phoneVerified,
         permissions: [...permissionsFor(caller.roles)],
       };
-    },
-  }),
-
-  defineRoute({
-    method: 'POST',
-    path: '/auth/verify-email',
-    summary: 'Confirm an email address',
-    tags: ['auth'],
-    auth: 'none',
-    rateLimit: { limit: 20, windowSeconds: 3600, by: 'ip', bucket: 'auth:verify' },
-    body: z.object({ token: z.string().min(10).max(400) }),
-    async handler({ body, ctx }) {
-      await ctx.services.auth.verifyEmail(body.token);
-      return { ok: true };
     },
   }),
 

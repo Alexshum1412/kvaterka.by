@@ -40,16 +40,23 @@ export const LEVEL_LABEL: Record<VerificationLevel, string> = {
 };
 
 export const LEVEL_CLAIM: Record<VerificationLevel, string> = {
-  0: 'Подтверждены телефон и email',
-  1: 'Личность подтверждена платформой',
-  2: 'Личность и право сдавать жильё проверены платформой',
+  0: 'Email подтверждён, телефон — нет',
+  1: 'Телефон подтверждён через мессенджер',
+  2: 'Телефон подтверждён, право сдавать жильё проверено платформой',
 };
 
-/** The longer form, for a profile or a decision letter. Still not a guarantee. */
+/**
+ * The longer form, for a profile or a decision letter. Still not a
+ * guarantee — see LEVEL_EXPLANATION[1]'s wording specifically: linking a
+ * messenger account proves control of a phone number, which this product
+ * treats as a meaningful identity signal (a Belarusian phone number is tied
+ * to its owner at the mobile operator), but it is not the same claim as
+ * "the platform reviewed a passport" and must never be worded as one.
+ */
 export const LEVEL_EXPLANATION: Record<VerificationLevel, string> = {
-  0: 'Аккаунт подтвердил телефон и email. Личность платформа не проверяла.',
-  1: 'Платформа проверила документы, удостоверяющие личность. Это не юридическая экспертиза и не гарантия — это проверка, которую провела Кватэрка.by.',
-  2: 'Платформа проверила документы, удостоверяющие личность, и документы, подтверждающие право сдавать это жильё. Кватэрка.by не проводит проверку прав на недвижимость и не гарантирует их — проверены представленные документы.',
+  0: 'Аккаунт подтвердил email. Номер телефона ещё не привязан ни к одному мессенджеру.',
+  1: 'Аккаунт подтвердил номер телефона, привязав Telegram, VK или WhatsApp. Платформа не проверяла документы, удостоверяющие личность — это подтверждение владения номером телефона, а не экспертиза документа.',
+  2: 'Аккаунт подтвердил номер телефона, и платформа проверила документы, подтверждающие право сдавать это жильё. Кватэрка.by не проводит проверку прав на недвижимость и не гарантирует их — проверены представленные документы.',
 };
 
 export const KINDS = ['IDENTITY', 'PROPERTY_OWNERSHIP'] as const;
@@ -235,8 +242,9 @@ export interface EvidenceInputs {
   /** Whether the applicant stated a basis for their right to let the property. */
   readonly hasDeclaredBasis: boolean;
   /**
-   * Whether the platform is permitted to hold identity documents at all.
-   * `verification.identity_documents`, off pending LEGAL-004.
+   * Whether the platform is permitted to hold property-ownership documents.
+   * `verification.property_documents` (renamed from the identity-document
+   * flag in 0018 — identity documents are retired outright).
    */
   readonly documentCollectionEnabled: boolean;
 }
@@ -251,10 +259,10 @@ const EMPTY_EVIDENCE: EvidenceInputs = {
 };
 
 export type InsufficiencyReason =
-  /** The platform may not hold identity documents yet, so no level can be granted. */
+  /** The platform may not hold property documents yet, so no level can be granted. */
   | 'DOCUMENT_COLLECTION_DISABLED'
-  | 'NO_IDENTITY_DOCUMENT'
-  | 'NO_SELFIE'
+  /** IDENTITY requests are retired outright (0018) — nothing can satisfy one. */
+  | 'IDENTITY_VIA_DOCUMENTS_RETIRED'
   | 'NO_PROPERTY_DOCUMENT'
   | 'NO_DECLARED_BASIS';
 
@@ -268,38 +276,36 @@ export interface Sufficiency {
 /**
  * Is there enough here to grant the level?
  *
- * This is the fail-closed heart of the slice. Two independent gates have to be
- * open before any level can be granted, and today the first one is shut:
+ * IDENTITY (Level 1) is retired as a document-reviewed kind (0018): a
+ * passport is tied to its owner's phone number already, so Level 1 is now
+ * granted automatically when a phone is verified through a linked messenger
+ * account (`NotificationService.completePhoneVerification*`) — never through
+ * this pipeline. `submit()` in `verification-service.ts` refuses a new
+ * IDENTITY request outright, and this function backs that up: there is no
+ * evidence shape that can ever make one sufficient any more.
  *
- *   1. The platform must be permitted to collect identity documents at all.
- *      `verification.identity_documents` is off pending LEGAL-004, so this
- *      function currently refuses every approval, and the console says why.
- *      That is the correct behaviour: the alternative is issuing trust badges
- *      backed by nothing.
- *
- *   2. The specific evidence for the kind must actually be present.
- *
- * Enabling the flag without configuring private storage changes nothing,
- * because documents cannot be attached without somewhere to put them — the two
- * dependencies fail closed independently.
+ * PROPERTY_OWNERSHIP (Level 2) still goes through a staff-reviewed document,
+ * fail-closed the same way identity used to be — the flag it depends on is
+ * `verification.property_documents` (renamed from the identity one in
+ * 0018, since collecting property documents is a different, unblocked
+ * question — see LEGAL-004 in LEGAL_RISK_REGISTER.md).
  */
 export function evidenceSufficiency(e: EvidenceInputs): Sufficiency {
-  const missing: InsufficiencyReason[] = [];
-
-  if (!e.documentCollectionEnabled) {
+  if (e.kind === 'IDENTITY') {
     return {
       sufficient: false,
-      missing: ['DOCUMENT_COLLECTION_DISABLED'],
+      missing: ['IDENTITY_VIA_DOCUMENTS_RETIRED'],
       explanation:
-        'Сбор документов, удостоверяющих личность, отключён до юридического заключения (LEGAL-004). ' +
-        'Пока он отключён, уровень доверия не выдаётся — иначе бы значок стоял ни на чём.',
+        'Подтверждение личности по документам больше не проводится. Уровень 1 присваивается автоматически ' +
+        'после того, как аккаунт привяжет и подтвердит номер телефона через Telegram, VK или WhatsApp.',
     };
   }
 
-  if (e.identityDocumentCount === 0) missing.push('NO_IDENTITY_DOCUMENT');
-  if (!e.hasSelfie) missing.push('NO_SELFIE');
+  const missing: InsufficiencyReason[] = [];
 
-  if (e.kind === 'PROPERTY_OWNERSHIP') {
+  if (!e.documentCollectionEnabled) {
+    missing.push('DOCUMENT_COLLECTION_DISABLED');
+  } else {
     if (e.propertyDocumentCount === 0) missing.push('NO_PROPERTY_DOCUMENT');
     if (!e.hasDeclaredBasis) missing.push('NO_DECLARED_BASIS');
   }
@@ -316,8 +322,7 @@ export function evidenceSufficiency(e: EvidenceInputs): Sufficiency {
 
 export const INSUFFICIENCY_LABEL: Record<InsufficiencyReason, string> = {
   DOCUMENT_COLLECTION_DISABLED: 'сбор документов отключён юридическим стопом',
-  NO_IDENTITY_DOCUMENT: 'документ, удостоверяющий личность',
-  NO_SELFIE: 'селфи для сверки с документом',
+  IDENTITY_VIA_DOCUMENTS_RETIRED: 'подтверждение личности по документам больше не проводится',
   NO_PROPERTY_DOCUMENT: 'документ о праве сдавать жильё',
   NO_DECLARED_BASIS: 'указанное основание права сдавать',
 };

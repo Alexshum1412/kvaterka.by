@@ -34,7 +34,7 @@ beforeEach(async () => {
     ON CONFLICT DO NOTHING;
     INSERT INTO feature_flag (key, enabled, description, requires_legal_approval) VALUES
       ('fee.enforcement', true, 'test', true),
-      ('verification.identity_documents', false, 'test', true)
+      ('verification.property_documents', false, 'test', true)
     ON CONFLICT DO NOTHING;
   `);
 });

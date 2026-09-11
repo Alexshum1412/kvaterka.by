@@ -28,6 +28,9 @@ const ADMIN: ActorCapabilities = { canReview: true, canDecide: true, canReadDocu
 const REVIEWER: ActorCapabilities = { canReview: true, canDecide: false, canReadDocuments: false };
 const NOBODY: ActorCapabilities = { canReview: false, canDecide: false, canReadDocuments: false };
 
+// IDENTITY evidence is never sufficient any more (0018) — Level 1 comes from
+// phone verification, not a staff-reviewed document. Kept around only for the
+// tests that exercise transitions unrelated to evidence sufficiency itself.
 const FULL_IDENTITY: EvidenceInputs = {
   kind: 'IDENTITY',
   identityDocumentCount: 1,
@@ -39,8 +42,8 @@ const FULL_IDENTITY: EvidenceInputs = {
 
 const FULL_PROPERTY: EvidenceInputs = {
   kind: 'PROPERTY_OWNERSHIP',
-  identityDocumentCount: 1,
-  hasSelfie: true,
+  identityDocumentCount: 0,
+  hasSelfie: false,
   propertyDocumentCount: 1,
   hasDeclaredBasis: true,
   documentCollectionEnabled: true,
@@ -71,10 +74,13 @@ describe('levels are described as platform checks, not legal conclusions', () =>
   });
 
   it('says who did the checking', () => {
-    expect(LEVEL_CLAIM[1]).toContain('платформой');
     expect(LEVEL_CLAIM[2]).toContain('платформой');
-    // And says plainly what it is not.
-    expect(LEVEL_EXPLANATION[1]).toContain('не юридическая экспертиза');
+    // Level 1 is phone verification (0018), not a platform document review —
+    // it says so plainly rather than reusing Level 2's "проверено платформой"
+    // framing for a different kind of check.
+    expect(LEVEL_EXPLANATION[1]).toContain('телефон');
+    expect(LEVEL_EXPLANATION[1]).not.toContain('документы, удостоверяющие личность, платформа проверила');
+    // And Level 2 says plainly what it is not.
     expect(LEVEL_EXPLANATION[2]).toContain('не гарантирует');
   });
 
@@ -122,10 +128,12 @@ describe('transition table integrity', () => {
 
 describe('applyVerificationAction', () => {
   it('walks a request to approval', () => {
+    // IDENTITY can no longer reach APPROVED (evidenceSufficiency refuses it
+    // outright) — the only kind that still can is PROPERTY_OWNERSHIP.
     let s: VerificationStatus = 'SUBMITTED';
     s = applyVerificationAction(s, 'TAKE', { hasReason: false, actor: VERIFIER }).to;
     expect(s).toBe('IN_REVIEW');
-    s = applyVerificationAction(s, 'APPROVE', { hasReason: false, actor: VERIFIER, evidence: FULL_IDENTITY }).to;
+    s = applyVerificationAction(s, 'APPROVE', { hasReason: false, actor: VERIFIER, evidence: FULL_PROPERTY }).to;
     expect(s).toBe('APPROVED');
   });
 
@@ -200,23 +208,24 @@ describe('availableVerificationActions drives the console', () => {
 /* ================================================================== */
 
 describe('evidence sufficiency is the fail-closed gate', () => {
-  it('refuses everything while document collection is disabled', () => {
-    const result = evidenceSufficiency({ ...FULL_PROPERTY, documentCollectionEnabled: false });
+  it('refuses an IDENTITY request unconditionally — that pipeline is retired (0018)', () => {
+    const result = evidenceSufficiency(FULL_IDENTITY);
     expect(result.sufficient).toBe(false);
-    expect(result.missing).toEqual(['DOCUMENT_COLLECTION_DISABLED']);
-    // And says why, mentioning the legal question rather than looking broken.
-    expect(result.explanation).toContain('LEGAL-004');
-  });
-
-  it('needs a document and a selfie for identity', () => {
-    expect(evidenceSufficiency(FULL_IDENTITY).sufficient).toBe(true);
-    expect(evidenceSufficiency({ ...FULL_IDENTITY, hasSelfie: false }).missing).toContain('NO_SELFIE');
-    expect(evidenceSufficiency({ ...FULL_IDENTITY, identityDocumentCount: 0 }).missing).toContain(
-      'NO_IDENTITY_DOCUMENT',
+    expect(result.missing).toEqual(['IDENTITY_VIA_DOCUMENTS_RETIRED']);
+    // Full, document-and-selfie evidence changes nothing — there is no
+    // shape of IDENTITY evidence this can ever accept any more.
+    expect(evidenceSufficiency({ ...FULL_IDENTITY, identityDocumentCount: 5, hasSelfie: true }).sufficient).toBe(
+      false,
     );
   });
 
-  it('needs identity AND property evidence for a right-to-let check', () => {
+  it('refuses a property request while document collection is disabled', () => {
+    const result = evidenceSufficiency({ ...FULL_PROPERTY, documentCollectionEnabled: false });
+    expect(result.sufficient).toBe(false);
+    expect(result.missing).toEqual(['DOCUMENT_COLLECTION_DISABLED']);
+  });
+
+  it('needs a property document AND a declared basis for a right-to-let check', () => {
     expect(evidenceSufficiency(FULL_PROPERTY).sufficient).toBe(true);
     expect(evidenceSufficiency({ ...FULL_PROPERTY, propertyDocumentCount: 0 }).missing).toContain(
       'NO_PROPERTY_DOCUMENT',
@@ -231,10 +240,10 @@ describe('evidence sufficiency is the fail-closed gate', () => {
     );
   });
 
-  it('still requires identity evidence on a property request', () => {
-    expect(
-      evidenceSufficiency({ ...FULL_PROPERTY, identityDocumentCount: 0 }).missing,
-    ).toContain('NO_IDENTITY_DOCUMENT');
+  it('does not require identity documents on a property request — identity is phone-verified now', () => {
+    expect(evidenceSufficiency({ ...FULL_PROPERTY, identityDocumentCount: 0, hasSelfie: false }).sufficient).toBe(
+      true,
+    );
   });
 });
 

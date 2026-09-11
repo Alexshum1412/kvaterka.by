@@ -192,7 +192,7 @@ export function UserDirectory({ canCreate }: { canCreate: boolean }) {
         .udir__main { display: grid; gap: 0.2rem; flex: 1 1 auto; min-width: 0; }
         .udir__nameRow { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; min-width: 0; }
         .udir__name { font-size: var(--text-sm); }
-        .udir__meta { font-size: var(--text-2xs); color: var(--text-tertiary); }
+        .udir__meta { font-size: var(--text-2xs); color: var(--text-tertiary); overflow-wrap: break-word; }
 
         .udir__created { flex: 0 0 auto; font-size: var(--text-xs); color: var(--text-secondary); white-space: nowrap; }
 

@@ -166,23 +166,24 @@ describe('identity documents stay VERIFIER-only', () => {
     // and not about the flag. The flag itself is asserted in the next test.
     await db.query(
       `INSERT INTO feature_flag (key, enabled, description, requires_legal_approval)
-       VALUES ('verification.identity_documents', true, 'test', true)
+       VALUES ('verification.property_documents', true, 'test', true)
        ON CONFLICT (key) DO UPDATE SET enabled = true`,
     );
 
     // A document row to aim at, so the refusal is about permission and not
     // about the row being missing.
     const owner = await api.signUp();
+    const propertyId = (await api.post('/listings', LISTING, { token: owner.token })).body.id as string;
     const requestId = crypto.randomUUID();
     const documentId = crypto.randomUUID();
     await db.query(
-      `INSERT INTO verification_request (id, user_id, kind, target_level, status)
-       VALUES ($1,$2,'IDENTITY',1,'SUBMITTED')`,
-      [requestId, owner.userId],
+      `INSERT INTO verification_request (id, user_id, property_id, kind, target_level, status)
+       VALUES ($1,$2,$3,'PROPERTY_OWNERSHIP',2,'SUBMITTED')`,
+      [requestId, owner.userId, propertyId],
     );
     await db.query(
       `INSERT INTO verification_document (id, request_id, doc_type, storage_key, purge_after)
-       VALUES ($1,$2,'PASSPORT','private/doc.jpg', now() + interval '30 days')`,
+       VALUES ($1,$2,'OWNERSHIP_CERTIFICATE','private/doc.jpg', now() + interval '30 days')`,
       [documentId, requestId],
     );
 
@@ -196,7 +197,7 @@ describe('identity documents stay VERIFIER-only', () => {
       if (detail.status === 200) {
         const serialised = JSON.stringify(detail.body);
         expect(serialised, role).not.toContain('private/doc.jpg');
-        expect(serialised, role).not.toContain('PASSPORT');
+        expect(serialised, role).not.toContain('OWNERSHIP_CERTIFICATE');
         expect(detail.body.entitlements.identityDocuments, role).toBe(false);
       }
     }
@@ -225,16 +226,17 @@ describe('identity documents stay VERIFIER-only', () => {
     // Fail-closed: the permission is necessary but not sufficient, because
     // document handling is still an open legal question (LEGAL-004).
     const owner = await api.signUp();
+    const propertyId = (await api.post('/listings', LISTING, { token: owner.token })).body.id as string;
     const requestId = crypto.randomUUID();
     const documentId = crypto.randomUUID();
     await db.query(
-      `INSERT INTO verification_request (id, user_id, kind, target_level, status)
-       VALUES ($1,$2,'IDENTITY',1,'SUBMITTED')`,
-      [requestId, owner.userId],
+      `INSERT INTO verification_request (id, user_id, property_id, kind, target_level, status)
+       VALUES ($1,$2,$3,'PROPERTY_OWNERSHIP',2,'SUBMITTED')`,
+      [requestId, owner.userId, propertyId],
     );
     await db.query(
       `INSERT INTO verification_document (id, request_id, doc_type, storage_key)
-       VALUES ($1,$2,'PASSPORT','private/doc.jpg')`,
+       VALUES ($1,$2,'OWNERSHIP_CERTIFICATE','private/doc.jpg')`,
       [documentId, requestId],
     );
 

@@ -55,10 +55,24 @@ const FONT_STACK =
 export function renderEmailHtml(
   subject: string,
   bodyText: string,
-  opts?: { ctaUrl?: string; ctaLabel?: string },
+  opts?: { ctaUrl?: string; ctaLabel?: string; code?: string },
 ): string {
   const safeSubject = escapeHtml(subject);
   const safeBody = escapeHtml(bodyText);
+
+  // A registration/OTP code, set large and letter-spaced so it reads
+  // correctly at a glance and is unambiguous character-by-character when
+  // typed back in — the one thing this block exists for.
+  const codeBlock = opts?.code
+    ? `
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:20px;">
+                <tr>
+                  <td align="center" style="padding:16px;background-color:${PAGE_BG};border-radius:12px;">
+                    <span style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:32px;font-weight:700;letter-spacing:10px;color:${HEADING};">${escapeHtml(opts.code)}</span>
+                  </td>
+                </tr>
+              </table>`
+    : '';
 
   const cta =
     opts?.ctaUrl && opts.ctaLabel
@@ -109,7 +123,7 @@ export function renderEmailHtml(
                 </h1>
                 <p style="margin:0;font-family:${FONT_STACK};font-size:15px;line-height:1.6;color:${BODY_TEXT};">
                   ${safeBody}
-                </p>${cta}
+                </p>${codeBlock}${cta}
               </td>
             </tr>
             <tr>

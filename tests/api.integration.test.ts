@@ -41,7 +41,7 @@ beforeEach(async () => {
     INSERT INTO feature_flag (key, enabled, description, requires_legal_approval) VALUES
       ('fee.enforcement', true, 'test', true),
       ('rewards.lottery', false, 'test', true),
-      ('verification.identity_documents', false, 'test', true)
+      ('verification.property_documents', false, 'test', true)
     ON CONFLICT DO NOTHING;
   `);
 });
@@ -158,13 +158,8 @@ describe('authentication', () => {
   });
 
   it('sets an HttpOnly, SameSite session cookie', async () => {
-    const email = `cookie-${Date.now()}@example.by`;
-    await api.post('/auth/register', {
-      email,
-      password: 'karotkaja-vulica-2026',
-      displayName: 'Кука Тэст',
-    });
-    const login = await api.post('/auth/login', { identifier: email, password: 'karotkaja-vulica-2026' });
+    const user = await api.signUp();
+    const login = await api.post('/auth/login', { identifier: user.email, password: 'karotkaja-vulica-2026' });
     const cookie = login.headers!['set-cookie']!;
     expect(cookie).toContain('HttpOnly');
     expect(cookie).toContain('SameSite=Lax');

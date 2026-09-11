@@ -47,6 +47,11 @@ export interface DashboardSummary {
     readonly completedRentals: number;
     readonly unreadMessages: number;
     readonly balanceMinor: string;
+    /** Rent actually earned — SUM(rent_minor) over COMPLETED bookings. Not the
+     *  same figure as `balanceMinor`: the balance is the service-fee ledger
+     *  (what is owed to the platform), this is what the landlord was paid by
+     *  tenants. Shown as a positive, informational figure, never as debt. */
+    readonly totalEarnedMinor: string;
   };
   readonly attention: readonly AttentionItem[];
   readonly listings: readonly DashboardListing[];
@@ -158,7 +163,9 @@ export class DashboardService {
            (SELECT count(*)::int FROM service_fee
              WHERE landlord_id=$1 AND status='PAYABLE' AND due_at < now()) AS overdue_fees,
            (SELECT COALESCE(SUM(fee_minor),0)::text FROM service_fee
-             WHERE landlord_id=$1 AND status='PAYABLE') AS payable_fees_minor`,
+             WHERE landlord_id=$1 AND status='PAYABLE') AS payable_fees_minor,
+           (SELECT COALESCE(SUM(rent_minor),0)::text FROM booking
+             WHERE landlord_id=$1 AND status='COMPLETED') AS total_earned_minor`,
         [userId],
       ),
       this.db.query<{ balance: string }>(
@@ -213,6 +220,7 @@ export class DashboardService {
         completedRentals: Number(u.completed_rentals_as_landlord ?? 0),
         unreadMessages: Number(c.unread_messages ?? 0),
         balanceMinor: balanceMinor.toString(),
+        totalEarnedMinor: String(c.total_earned_minor ?? '0'),
       },
       attention: buildAttention(c, mapped, payableFeesMinor),
       listings: mapped,

@@ -208,7 +208,15 @@
 
 * { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; }
+/* The page itself must never scroll sideways. Anything that legitimately
+   needs horizontal scroll (a wide table, a chip row) already opts in with
+   its own `overflow-x: auto` — see `.overflow-guard`, `.np__scroll` — so
+   this only ever catches something that should not have been able to push
+   past the viewport edge in the first place: a long unbroken word (an email,
+   a URL someone pasted into a message) with nothing telling it where to
+   break. `overflow-wrap` on body is the other half — it makes that content
+   wrap instead of silently getting clipped by the rule below. */
+html { -webkit-text-size-adjust: 100%; overflow-x: hidden; }
 
 body {
   margin: 0;
@@ -219,6 +227,7 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  overflow-wrap: break-word;
 }
 
 h1, h2, h3, h4 {

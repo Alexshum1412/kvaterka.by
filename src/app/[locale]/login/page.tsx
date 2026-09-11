@@ -28,10 +28,11 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const raw = typeof params.next === 'string' ? params.next : undefined;
+  const googleError = typeof params.error === 'string' ? params.error : undefined;
 
   return (
     <div className="login-page">
-      <LoginForm next={safeNext(raw)} />
+      <LoginForm next={safeNext(raw)} googleError={googleError} />
 
       <style>{`
         /* One column, one decision. The page ground carries the screen and

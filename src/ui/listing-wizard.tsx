@@ -5,6 +5,7 @@ import { useRouter } from '@/i18n/navigation.ts';
 import { useLocale, useTranslations } from 'next-intl';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon, AMENITY_CATEGORY, amenityCategoryLabel, amenityIcon, type IconName } from '@/ui/icons.tsx';
+import { LocationPicker } from '@/ui/location-picker.tsx';
 import { formatNightsGenitiveLocalized } from '@/ui/primitives.tsx';
 import {
   MODERATION_REASON_TEXT,
@@ -398,27 +399,45 @@ export function ListingWizard({
             title={t('step1.title')}
             lead={t('step1.lead')}
           >
-            <Field label={t('step1.cityLabel')}>
-              <select
-                className="select"
+            <Field label={t('step1.cityLabel')} hint={t('step1.cityHint')}>
+              <input
+                className="input"
+                list="wz-cities"
                 value={draft.city ?? ''}
                 onChange={(e) => {
-                  const city = CITIES.find((c) => c.name === e.target.value);
+                  const value = e.target.value;
+                  // Typing (or picking a suggestion for) one of the known
+                  // centres still pre-fills its point; anything else is a
+                  // real city this list doesn't have — its coordinates stay
+                  // unset rather than keeping a stale point from whatever was
+                  // selected before, which is exactly what `step1.approxPoint`
+                  // below is conditioned on.
+                  const city = CITIES.find((c) => c.name === value);
                   patch(
                     city
                       ? { city: city.name, latitude: city.latitude, longitude: city.longitude }
-                      : { city: e.target.value },
+                      : { city: value, latitude: null, longitude: null },
                   );
                 }}
-              >
-                <option value="">{t('step1.cityPlaceholder')}</option>
+                placeholder={t('step1.cityPlaceholder')}
+              />
+              <datalist id="wz-cities">
                 {CITIES.map((c) => (
-                  <option key={c.name} value={c.name}>
-                    {t(`cities.${c.key}`)}
-                  </option>
+                  <option key={c.name} value={c.name} label={t(`cities.${c.key}`)} />
                 ))}
-              </select>
+              </datalist>
             </Field>
+
+            {draft.city && (
+              <Field label={t('step1.pinLabel')} hint={t('step1.pinHint')}>
+                <LocationPicker
+                  latitude={draft.latitude ?? null}
+                  longitude={draft.longitude ?? null}
+                  onChange={(latitude, longitude) => patch({ latitude, longitude })}
+                  ariaLabel={t('step1.pinLabel')}
+                />
+              </Field>
+            )}
 
             <Field label={t('step1.districtLabel')} hint={t('step1.districtHint')}>
               <input

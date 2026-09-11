@@ -129,34 +129,34 @@ export class ApiTestClient {
     return result.id;
   }
 
-  /** Register and sign in, returning the session token. */
+  /**
+   * Register and sign in, returning the session token.
+   *
+   * Registration is a two-step, code-confirmed flow (`beginRegistration` /
+   * `confirmRegistration`) precisely so that nobody — including this fixture
+   * — can turn an email into a working account without the code that only
+   * the mailbox receives. That code is never in an HTTP response (returning
+   * it would let anyone confirm any address) and is stored hashed, so there
+   * is nothing for an HTTP-level client to recover it from. This fixture
+   * therefore drives `AuthService` directly for the two calls that mint the
+   * account — the same escape hatch `uploadPhoto` above already uses for
+   * exactly this reason — and everything after that (every other request
+   * this client makes) still goes through the real dispatcher on the
+   * resulting session token.
+   */
   async signUp(overrides: Record<string, unknown> = {}): Promise<{ token: string; userId: string; email: string }> {
     const email = `u-${Math.random().toString(36).slice(2)}-${Date.now()}@example.by`;
     const password = 'karotkaja-vulica-2026';
-    // Distinct users come from distinct addresses. Sharing one IP across a
-    // fixture would (correctly) trip the registration limiter and make tests
-    // fail for a reason unrelated to what they assert.
-    const ip = `198.51.100.${Math.floor(Math.random() * 250) + 1}`;
 
-    const registered = await this.post(
-      '/auth/register',
-      { email, password, displayName: 'Тэставы Карыстальнік', ...overrides },
-      { ip },
-    );
-    if (registered.status !== 201) {
-      throw new Error(`register failed: ${registered.status} ${JSON.stringify(registered.body)}`);
-    }
-
-    const loggedIn = await this.post('/auth/login', { identifier: email, password }, { ip });
-    if (loggedIn.status !== 200) {
-      throw new Error(`login failed: ${loggedIn.status} ${JSON.stringify(loggedIn.body)}`);
-    }
-
-    return {
-      token: extractCookie(loggedIn.headers?.['set-cookie'] ?? ''),
-      userId: registered.body.userId,
+    const { identifier, code } = await this.services.auth.beginRegistration({
       email,
-    };
+      password,
+      displayName: 'Тэставы Карыстальнік',
+      ...overrides,
+    });
+    const { session, context } = await this.services.auth.confirmRegistration(identifier, code);
+
+    return { token: session.token, userId: context.userId, email };
   }
 
   /**
@@ -208,10 +208,4 @@ export class ApiTestClient {
   async resetRateLimits(): Promise<void> {
     await this.db.query('DELETE FROM rate_limit_counter');
   }
-}
-
-function extractCookie(setCookie: string): string {
-  const match = /kv_session=([^;]+)/.exec(setCookie);
-  if (!match) throw new Error(`No session cookie in: ${setCookie}`);
-  return decodeURIComponent(match[1]!);
 }

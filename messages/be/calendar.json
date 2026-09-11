@@ -33,6 +33,7 @@
     "manualTo": "Па",
 
     "dayAriaLabel": "{day} {month}, {status}",
+    "dayAriaLabelPast": "{day} {month}, ужо прайшло",
 
     "loadFailed": "Не ўдалося загрузіць каляндар",
     "updateFailed": "Не ўдалося змяніць каляндар",

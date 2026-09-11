@@ -385,17 +385,17 @@ export const adminRoutes: AnyRoute[] = [
   defineRoute({
     method: 'GET',
     path: '/admin/verification/documents/:documentId',
-    summary: 'Open an identity document — VERIFIER only, always logged',
+    summary: 'Open a property-ownership document — VERIFIER only, always logged',
     tags: ['admin'],
     auth: 'required',
     // NOT held by ADMIN. This is the narrowest permission in the system.
     permission: 'document.read',
-    legalReview: 'LEGAL-004 — identity document handling is unconfirmed',
+    legalReview: 'LEGAL-004 — property-document handling; identity documents are retired (0018)',
     query: z.object({ purpose: z.string().trim().min(3).max(200) }),
     async handler({ params, query, ctx, caller }) {
-      const flagEnabled = await ctx.services.finance.flagEnabled('verification.identity_documents');
+      const flagEnabled = await ctx.services.finance.flagEnabled('verification.property_documents');
       if (!flagEnabled) {
-        throw invalid('Работа с документами удостоверения личности отключена до юридического заключения');
+        throw invalid('Работа с документами, подтверждающими право сдавать жильё, сейчас отключена');
       }
 
       const { rows } = await ctx.db.query(

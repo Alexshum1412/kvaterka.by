@@ -19,6 +19,18 @@ import { generateToken, hashToken } from '../auth/credentials.ts';
 import { DomainError, invalid, notFound } from './errors.ts';
 import { writeAudit } from './audit.ts';
 
+/**
+ * Telegram and WhatsApp hand back phone numbers in whatever shape their own
+ * API uses (Telegram typically omits the leading `+`; both may include
+ * separators) — normalised to the plain `+<digits>` form `app_user.phone`
+ * and the registration form both already use, rather than trusting either
+ * provider's formatting to already match.
+ */
+function normalizePhone(raw: string): string {
+  const digits = raw.replace(/[^\d]/g, '');
+  return `+${digits}`;
+}
+
 export type Channel = 'IN_APP' | 'EMAIL' | 'TELEGRAM';
 
 export const NOTIFICATION_CATEGORIES = [
@@ -366,6 +378,155 @@ export class NotificationService {
         targetType: 'user',
         targetId: userId,
       });
+    });
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Phone verification — proving control of a phone-backed messenger
+   * account, in place of a passport upload (0018).
+   *
+   * In Belarus a mobile number is tied to its owner at the point of sale, the
+   * same fact a passport would establish, so this product treats "controls a
+   * live Telegram/VK/WhatsApp account" as the identity signal Level 1 needs —
+   * see LEGAL-004 in LEGAL_RISK_REGISTER.md for the reasoning and its still-
+   * open legal question.
+   *
+   * ONE short-lived token (`PHONE_OTP`, reusing the purpose `auth_token`
+   * already had — it was minted for an SMS one-time code that was never
+   * built) drives all three channels. Telegram and VK consume it as the
+   * `/start <token>` deep-link parameter, identical in shape to
+   * `beginTelegramLink`/`completeTelegramLink` above; WhatsApp's channel has
+   * no deep-link "start" concept, so the same token is sent back as the body
+   * of a WhatsApp message instead — see the WhatsApp webhook.
+   *
+   * The three channels do not prove the same thing to the same degree, and
+   * this is written out rather than smoothed over:
+   *   - TELEGRAM proves an actual phone number. After the token links the
+   *     chat, the bot asks for the account's contact via Telegram's own
+   *     `request_contact` button; Telegram supplies the number, already
+   *     verified by Telegram itself, and it becomes `app_user.phone`.
+   *   - WHATSAPP proves an actual phone number too, for free: the Cloud API
+   *     webhook's `from` field on an inbound message IS the sender's real,
+   *     WhatsApp-registered E.164 number — no extra step needed.
+   *   - VK proves control of a VK ACCOUNT, not a phone number. VK's bot
+   *     messaging API (Callback API for a community) has no equivalent of
+   *     Telegram's contact-share button and does not hand a phone number to
+   *     a community bot at all — only VK ID (OAuth, with a `phone` scope VK
+   *     grants only to reviewed apps) could, and that is a materially
+   *     different integration from "a bot". So a VK link sets
+   *     `phone_verified_via='VK'` and grants Level 1 without ever touching
+   *     `app_user.phone` — an honest, weaker signal than the other two,
+   *     not a claim this service cannot back.
+   */
+
+  /** Mint the one token all three channels race to consume. */
+  async beginPhoneVerification(userId: string): Promise<string> {
+    const token = generateToken(8);
+    await this.db.query(
+      `INSERT INTO auth_token (id, user_id, purpose, token_hash, expires_at)
+       VALUES ($1,$2,'PHONE_OTP',$3, now() + interval '30 minutes')`,
+      [uuidv7(), userId, hashToken(token)],
+    );
+    return token;
+  }
+
+  private async consumePhoneVerificationToken(tx: Sql, token: string): Promise<string> {
+    const { rows } = await tx.query<{ user_id: string }>(
+      `UPDATE auth_token SET consumed_at=now()
+        WHERE token_hash=$1 AND purpose='PHONE_OTP' AND consumed_at IS NULL AND expires_at > now()
+        RETURNING user_id`,
+      [hashToken(token)],
+    );
+    const row = rows[0];
+    if (!row) throw new DomainError('UNAUTHENTICATED', 'Код подтверждения недействителен или устарел');
+    return row.user_id;
+  }
+
+  /** Grants Level 1 the same way every channel below does: never lowers it. */
+  private async grantPhoneVerifiedLevel(
+    tx: Sql,
+    userId: string,
+    via: 'TELEGRAM' | 'VK' | 'WHATSAPP',
+    phone: string | null,
+  ): Promise<void> {
+    await tx.query(
+      `UPDATE app_user
+          SET phone_verified_at = now(),
+              phone_verified_via = $2,
+              phone = COALESCE($3, phone),
+              verification_level = GREATEST(verification_level, 1)
+        WHERE id = $1`,
+      [userId, via, phone],
+    );
+    await writeAudit(tx, {
+      actorUserId: userId,
+      action: 'phone.verified',
+      targetType: 'user',
+      targetId: userId,
+      changes: { via: { from: null, to: via } },
+    });
+  }
+
+  /**
+   * Step 1 of the Telegram flow: the deep link succeeded. Links the chat (the
+   * same row `completeTelegramLink` writes, so this also satisfies Telegram
+   * notification linking) but does NOT yet mark the phone verified — that
+   * waits for the contact the bot is about to ask for, so Telegram's stronger
+   * proof (a real number) is never skipped.
+   */
+  async beginTelegramPhoneLink(token: string, chatId: number, username?: string): Promise<string> {
+    return this.db.transaction(async (tx) => {
+      const userId = await this.consumePhoneVerificationToken(tx, token);
+      await tx.query(
+        `INSERT INTO telegram_connection (user_id, telegram_chat_id, telegram_username)
+         VALUES ($1,$2,$3)
+         ON CONFLICT (user_id) DO UPDATE
+           SET telegram_chat_id = EXCLUDED.telegram_chat_id,
+               telegram_username = EXCLUDED.telegram_username,
+               linked_at = now(), unlinked_at = NULL`,
+        [userId, chatId, username ?? null],
+      );
+      return userId;
+    });
+  }
+
+  /** Step 2: the bot's `request_contact` button produced a real phone number. */
+  async completePhoneVerificationTelegramContact(chatId: number, phoneNumber: string): Promise<string | null> {
+    return this.db.transaction(async (tx) => {
+      const { rows } = await tx.query<{ user_id: string }>(
+        `SELECT user_id FROM telegram_connection WHERE telegram_chat_id=$1 AND unlinked_at IS NULL`,
+        [chatId],
+      );
+      const userId = rows[0]?.user_id;
+      // No pending link for this chat — somebody tapped an old contact-share
+      // button, or is just poking the bot. Nothing to do; not an error.
+      if (!userId) return null;
+      await this.grantPhoneVerifiedLevel(tx, userId, 'TELEGRAM', normalizePhone(phoneNumber));
+      return userId;
+    });
+  }
+
+  /** VK: one round trip — the community bot has no contact-share equivalent. */
+  async completePhoneVerificationVk(token: string, vkUserId: number): Promise<string> {
+    return this.db.transaction(async (tx) => {
+      const userId = await this.consumePhoneVerificationToken(tx, token);
+      await tx.query(
+        `INSERT INTO vk_connection (user_id, vk_user_id)
+         VALUES ($1,$2)
+         ON CONFLICT (user_id) DO UPDATE SET vk_user_id = EXCLUDED.vk_user_id, linked_at = now(), unlinked_at = NULL`,
+        [userId, vkUserId],
+      );
+      await this.grantPhoneVerifiedLevel(tx, userId, 'VK', null);
+      return userId;
+    });
+  }
+
+  /** WhatsApp: the Cloud API webhook's sender field is already a real number. */
+  async completePhoneVerificationWhatsapp(token: string, fromE164: string): Promise<string> {
+    return this.db.transaction(async (tx) => {
+      const userId = await this.consumePhoneVerificationToken(tx, token);
+      await this.grantPhoneVerifiedLevel(tx, userId, 'WHATSAPP', normalizePhone(fromE164));
+      return userId;
     });
   }
 

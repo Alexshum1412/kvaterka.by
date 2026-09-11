@@ -33,6 +33,7 @@
     "manualTo": "По",
 
     "dayAriaLabel": "{day} {month}, {status}",
+    "dayAriaLabelPast": "{day} {month}, уже прошло",
 
     "loadFailed": "Не удалось загрузить календарь",
     "updateFailed": "Не удалось изменить календарь",

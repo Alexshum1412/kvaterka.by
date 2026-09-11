@@ -41,7 +41,15 @@ export type ErrorCode =
    * UNAUTHENTICATED, which would send them back to a password prompt they
    * have already passed.
    */
-  | 'STEP_UP_REQUIRED';
+  | 'STEP_UP_REQUIRED'
+  /**
+   * The caller is authenticated and email-verified, but has not yet linked
+   * and verified a phone number (0018) — every `auth: 'required'` route
+   * refuses until they do, except the small allowlist that route declares
+   * `phoneGateExempt` for (see router.ts). Distinct from FORBIDDEN: the
+   * answer becomes yes the moment they finish, with no permission involved.
+   */
+  | 'PHONE_VERIFICATION_REQUIRED';
 
 const STATUS: Record<ErrorCode, number> = {
   NOT_FOUND: 404,
@@ -60,6 +68,7 @@ const STATUS: Record<ErrorCode, number> = {
   FEATURE_DISABLED: 409,
   NOT_IMPLEMENTED: 501,
   STEP_UP_REQUIRED: 403,
+  PHONE_VERIFICATION_REQUIRED: 403,
 };
 
 export class DomainError extends Error {

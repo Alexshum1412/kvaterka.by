@@ -10,10 +10,14 @@
  * FOUR RULES SHAPE THIS FILE.
  *
  *   1. A LEVEL IS NEVER GRANTED ON NOTHING. `evidenceSufficiency()` in the
- *      domain gates every approval, and it currently refuses all of them
- *      because `verification.identity_documents` is off pending LEGAL-004.
- *      That is the intended behaviour, not a limitation to work around: the
- *      badge is a claim the platform makes to a tenant weighing up a stranger.
+ *      domain gates every approval THIS SERVICE decides — Level 1 (IDENTITY)
+ *      no longer goes through it at all: it is granted automatically when a
+ *      phone is verified via a linked messenger account (0018), and this
+ *      service refuses a new IDENTITY submission outright. What
+ *      `evidenceSufficiency` still gates is PROPERTY_OWNERSHIP, behind
+ *      `verification.property_documents`. The badge is a claim the platform
+ *      makes to a tenant weighing up a stranger, and it is never granted on
+ *      nothing.
  *
  *   2. DOCUMENTS ARE NOT THIS SERVICE'S TO HAND OUT. Nothing here returns a
  *      storage key. The only route to a document is the pre-existing
@@ -98,6 +102,22 @@ export class VerificationService {
     declared?: { ownershipBasis?: OwnershipBasis; note?: string };
     supersedesId?: string;
   }): Promise<Record<string, unknown>> {
+    // Level 1 (IDENTITY) is no longer a document a staff member reviews — see
+    // 0018. It is granted automatically the moment a phone is verified
+    // through a linked Telegram, VK or WhatsApp account
+    // (NotificationService.completePhoneVerification*), so there is nothing
+    // left for a submission here to do. Refusing outright, rather than
+    // silently accepting a request that `evidenceSufficiency` can never
+    // approve, tells the caller the truth immediately instead of after a
+    // wait.
+    if (input.targetLevel === 1) {
+      throw new DomainError(
+        'FEATURE_DISABLED',
+        'Подтверждение личности по документам больше не проводится. Привяжите и подтвердите номер ' +
+          'телефона через Telegram, VK или WhatsApp — уровень 1 присвоится автоматически.',
+      );
+    }
+
     const kind = kindForLevel(input.targetLevel);
 
     return this.db.transaction(async (tx) => {
@@ -324,15 +344,17 @@ export class VerificationService {
   /**
    * Attach a document to a request.
    *
+   * Only ever reached for PROPERTY_OWNERSHIP now — `submit()` refuses a new
+   * IDENTITY request outright (0018), so no live request id can point at one.
+   *
    * TWO INDEPENDENT GATES, BOTH FAILING CLOSED.
    *
-   *   - `verification.identity_documents` must be on. It is off pending
-   *     LEGAL-004, so today this always refuses. Collecting passport images
-   *     before the data-protection question is answered is the single most
-   *     consequential thing this product could get wrong.
+   *   - `verification.property_documents` must be on (it is — see LEGAL-004:
+   *     property-ownership documents are a different, unblocked question from
+   *     the identity documents this flag used to gate).
    *   - A private storage location must exist. There is none: the media route
    *     refuses to serve anything under `private/`, and no private bucket is
-   *     configured. Writing identity documents onto the same local disk as
+   *     configured. Writing ownership documents onto the same local disk as
    *     listing photos would be a privacy regression dressed as progress.
    *
    * The key is generated server-side inside the `private/` namespace, which the
@@ -364,8 +386,7 @@ export class VerificationService {
     if (!(await this.documentCollectionEnabled())) {
       throw new DomainError(
         'FEATURE_DISABLED',
-        'Загрузка документов, удостоверяющих личность, отключена до юридического заключения. ' +
-          'Заявку можно отправить — мы сообщим, когда проверка станет доступна.',
+        'Загрузка документов, подтверждающих право сдавать жильё, сейчас недоступна.',
       );
     }
     // Asks the store itself rather than reading an environment variable by
@@ -380,20 +401,20 @@ export class VerificationService {
       );
     }
 
-    /* Unreachable today — both gates above refuse first. It is written out
-       rather than left as a TODO so that answering LEGAL-004 and provisioning a
-       bucket is a configuration change and not a coding task. The key is
-       generated server-side inside the `private/` namespace, which the database
-       also requires (0012), so a document row cannot exist outside the
-       namespace the public media route declines to serve. */
+    /* Unreachable today — the storage gate above still refuses: no private
+       bucket is configured (DOCUMENTS_BUCKET_URL unset). Written out rather
+       than left as a TODO so that provisioning a bucket is a configuration
+       change and not a coding task. The key is generated server-side inside
+       the `private/` namespace, which the database also requires (0012), so a
+       document row cannot exist outside the namespace the public media route
+       declines to serve. */
     const storageKey = `private/verification/${requestId}/${uuidv7()}`;
     /* `purge_after` is deliberately left NULL.
      *
      * It used to be written as `now() + interval '1 year'`. That year was the
      * only retention period committed to code anywhere in this repository, and
-     * no lawyer chose it — LEGAL-004 is precisely the question of what the
-     * retention window may be. A number nobody authorised, applied to passport
-     * scans, is worse than no number: it looks like policy.
+     * no lawyer chose it. A number nobody authorised, applied to a property
+     * document, is worse than no number: it looks like policy.
      *
      * NULL means «срок не установлен», and the retention domain treats that as
      * never eligible for purge. So a document attached before LEGAL-004 is
@@ -408,9 +429,10 @@ export class VerificationService {
     return { storageKey };
   }
 
+  /** Property-ownership documents only — identity documents are retired (0018). */
   private async documentCollectionEnabled(): Promise<boolean> {
     const { rows } = await this.db.query<{ enabled: boolean }>(
-      `SELECT enabled FROM feature_flag WHERE key='verification.identity_documents'`,
+      `SELECT enabled FROM feature_flag WHERE key='verification.property_documents'`,
     );
     return rows[0]?.enabled ?? false;
   }
@@ -827,7 +849,7 @@ export class VerificationService {
       );
       const docTypes = documents.rows.map((d) => d.doc_type);
       const { rows: flagRows } = await tx.query<{ enabled: boolean }>(
-        `SELECT enabled FROM feature_flag WHERE key='verification.identity_documents'`,
+        `SELECT enabled FROM feature_flag WHERE key='verification.property_documents'`,
       );
 
       const transition = applyVerificationAction(current.status as VerificationStatus, action, {

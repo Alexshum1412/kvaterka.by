@@ -2,9 +2,13 @@
  * Verification, end to end over the real dispatcher.
  *
  * The slice's central invariant is that a trust badge is never granted on
- * nothing, so most of this file is about approvals that must NOT happen — and
- * about the one rule that has to hold whatever else changes: identity documents
- * are reachable by VERIFIER and by nobody else, including ADMIN.
+ * nothing. IDENTITY (Level 1) is no longer a document a staff member reviews
+ * at all (0018) — it is granted automatically once a phone is verified
+ * through a linked messenger account, and `POST /me/verification` refuses a
+ * new `targetLevel: 1` request outright. What this file still has to prove,
+ * for PROPERTY_OWNERSHIP (Level 2), is the rule that has to hold whatever
+ * else changes: ownership documents are reachable by VERIFIER and by nobody
+ * else, including ADMIN.
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -31,8 +35,8 @@ beforeEach(async () => {
       ('WIFI','ESSENTIALS','Wi-Fi','Wi-Fi','Wi-Fi')
     ON CONFLICT DO NOTHING;
     INSERT INTO feature_flag (key, enabled, description, requires_legal_approval) VALUES
-      ('verification.identity_documents', false,
-       'Identity document collection. Requires LEGAL-004.', true)
+      ('verification.property_documents', false,
+       'Property-ownership document collection.', true)
     ON CONFLICT (key) DO UPDATE SET enabled = false;
   `);
 });
@@ -61,9 +65,9 @@ async function staffWith(role: string) {
   return user;
 }
 
-/** Turn document collection on, as answering LEGAL-004 would. */
+/** Turn property-document collection on, the way answering LEGAL-004 for it would. */
 async function enableCollection() {
-  await db.query(`UPDATE feature_flag SET enabled = true WHERE key='verification.identity_documents'`);
+  await db.query(`UPDATE feature_flag SET enabled = true WHERE key='verification.property_documents'`);
 }
 
 /** Attach evidence directly: the upload path is closed by design (see below). */
@@ -77,10 +81,18 @@ async function attachEvidence(requestId: string, types: string[]) {
   }
 }
 
-async function submitIdentity(token: string) {
-  const res = await api.post('/me/verification', { targetLevel: 1 }, { token });
-  expect(res.status).toBe(201);
-  return res.body.id as string;
+/**
+ * Level 1 is granted the way phone verification actually grants it (0018) —
+ * directly, with no staff review — not through any HTTP endpoint, because
+ * there is no longer one that does this.
+ */
+async function grantLevel1(userId: string) {
+  await db.query(
+    `UPDATE app_user SET verification_level = GREATEST(verification_level, 1),
+            phone_verified_at = now(), phone_verified_via = 'TELEGRAM'
+      WHERE id=$1`,
+    [userId],
+  );
 }
 
 async function publishedListingFor(token: string) {
@@ -93,14 +105,44 @@ async function publishedListingFor(token: string) {
   return listingId;
 }
 
+/** The one live submission path left: a Level 2 request, by somebody who already holds Level 1. */
+async function submitProperty(
+  token: string,
+  propertyId: string,
+  opts: { ownershipBasis?: string; supersedesId?: string } = { ownershipBasis: 'SOLE_OWNER' },
+) {
+  const res = await api.post(
+    '/me/verification',
+    { targetLevel: 2, propertyId, ...opts },
+    { token },
+  );
+  expect(res.status).toBe(201);
+  return res.body.id as string;
+}
+
 /* ================================================================== *
- * Submission — the half that did not exist
+ * Submission — IDENTITY is retired, PROPERTY_OWNERSHIP is the live path
  * ================================================================== */
 
 describe('submission', () => {
-  it('creates a request a verifier can actually see', async () => {
+  it('refuses a Level 1 (IDENTITY) request outright — that pipeline is retired', async () => {
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const res = await api.post('/me/verification', { targetLevel: 1 }, { token: applicant.token });
+    expect(res.status).toBe(409);
+    expect(res.errorCode).toBe('FEATURE_DISABLED');
+
+    const { rows } = await db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM verification_request WHERE user_id=$1`,
+      [applicant.userId],
+    );
+    expect(rows[0]!.c).toBe('0');
+  });
+
+  it('creates a Level 2 request a verifier can actually see', async () => {
+    const applicant = await api.signUp();
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
 
     const verifier = await staffWith('VERIFIER');
     const queue = await api.get('/admin/verification/requests?status=ACTIVE', { token: verifier.token });
@@ -110,11 +152,17 @@ describe('submission', () => {
 
   it('refuses a second live request for the same thing', async () => {
     const applicant = await api.signUp();
-    const first = await submitIdentity(applicant.token);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const first = await submitProperty(applicant.token, listingId);
 
     // A double-tapped button returns the request that already exists rather
     // than making a second one for a verifier to duplicate work on.
-    const again = await api.post('/me/verification', { targetLevel: 1 }, { token: applicant.token });
+    const again = await api.post(
+      '/me/verification',
+      { targetLevel: 2, propertyId: listingId, ownershipBasis: 'SOLE_OWNER' },
+      { token: applicant.token },
+    );
     expect(again.body.id).toBe(first);
 
     const { rows } = await db.query<{ c: string }>(
@@ -143,7 +191,7 @@ describe('submission', () => {
     const listingId = await publishedListingFor(owner.token);
 
     const other = await api.signUp();
-    await db.query(`UPDATE app_user SET verification_level=1 WHERE id=$1`, [other.userId]);
+    await grantLevel1(other.userId);
 
     const res = await api.post(
       '/me/verification',
@@ -151,13 +199,6 @@ describe('submission', () => {
       { token: other.token },
     );
     expect(res.status).toBe(404);
-  });
-
-  it('refuses an identity request from somebody already verified', async () => {
-    const applicant = await api.signUp();
-    await db.query(`UPDATE app_user SET verification_level=1 WHERE id=$1`, [applicant.userId]);
-    const res = await api.post('/me/verification', { targetLevel: 1 }, { token: applicant.token });
-    expect(res.status).toBe(409);
   });
 
   it('refuses an anonymous caller', async () => {
@@ -173,9 +214,11 @@ describe('submission', () => {
 describe('document collection', () => {
   it('is refused while the legal flag is off', async () => {
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
 
-    const res = await api.post(`/me/verification/${id}/documents`, { docType: 'PASSPORT' }, {
+    const res = await api.post(`/me/verification/${id}/documents`, { docType: 'OWNERSHIP_CERTIFICATE' }, {
       token: applicant.token,
     });
     expect(res.status).toBe(409);
@@ -188,11 +231,13 @@ describe('document collection', () => {
   it('is still refused with the flag on but no private storage configured', async () => {
     await enableCollection();
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
 
-    // The two dependencies fail closed independently: answering LEGAL-004 does
+    // The two dependencies fail closed independently: turning the flag on does
     // not by itself start collecting documents onto a disk that does not exist.
-    const res = await api.post(`/me/verification/${id}/documents`, { docType: 'PASSPORT' }, {
+    const res = await api.post(`/me/verification/${id}/documents`, { docType: 'OWNERSHIP_CERTIFICATE' }, {
       token: applicant.token,
     });
     expect(res.status).toBe(501);
@@ -202,10 +247,12 @@ describe('document collection', () => {
   it('refuses attaching to somebody else’s request', async () => {
     await enableCollection();
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
     const stranger = await api.signUp();
 
-    const res = await api.post(`/me/verification/${id}/documents`, { docType: 'PASSPORT' }, {
+    const res = await api.post(`/me/verification/${id}/documents`, { docType: 'OWNERSHIP_CERTIFICATE' }, {
       token: stranger.token,
     });
     expect(res.status).toBe(404);
@@ -213,14 +260,16 @@ describe('document collection', () => {
 
   it('keeps every document row inside the private namespace', async () => {
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
 
     // The database refuses a key the public media route would serve, so a
     // document cannot exist outside the namespace that route declines.
     await expect(
       db.query(
         `INSERT INTO verification_document (id, request_id, doc_type, storage_key)
-         VALUES ($1,$2,'PASSPORT','listings/oops.jpg')`,
+         VALUES ($1,$2,'OWNERSHIP_CERTIFICATE','listings/oops.jpg')`,
         [crypto.randomUUID(), id],
       ),
     ).rejects.toThrow();
@@ -234,7 +283,9 @@ describe('document collection', () => {
 describe('approval requires evidence', () => {
   it('refuses approval while document collection is disabled', async () => {
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
     const verifier = await staffWith('VERIFIER');
 
     await api.post(`/admin/verification/requests/${id}/actions`, { action: 'TAKE' }, { token: verifier.token });
@@ -246,18 +297,20 @@ describe('approval requires evidence', () => {
     expect(res.status).toBe(409);
     expect(res.errorCode).toBe('CONFLICT');
 
-    // And the level is untouched: this is the whole point of the slice.
+    // And the level stays at 1 (from grantLevel1): this is the whole point of the slice.
     const { rows } = await db.query<{ verification_level: number }>(
       `SELECT verification_level FROM app_user WHERE id=$1`,
       [applicant.userId],
     );
-    expect(Number(rows[0]!.verification_level)).toBe(0);
+    expect(Number(rows[0]!.verification_level)).toBe(1);
   });
 
   it('refuses approval with the flag on but no documents attached', async () => {
     await enableCollection();
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
     const verifier = await staffWith('VERIFIER');
 
     await api.post(`/admin/verification/requests/${id}/actions`, { action: 'TAKE' }, { token: verifier.token });
@@ -272,14 +325,17 @@ describe('approval requires evidence', () => {
       `SELECT verification_level FROM app_user WHERE id=$1`,
       [applicant.userId],
     );
-    expect(Number(rows[0]!.verification_level)).toBe(0);
+    expect(Number(rows[0]!.verification_level)).toBe(1);
   });
 
-  it('refuses approval with a document but no selfie', async () => {
+  it('refuses approval with a document attached but no declared basis', async () => {
     await enableCollection();
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
-    await attachEvidence(id, ['PASSPORT']);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    // No ownershipBasis this time — a document alone is not a declaration.
+    const id = await submitProperty(applicant.token, listingId, {});
+    await attachEvidence(id, ['OWNERSHIP_CERTIFICATE']);
     const verifier = await staffWith('VERIFIER');
 
     await api.post(`/admin/verification/requests/${id}/actions`, { action: 'TAKE' }, { token: verifier.token });
@@ -291,17 +347,19 @@ describe('approval requires evidence', () => {
     expect(res.status).toBe(409);
   });
 
-  it('grants the level once the evidence is genuinely there', async () => {
+  it('grants level 2 once the evidence is genuinely there', async () => {
     await enableCollection();
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
-    await attachEvidence(id, ['PASSPORT', 'SELFIE']);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
+    await attachEvidence(id, ['OWNERSHIP_CERTIFICATE']);
     const verifier = await staffWith('VERIFIER');
 
     await api.post(`/admin/verification/requests/${id}/actions`, { action: 'TAKE' }, { token: verifier.token });
     const res = await api.post(
       `/admin/verification/requests/${id}/actions`,
-      { action: 'APPROVE', internalNote: 'Документ читается, селфи совпадает.' },
+      { action: 'APPROVE', internalNote: 'Свидетельство читается, адрес совпадает с объявлением.' },
       { token: verifier.token },
     );
     expect(res.status).toBe(200);
@@ -311,22 +369,17 @@ describe('approval requires evidence', () => {
       `SELECT verification_level FROM app_user WHERE id=$1`,
       [applicant.userId],
     );
-    expect(Number(rows[0]!.verification_level)).toBe(1);
+    expect(Number(rows[0]!.verification_level)).toBe(2);
   });
 
   it('reaches level 2 only through a property request by somebody who holds level 1', async () => {
     await enableCollection();
     const applicant = await api.signUp();
     const listingId = await publishedListingFor(applicant.token);
-    await db.query(`UPDATE app_user SET verification_level=1 WHERE id=$1`, [applicant.userId]);
+    await grantLevel1(applicant.userId);
 
-    const submitted = await api.post(
-      '/me/verification',
-      { targetLevel: 2, propertyId: listingId, ownershipBasis: 'SOLE_OWNER' },
-      { token: applicant.token },
-    );
-    const id = submitted.body.id as string;
-    await attachEvidence(id, ['PASSPORT', 'SELFIE', 'OWNERSHIP_CERTIFICATE']);
+    const id = await submitProperty(applicant.token, listingId);
+    await attachEvidence(id, ['OWNERSHIP_CERTIFICATE']);
 
     const verifier = await staffWith('VERIFIER');
     await api.post(`/admin/verification/requests/${id}/actions`, { action: 'TAKE' }, { token: verifier.token });
@@ -353,16 +406,17 @@ describe('approval requires evidence', () => {
   it('never lowers a level somebody already holds', async () => {
     await enableCollection();
     const applicant = await api.signUp();
+    const listingId = await publishedListingFor(applicant.token);
     await db.query(`UPDATE app_user SET verification_level=2 WHERE id=$1`, [applicant.userId]);
 
-    // A stale level-1 request approved later must not demote them.
+    // A stale property request approved later must not demote them.
     const id = crypto.randomUUID();
     await db.query(
-      `INSERT INTO verification_request (id, user_id, kind, target_level, status)
-       VALUES ($1,$2,'IDENTITY',1,'IN_REVIEW')`,
-      [id, applicant.userId],
+      `INSERT INTO verification_request (id, user_id, property_id, kind, target_level, status, declared)
+       VALUES ($1,$2,$3,'PROPERTY_OWNERSHIP',2,'IN_REVIEW','{"ownershipBasis":"SOLE_OWNER"}'::jsonb)`,
+      [id, applicant.userId, listingId],
     );
-    await attachEvidence(id, ['PASSPORT', 'SELFIE']);
+    await attachEvidence(id, ['OWNERSHIP_CERTIFICATE']);
 
     const verifier = await staffWith('VERIFIER');
     await api.post(`/admin/verification/requests/${id}/actions`, { action: 'APPROVE' }, { token: verifier.token });
@@ -376,15 +430,22 @@ describe('approval requires evidence', () => {
 });
 
 /* ================================================================== *
- * Identity documents — the rule that must not bend
+ * Ownership documents — the rule that must not bend
  * ================================================================== */
 
-describe('identity documents stay VERIFIER-only', () => {
+describe('property documents stay VERIFIER-only', () => {
+  async function submittedWithDocument() {
+    const applicant = await api.signUp();
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
+    await attachEvidence(id, ['OWNERSHIP_CERTIFICATE']);
+    return { applicant, id };
+  }
+
   it('is refused to MODERATOR, SUPPORT, FINANCE and ADMIN', async () => {
     await enableCollection();
-    const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
-    await attachEvidence(id, ['PASSPORT']);
+    const { id } = await submittedWithDocument();
 
     const { rows } = await db.query<{ id: string; storage_key: string }>(
       `SELECT id, storage_key FROM verification_document WHERE request_id=$1`,
@@ -411,9 +472,7 @@ describe('identity documents stay VERIFIER-only', () => {
 
   it('is refused to the applicant themselves', async () => {
     await enableCollection();
-    const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
-    await attachEvidence(id, ['PASSPORT']);
+    const { applicant, id } = await submittedWithDocument();
     const { rows } = await db.query<{ id: string }>(
       `SELECT id FROM verification_document WHERE request_id=$1`,
       [id],
@@ -426,9 +485,7 @@ describe('identity documents stay VERIFIER-only', () => {
 
   it('lets VERIFIER open one, demands a purpose, and logs it', async () => {
     await enableCollection();
-    const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
-    await attachEvidence(id, ['PASSPORT']);
+    const { id } = await submittedWithDocument();
     const { rows } = await db.query<{ id: string }>(
       `SELECT id FROM verification_document WHERE request_id=$1`,
       [id],
@@ -458,9 +515,7 @@ describe('identity documents stay VERIFIER-only', () => {
   });
 
   it('is refused even to VERIFIER while the legal flag is off', async () => {
-    const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
-    await attachEvidence(id, ['PASSPORT']);
+    const { id } = await submittedWithDocument();
     const { rows } = await db.query<{ id: string; storage_key: string }>(
       `SELECT id, storage_key FROM verification_document WHERE request_id=$1`,
       [id],
@@ -476,9 +531,7 @@ describe('identity documents stay VERIFIER-only', () => {
 
   it('never returns a storage key from the queue or the case file', async () => {
     await enableCollection();
-    const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
-    await attachEvidence(id, ['PASSPORT', 'SELFIE']);
+    const { id } = await submittedWithDocument();
     const { rows } = await db.query<{ storage_key: string }>(
       `SELECT storage_key FROM verification_document WHERE request_id=$1`,
       [id],
@@ -493,7 +546,7 @@ describe('identity documents stay VERIFIER-only', () => {
       expect(JSON.stringify(detail.body)).not.toContain(key);
     }
     // The count is there; the key is not.
-    expect(detail.body.documents).toHaveLength(2);
+    expect(detail.body.documents).toHaveLength(1);
   });
 });
 
@@ -502,11 +555,18 @@ describe('identity documents stay VERIFIER-only', () => {
  * ================================================================== */
 
 describe('deciding requires having been able to look', () => {
+  async function submittedWithDocument() {
+    const applicant = await api.signUp();
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
+    await attachEvidence(id, ['OWNERSHIP_CERTIFICATE']);
+    return { applicant, id };
+  }
+
   it('refuses ADMIN an approval, and offers it no approve action', async () => {
     await enableCollection();
-    const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
-    await attachEvidence(id, ['PASSPORT', 'SELFIE']);
+    const { applicant, id } = await submittedWithDocument();
     const admin = await staffWith('ADMIN');
 
     await api.post(`/admin/verification/requests/${id}/actions`, { action: 'TAKE' }, { token: admin.token });
@@ -529,17 +589,19 @@ describe('deciding requires having been able to look', () => {
       `SELECT verification_level FROM app_user WHERE id=$1`,
       [applicant.userId],
     );
-    expect(Number(rows[0]!.verification_level)).toBe(0);
+    expect(Number(rows[0]!.verification_level)).toBe(1);
   });
 
   it('still lets ADMIN refuse — you need not look to say "incomplete"', async () => {
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
     const admin = await staffWith('ADMIN');
 
     const res = await api.post(
       `/admin/verification/requests/${id}/actions`,
-      { action: 'REJECT', reasonCodes: ['DOCUMENT_MISSING'], applicantMessage: 'Документов нет.' },
+      { action: 'REJECT', reasonCodes: ['PROPERTY_DOCUMENT_INSUFFICIENT'], applicantMessage: 'Документов нет.' },
       { token: admin.token },
     );
     expect(res.status).toBe(200);
@@ -548,9 +610,7 @@ describe('deciding requires having been able to look', () => {
 
   it('holds through the legacy decide endpoint too', async () => {
     await enableCollection();
-    const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
-    await attachEvidence(id, ['PASSPORT', 'SELFIE']);
+    const { applicant, id } = await submittedWithDocument();
     const admin = await staffWith('ADMIN');
 
     // The older /decide route now delegates to the same domain rules, so it is
@@ -566,19 +626,17 @@ describe('deciding requires having been able to look', () => {
       `SELECT verification_level FROM app_user WHERE id=$1`,
       [applicant.userId],
     );
-    expect(Number(rows[0]!.verification_level)).toBe(0);
+    expect(Number(rows[0]!.verification_level)).toBe(1);
   });
 
   it('lets VERIFIER approve through the legacy endpoint', async () => {
     await enableCollection();
-    const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
-    await attachEvidence(id, ['PASSPORT', 'SELFIE']);
+    const { applicant, id } = await submittedWithDocument();
     const verifier = await staffWith('VERIFIER');
 
     const res = await api.post(
       `/admin/verification/${id}/decide`,
-      { decision: 'APPROVED', note: 'документ читается' },
+      { decision: 'APPROVED', note: 'свидетельство читается' },
       { token: verifier.token },
     );
     expect(res.status).toBe(200);
@@ -587,7 +645,7 @@ describe('deciding requires having been able to look', () => {
       `SELECT verification_level FROM app_user WHERE id=$1`,
       [applicant.userId],
     );
-    expect(Number(rows[0]!.verification_level)).toBe(1);
+    expect(Number(rows[0]!.verification_level)).toBe(2);
   });
 });
 
@@ -596,9 +654,16 @@ describe('deciding requires having been able to look', () => {
  * ================================================================== */
 
 describe('rejection and resubmission', () => {
-  it('refuses an empty rejection', async () => {
+  async function submitted() {
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
+    return { applicant, listingId, id };
+  }
+
+  it('refuses an empty rejection', async () => {
+    const { id } = await submitted();
     const verifier = await staffWith('VERIFIER');
 
     const res = await api.post(
@@ -616,36 +681,34 @@ describe('rejection and resubmission', () => {
   });
 
   it('tells the applicant what to fix and never the internal note', async () => {
-    const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const { applicant, id } = await submitted();
     const verifier = await staffWith('VERIFIER');
 
-    const secret = 'Третья попытка с того же устройства, фото похоже на монтаж.';
+    const secret = 'Третья попытка с того же устройства, похоже на подделку.';
     await api.post(
       `/admin/verification/requests/${id}/actions`,
       {
         action: 'REJECT',
-        reasonCodes: ['IDENTITY_DOCUMENT_UNREADABLE'],
+        reasonCodes: ['PROPERTY_DOCUMENT_INSUFFICIENT'],
         internalNote: secret,
-        applicantMessage: 'Сфотографируйте документ при дневном свете.',
+        applicantMessage: 'Приложите документ полностью, виден адрес и стороны.',
       },
       { token: verifier.token },
     );
 
     const mine = await api.get('/me/verification', { token: applicant.token });
     const serialised = JSON.stringify(mine.body);
-    expect(serialised).toContain('IDENTITY_DOCUMENT_UNREADABLE');
-    expect(serialised).toContain('дневном свете');
-    expect(serialised).not.toContain('монтаж');
+    expect(serialised).toContain('PROPERTY_DOCUMENT_INSUFFICIENT');
+    expect(serialised).toContain('виден адрес');
+    expect(serialised).not.toContain('подделку');
     expect(serialised).not.toContain('устройства');
 
     const timeline = await api.get(`/me/verification/${id}/timeline`, { token: applicant.token });
-    expect(JSON.stringify(timeline.body)).not.toContain('монтаж');
+    expect(JSON.stringify(timeline.body)).not.toContain('подделку');
   });
 
   it('keeps a refused request and creates a new one on resubmission', async () => {
-    const applicant = await api.signUp();
-    const first = await submitIdentity(applicant.token);
+    const { applicant, listingId, id: first } = await submitted();
     const verifier = await staffWith('VERIFIER');
     await api.post(
       `/admin/verification/requests/${first}/actions`,
@@ -655,7 +718,7 @@ describe('rejection and resubmission', () => {
 
     const again = await api.post(
       '/me/verification',
-      { targetLevel: 1, supersedesId: first },
+      { targetLevel: 2, propertyId: listingId, ownershipBasis: 'SOLE_OWNER', supersedesId: first },
       { token: applicant.token },
     );
     expect(again.status).toBe(201);
@@ -672,41 +735,43 @@ describe('rejection and resubmission', () => {
   });
 
   it('refuses to supersede somebody else’s request, or one still under review', async () => {
-    const applicant = await api.signUp();
-    const mine = await submitIdentity(applicant.token);
+    const { applicant, listingId, id: mine } = await submitted();
     const other = await api.signUp();
+    await grantLevel1(other.userId);
 
     const stranger = await api.post(
       '/me/verification',
-      { targetLevel: 1, supersedesId: mine },
+      { targetLevel: 2, propertyId: listingId, ownershipBasis: 'SOLE_OWNER', supersedesId: mine },
       { token: other.token },
     );
+    // 404 either way: `other` does not own `listingId` (applicant's own
+    // property), which is exactly the ownership check this has to survive
+    // before the supersede logic is even reached.
     expect(stranger.status).toBe(404);
 
     // Still SUBMITTED, so not yet superseded by its own owner either.
     const early = await api.post(
       '/me/verification',
-      { targetLevel: 1, supersedesId: mine },
+      { targetLevel: 2, propertyId: listingId, ownershipBasis: 'SOLE_OWNER', supersedesId: mine },
       { token: applicant.token },
     );
     expect(early.status).toBe(409);
   });
 
   it('reopens the queue after NEEDS_INFO without a duplicate', async () => {
-    const applicant = await api.signUp();
-    const first = await submitIdentity(applicant.token);
+    const { applicant, listingId, id: first } = await submitted();
     const verifier = await staffWith('VERIFIER');
 
     await api.post(`/admin/verification/requests/${first}/actions`, { action: 'TAKE' }, { token: verifier.token });
     await api.post(
       `/admin/verification/requests/${first}/actions`,
-      { action: 'REQUEST_INFO', reasonCodes: ['DOCUMENT_MISSING'], applicantMessage: 'Приложите селфи.' },
+      { action: 'REQUEST_INFO', reasonCodes: ['DOCUMENT_MISSING'], applicantMessage: 'Приложите документ.' },
       { token: verifier.token },
     );
 
     const again = await api.post(
       '/me/verification',
-      { targetLevel: 1, supersedesId: first },
+      { targetLevel: 2, propertyId: listingId, ownershipBasis: 'SOLE_OWNER', supersedesId: first },
       { token: applicant.token },
     );
     expect(again.status).toBe(201);
@@ -720,8 +785,7 @@ describe('rejection and resubmission', () => {
   });
 
   it('records a decision with its author, and the database insists', async () => {
-    const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const { applicant, id } = await submitted();
     const verifier = await staffWith('VERIFIER');
     await api.post(
       `/admin/verification/requests/${id}/actions`,
@@ -740,7 +804,7 @@ describe('rejection and resubmission', () => {
     await expect(
       db.query(
         `INSERT INTO verification_request (id, user_id, kind, target_level, status, decided_by, decided_at)
-         VALUES ($1,$2,'IDENTITY',1,'REJECTED',$2, now())`,
+         VALUES ($1,$2,'PROPERTY_OWNERSHIP',2,'REJECTED',$2, now())`,
         [crypto.randomUUID(), applicant.userId],
       ),
     ).rejects.toThrow();
@@ -755,8 +819,10 @@ describe('document retention on decision', () => {
   it('marks attached documents for purge once a decision lands, but not on REQUEST_INFO', async () => {
     await enableCollection();
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
-    await attachEvidence(id, ['PASSPORT', 'SELFIE']);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
+    await attachEvidence(id, ['OWNERSHIP_CERTIFICATE']);
     const verifier = await staffWith('VERIFIER');
 
     await api.post(`/admin/verification/requests/${id}/actions`, { action: 'TAKE' }, { token: verifier.token });
@@ -772,13 +838,13 @@ describe('document retention on decision', () => {
       `SELECT purge_after FROM verification_document WHERE request_id=$1`,
       [id],
     );
-    expect(afterRequestInfo.rows).toHaveLength(2);
+    expect(afterRequestInfo.rows).toHaveLength(1);
     for (const row of afterRequestInfo.rows) expect(row.purge_after).toBeNull();
 
     await api.post(`/admin/verification/requests/${id}/actions`, { action: 'TAKE' }, { token: verifier.token });
     const decided = await api.post(
       `/admin/verification/requests/${id}/actions`,
-      { action: 'APPROVE', internalNote: 'Документ читается, селфи совпадает.' },
+      { action: 'APPROVE', internalNote: 'Свидетельство читается.' },
       { token: verifier.token },
     );
     expect(decided.status).toBe(200);
@@ -787,7 +853,7 @@ describe('document retention on decision', () => {
       `SELECT purge_after FROM verification_document WHERE request_id=$1`,
       [id],
     );
-    expect(afterApprove.rows).toHaveLength(2);
+    expect(afterApprove.rows).toHaveLength(1);
     for (const row of afterApprove.rows) expect(row.purge_after).not.toBeNull();
   });
 });
@@ -799,7 +865,9 @@ describe('document retention on decision', () => {
 describe('privacy', () => {
   it('keeps the console away from ordinary accounts, and cases unguessable', async () => {
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
     const stranger = await api.signUp();
 
     for (const [who, token] of [
@@ -830,9 +898,14 @@ describe('privacy', () => {
 
   it('shows an applicant only their own requests', async () => {
     const a = await api.signUp();
-    const idA = await submitIdentity(a.token);
+    const listingA = await publishedListingFor(a.token);
+    await grantLevel1(a.userId);
+    const idA = await submitProperty(a.token, listingA);
+
     const b = await api.signUp();
-    await submitIdentity(b.token);
+    const listingB = await publishedListingFor(b.token);
+    await grantLevel1(b.userId);
+    await submitProperty(b.token, listingB);
 
     const mine = await api.get('/me/verification', { token: b.token });
     expect(JSON.stringify(mine.body)).not.toContain(idA);
@@ -841,7 +914,9 @@ describe('privacy', () => {
 
   it('keeps fraud signals and the applicant’s contacts out of what they can see', async () => {
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
     await db.query(`INSERT INTO fraud_signal (user_id, kind, severity) VALUES ($1,'DEVICE_REUSE',3)`, [
       applicant.userId,
     ]);
@@ -858,8 +933,16 @@ describe('privacy', () => {
   it('keeps the public profile free of verification internals', async () => {
     await enableCollection();
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
-    await attachEvidence(id, ['PASSPORT', 'SELFIE']);
+    // Level 1 is a phone-verification fact — check the profile reflects it
+    // with no document flow involved at all.
+    await grantLevel1(applicant.userId);
+    const midway = await api.get(`/profiles/${applicant.userId}`);
+    expect(midway.body.verificationLevel).toBe(1);
+    expect(midway.body.identityVerified).toBe(true);
+
+    const listingId = await publishedListingFor(applicant.token);
+    const id = await submitProperty(applicant.token, listingId);
+    await attachEvidence(id, ['OWNERSHIP_CERTIFICATE']);
     const verifier = await staffWith('VERIFIER');
     await api.post(`/admin/verification/requests/${id}/actions`, { action: 'TAKE' }, { token: verifier.token });
     await api.post(
@@ -870,10 +953,10 @@ describe('privacy', () => {
 
     const profile = await api.get(`/profiles/${applicant.userId}`);
     const serialised = JSON.stringify(profile.body);
-    expect(profile.body.verificationLevel).toBe(1);
+    expect(profile.body.verificationLevel).toBe(2);
     expect(profile.body.identityVerified).toBe(true);
     expect(serialised).not.toContain('Совпало');
-    expect(serialised).not.toContain('PASSPORT');
+    expect(serialised).not.toContain('OWNERSHIP_CERTIFICATE');
     expect(serialised).not.toContain('private/');
     expect(serialised).not.toContain(id);
   });
@@ -885,12 +968,17 @@ describe('privacy', () => {
 
 describe('the queue', () => {
   it('puts somebody with a live listing above somebody without one', async () => {
+    // Both applicants need a listing to submit a Level 2 request at all, so
+    // the distinguishing "live listing" signal here is PUBLISHED vs DRAFT.
     const quiet = await api.signUp();
-    const quietId = await submitIdentity(quiet.token);
+    const quietListing = await api.post('/listings', LISTING, { token: quiet.token });
+    await grantLevel1(quiet.userId);
+    const quietId = await submitProperty(quiet.token, quietListing.body.id as string);
 
     const active = await api.signUp();
-    await publishedListingFor(active.token);
-    const activeId = await submitIdentity(active.token);
+    const activeListing = await publishedListingFor(active.token);
+    await grantLevel1(active.userId);
+    const activeId = await submitProperty(active.token, activeListing);
 
     const verifier = await staffWith('VERIFIER');
     const queue = await api.get('/admin/verification/requests?status=ACTIVE', { token: verifier.token });
@@ -901,9 +989,14 @@ describe('the queue', () => {
 
   it('filters and paginates server-side', async () => {
     const a = await api.signUp();
-    await submitIdentity(a.token);
+    const listingA = await publishedListingFor(a.token);
+    await grantLevel1(a.userId);
+    await submitProperty(a.token, listingA);
+
     const b = await api.signUp();
-    await submitIdentity(b.token);
+    const listingB = await publishedListingFor(b.token);
+    await grantLevel1(b.userId);
+    await submitProperty(b.token, listingB);
 
     const verifier = await staffWith('VERIFIER');
     const page1 = await api.get('/admin/verification/requests?status=ACTIVE&limit=1&offset=0', {
@@ -916,15 +1009,19 @@ describe('the queue', () => {
     expect(page2.body.items).toHaveLength(1);
     expect(page1.body.items[0].id).not.toBe(page2.body.items[0].id);
 
-    const byLevel = await api.get('/admin/verification/requests?status=ACTIVE&level=2', {
+    const byLevel = await api.get('/admin/verification/requests?status=ACTIVE&level=1', {
       token: verifier.token,
     });
+    // Every live request in the queue is now a Level 2 (PROPERTY_OWNERSHIP)
+    // request — nothing submits Level 1 any more.
     expect(byLevel.body.items).toHaveLength(0);
   });
 
   it('assigns only to somebody who can review', async () => {
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
     const verifier = await staffWith('VERIFIER');
     const moderator = await staffWith('MODERATOR');
 
@@ -956,7 +1053,9 @@ describe('the queue', () => {
 describe('audit and notifications', () => {
   it('records every staff act with actor, role and reason', async () => {
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
     const verifier = await staffWith('VERIFIER');
 
     await api.post(`/admin/verification/requests/${id}/actions`, { action: 'TAKE' }, { token: verifier.token });
@@ -994,7 +1093,9 @@ describe('audit and notifications', () => {
 
   it('keeps the request history append-only', async () => {
     const applicant = await api.signUp();
-    const id = await submitIdentity(applicant.token);
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
+    const id = await submitProperty(applicant.token, listingId);
     const verifier = await staffWith('VERIFIER');
     await api.post(`/admin/verification/requests/${id}/actions`, { action: 'TAKE' }, { token: verifier.token });
 
@@ -1004,8 +1105,10 @@ describe('audit and notifications', () => {
 
   it('queues notifications without pretending to deliver them', async () => {
     const applicant = await api.signUp();
+    const listingId = await publishedListingFor(applicant.token);
+    await grantLevel1(applicant.userId);
     const verifier = await staffWith('VERIFIER');
-    const id = await submitIdentity(applicant.token);
+    const id = await submitProperty(applicant.token, listingId);
 
     await api.post(
       `/admin/verification/requests/${id}/actions`,

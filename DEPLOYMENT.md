@@ -432,11 +432,15 @@ Written to `/etc/kvaterka/kvaterka.env`, one `KEY=value` per line, no quotes nee
 | `SITE_INDEXABLE` | no | no | leave **unset** for staging. Setting it to `true` is what lets search engines in, and that is a launch decision |
 | `DATABASE_SSL` | no | no | `false` for localhost |
 | `DATABASE_POOL_MAX` | no | no | `10` default; `5` is plenty on a 2 GB box |
-| `SMTP_URL` | no | **yes** | Unset for now — see §7 |
-| `TELEGRAM_BOT_TOKEN` | no | **yes** | Unset. Telegram is gated on LEGAL-015 |
+| `SMTP_URL` | no | **yes** | Real SMTP delivery once set (DEC-066) — see §7. `MAIL_FROM` must be set alongside it |
+| `MAIL_FROM` | no | no | e.g. `Кватэрка.by <noreply@kvaterka.by>` — required together with `SMTP_URL` |
+| `TELEGRAM_BOT_TOKEN` | no | **yes** | Notification delivery AND phone verification (0018) once set |
+| `TELEGRAM_BOT_USERNAME` | no | no | Not secret — ships to the browser for the `t.me` deep link |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | no | secret is | "Sign in with Google" — OAuth Client in Google Cloud Console, redirect URI `<PUBLIC_BASE_URL>/api/auth/google/callback` |
+| `VK_GROUP_TOKEN` / `VK_GROUP_ID` / `VK_CONFIRMATION_CODE` / `VK_CALLBACK_SECRET` | no | token+secret are | Phone verification via VK (0018) — see `.env.example` for the exact VK community setup steps |
+| `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_VERIFY_TOKEN` / `WHATSAPP_BUSINESS_NUMBER` | no | token+verify token are | Phone verification via WhatsApp (0018), official Cloud API — see `.env.example` and DEC-068 for why not an unofficial client |
 | `MEDIA_BUCKET_URL` | no | no | Unset — see §8 |
-| `DOCUMENTS_BUCKET_URL` | no | no | Unset. Identity documents are gated on LEGAL-004; the process refuses to start if this equals `MEDIA_BUCKET_URL` |
-| `NEXT_PUBLIC_MAP_STYLE_URL` | no | no | Unset; the map draws real relative positions and says plainly that no tile layer is connected |
+| `DOCUMENTS_BUCKET_URL` | no | no | Unset. Property-ownership documents are gated on LEGAL-004 (identity documents were retired in 0018, not merely gated); the process refuses to start if this equals `MEDIA_BUCKET_URL` |
 
 Nothing in this table belongs in the repository. `.env*` files are gitignored except
 `.env.example`, and the only tracked one contains placeholders.

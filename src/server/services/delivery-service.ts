@@ -110,6 +110,38 @@ export class DeliveryService {
   }
 
   /**
+   * Send a registration code immediately, bypassing the queue.
+   *
+   * Every other notification in this product enqueues and lets the worker
+   * drain it, because the queue is what keeps a failing SMTP relay from
+   * rolling back a booking. A registration code has nothing to roll back —
+   * there is no `app_user` row yet to hang a queued `notification` on, only
+   * `pending_registration` — so this is the one message sent directly.
+   * Returns whether it actually left the building rather than throwing: the
+   * code already exists in `pending_registration` either way, and "resend"
+   * is the recovery path, not an exception bubbling into a 500.
+   */
+  async sendRegistrationCode(address: string, code: string, identifier: string): Promise<boolean> {
+    const provider = this.providers.byChannel.EMAIL;
+    const payload = { kind: 'REGISTRATION_CODE', code, identifier };
+    const subject = NOTIFICATION_CATEGORY_TITLE.SECURITY!;
+    const body = renderBody('SECURITY', payload, this.publicBaseUrl);
+    const html = renderEmailHtml(subject, body, emailCta(payload, this.publicBaseUrl));
+
+    const result = await provider.send({
+      notificationId: `pending-registration:${identifier}`,
+      userId: '',
+      channel: 'EMAIL',
+      address,
+      category: 'SECURITY',
+      subject,
+      body,
+      html,
+    });
+    return result.status === 'DELIVERED';
+  }
+
+  /**
    * One pass over the outbox.
    *
    * Each notification is isolated: one that throws must not abandon the batch,
@@ -280,11 +312,11 @@ export class DeliveryService {
  * The detail lives behind a login, which is also where the person can see it
  * in context rather than as a fragment in a notification.
  *
- * EMAIL_VERIFICATION and PASSWORD_RESET are the one exception, not a crack in
+ * REGISTRATION_CODE and PASSWORD_RESET are the one exception, not a crack in
  * that rule. There is no account detail to leak in either — the entire message
- * IS a one-time token, and without it the feature does not work at all. Both
+ * IS a one-time secret, and without it the feature does not work at all. Both
  * are still SECURITY, still spare, still second person; they just carry the
- * link the whole notification exists to deliver. Everything else falls
+ * code or link the whole notification exists to deliver. Everything else falls
  * through to the generic body unchanged.
  *
  * Exported only so a test can call it directly rather than driving a whole
@@ -292,8 +324,9 @@ export class DeliveryService {
  */
 export function renderBody(category: string, payload: Record<string, unknown>, publicBaseUrl: string): string {
   const link = tokenLink(payload, publicBaseUrl);
-  if (link?.kind === 'EMAIL_VERIFICATION') {
-    return `Подтвердите почту, перейдя по ссылке: ${link.url}`;
+  if (link?.kind === 'REGISTRATION_CODE') {
+    const code = typeof payload.code === 'string' ? payload.code : '';
+    return `Код подтверждения: ${code} (действует 30 минут). Либо перейдите по ссылке: ${link.url}`;
   }
   if (link?.kind === 'PASSWORD_RESET') {
     return `Чтобы задать новый пароль, перейдите по ссылке: ${link.url}`;
@@ -315,12 +348,21 @@ export function renderBody(category: string, payload: Record<string, unknown>, p
 function tokenLink(
   payload: Record<string, unknown>,
   publicBaseUrl: string,
-): { kind: 'EMAIL_VERIFICATION' | 'PASSWORD_RESET'; url: string } | null {
+): { kind: 'REGISTRATION_CODE' | 'PASSWORD_RESET'; url: string } | null {
+  if (payload.kind === 'REGISTRATION_CODE') {
+    const code = typeof payload.code === 'string' ? payload.code : null;
+    const identifier = typeof payload.identifier === 'string' ? payload.identifier : null;
+    if (!code || !identifier) return null;
+    // The link carries the same code as a query param, so clicking it and
+    // typing the code by hand are the exact same act of proving control of
+    // the inbox — not two mechanisms with two different secrets to manage.
+    return {
+      kind: 'REGISTRATION_CODE',
+      url: `${publicBaseUrl}/verify-email?identifier=${encodeURIComponent(identifier)}&code=${encodeURIComponent(code)}`,
+    };
+  }
   const token = typeof payload.token === 'string' ? payload.token : null;
   if (!token) return null;
-  if (payload.kind === 'EMAIL_VERIFICATION') {
-    return { kind: 'EMAIL_VERIFICATION', url: `${publicBaseUrl}/verify-email?token=${token}` };
-  }
   if (payload.kind === 'PASSWORD_RESET') {
     return { kind: 'PASSWORD_RESET', url: `${publicBaseUrl}/password-reset?token=${token}` };
   }
@@ -330,7 +372,7 @@ function tokenLink(
 /**
  * The HTML email's call-to-action, when the category has one.
  *
- * Only EMAIL_VERIFICATION and PASSWORD_RESET carry a deep link today — the
+ * Only REGISTRATION_CODE and PASSWORD_RESET carry a deep link today — the
  * same exception `renderBody`'s own doc comment names. Everything else
  * renders with no button, deliberately: inventing a per-category deep link
  * here (say, a guess at a booking's URL) would be a second router this file
@@ -339,9 +381,12 @@ function tokenLink(
 function emailCta(
   payload: Record<string, unknown>,
   publicBaseUrl: string,
-): { ctaUrl?: string; ctaLabel?: string } {
+): { ctaUrl?: string; ctaLabel?: string; code?: string } {
   const link = tokenLink(payload, publicBaseUrl);
-  if (link?.kind === 'EMAIL_VERIFICATION') return { ctaUrl: link.url, ctaLabel: 'Подтвердить' };
+  if (link?.kind === 'REGISTRATION_CODE') {
+    const code = typeof payload.code === 'string' ? payload.code : undefined;
+    return { ctaUrl: link.url, ctaLabel: 'Подтвердить почту', code };
+  }
   if (link?.kind === 'PASSWORD_RESET') return { ctaUrl: link.url, ctaLabel: 'Сбросить пароль' };
   return {};
 }

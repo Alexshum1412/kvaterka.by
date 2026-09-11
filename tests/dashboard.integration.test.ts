@@ -160,6 +160,31 @@ describe('stats reflect real data', () => {
     const res = await api.get('/dashboard/summary', { token: landlord.token });
     expect(res.body.stats.balanceMinor).toBe('-5500');
   });
+
+  it('sums rent from completed rentals only, separately from the fee balance', async () => {
+    const landlord = await api.signUp();
+    const listing = await publishedListing(landlord.token);
+    const tenant = await api.signUp();
+    const booking = await api.post(
+      '/bookings',
+      { propertyId: listing, from: '2026-09-01', to: '2026-09-08', instant: true },
+      { token: tenant.token },
+    );
+
+    // Not yet completed: should not count.
+    const zero = await api.get('/dashboard/summary', { token: landlord.token });
+    expect(zero.body.stats.totalEarnedMinor).toBe('0');
+
+    await db.query(
+      `UPDATE booking SET status='COMPLETED', completed_at=now(),
+              review_deadline_at=now() + interval '14 days' WHERE id=$1`,
+      [booking.body.id],
+    );
+
+    const res = await api.get('/dashboard/summary', { token: landlord.token });
+    // rent_minor for the fixture is 7 nights x 9000 = 63000 (cleaning fee excluded).
+    expect(res.body.stats.totalEarnedMinor).toBe('63000');
+  });
 });
 
 /* ================================================================== */

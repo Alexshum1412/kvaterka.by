@@ -1,0 +1,11 @@
+{
+  "DashboardNav": {
+    "navAria": "Dashboard",
+    "overview": "Overview",
+    "bookings": "Bookings",
+    "finance": "Finance",
+    "messages": "Messages",
+    "verification": "Verification",
+    "account": "Account"
+  }
+}

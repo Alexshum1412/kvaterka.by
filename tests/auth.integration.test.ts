@@ -22,13 +22,25 @@ beforeEach(async () => {
 
 const GOOD_PASSWORD = 'karotkaja-vulica-2026';
 
-const register = (over: Partial<Parameters<AuthService['register']>[0]> = {}) =>
-  auth.register({
+/**
+ * Registration is now two calls — `beginRegistration` writes a pending row
+ * and hands back a code, `confirmRegistration` spends it and creates the
+ * real account. Most describe blocks below (login, sessions, RBAC…) do not
+ * care about that mechanism at all; they just need a real, usable account to
+ * exist, so this helper does both steps and returns what the old one-step
+ * `register()` used to: a userId ready to log in with. The mechanism itself
+ * gets its own tests in the `registration` block.
+ */
+const register = async (over: Partial<Parameters<AuthService['beginRegistration']>[0]> = {}) => {
+  const { identifier, code } = await auth.beginRegistration({
     email: `user-${Math.random().toString(36).slice(2)}@example.by`,
     password: GOOD_PASSWORD,
     displayName: 'Ірына Арандатар',
     ...over,
   });
+  const { session, context } = await auth.confirmRegistration(identifier, code);
+  return { userId: context.userId, identifier, session };
+};
 
 /* ================================================================== */
 
@@ -79,17 +91,48 @@ describe('token storage', () => {
 /* ================================================================== */
 
 describe('registration', () => {
-  it('creates an account with a tenant role and an unverified email', async () => {
+  it('does not create an account until the code is confirmed', async () => {
+    const email = `pending-${Math.random().toString(36).slice(2)}@example.by`;
+    await auth.beginRegistration({ email, password: GOOD_PASSWORD, displayName: 'Прэтэндэнт' });
+
+    const users = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM app_user WHERE lower(email)=lower($1)`, [email]);
+    expect(users.rows[0]!.c).toBe('0');
+
+    const pending = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM pending_registration WHERE lower(email)=lower($1)`, [email]);
+    expect(pending.rows[0]!.c).toBe('1');
+  });
+
+  it('confirming creates an already-verified account with a tenant role', async () => {
     const { userId } = await register();
     const { rows } = await db.query<{ email_verified_at: string | null; password_hash: string }>(
       `SELECT email_verified_at, password_hash FROM app_user WHERE id=$1`,
       [userId],
     );
-    expect(rows[0]!.email_verified_at).toBeNull();
+    expect(rows[0]!.email_verified_at).not.toBeNull();
     expect(rows[0]!.password_hash).toMatch(/^\$argon2id\$/);
 
     const roles = await db.query<{ role: string }>(`SELECT role FROM user_role WHERE user_id=$1`, [userId]);
     expect(roles.rows.map((r) => r.role)).toEqual(['TENANT']);
+  });
+
+  it('deletes the pending row once confirmed', async () => {
+    const email = `confirmed-${Math.random().toString(36).slice(2)}@example.by`;
+    const { identifier, code } = await auth.beginRegistration({ email, password: GOOD_PASSWORD, displayName: 'Гаспадар' });
+    await auth.confirmRegistration(identifier, code);
+
+    const { rows } = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM pending_registration WHERE lower(email)=lower($1)`, [email]);
+    expect(rows[0]!.c).toBe('0');
+  });
+
+  it('confirming logs the new account straight in', async () => {
+    const { identifier, code } = await auth.beginRegistration({
+      email: `autologin-${Math.random().toString(36).slice(2)}@example.by`,
+      password: GOOD_PASSWORD,
+      displayName: 'Наведнік',
+    });
+    const { context } = await auth.confirmRegistration(identifier, code);
+    expect(context.userId).toBeTruthy();
+    expect(context.roles).toContain('TENANT');
   });
 
   it('never stores the password in plaintext anywhere', async () => {
@@ -101,37 +144,175 @@ describe('registration', () => {
     expect(rows[0]!.c).toBe('0');
   });
 
-  it('writes an audit row', async () => {
+  it('writes auth.register and auth.email_confirmed audit rows on confirm', async () => {
     const { userId } = await register();
-    const { rows } = await db.query<{ c: string }>(
-      `SELECT count(*)::text AS c FROM audit_log WHERE action='auth.register' AND target_id=$1`,
+    const { rows } = await db.query<{ action: string }>(
+      `SELECT action FROM audit_log WHERE target_id=$1 AND action IN ('auth.register','auth.email_confirmed') ORDER BY action`,
       [userId],
     );
-    expect(rows[0]!.c).toBe('1');
+    expect(rows.map((r) => r.action)).toEqual(['auth.email_confirmed', 'auth.register']);
   });
 
-  it('does not reveal that an email is already registered', async () => {
+  it('rejects the wrong code without confirming', async () => {
+    const { identifier } = await auth.beginRegistration({
+      email: `wrongcode-${Math.random().toString(36).slice(2)}@example.by`,
+      password: GOOD_PASSWORD,
+      displayName: 'Скептык',
+    });
+    await expect(auth.confirmRegistration(identifier, '000000')).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+
+    const { rows } = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM app_user WHERE lower(email)=lower($1)`, [identifier]);
+    expect(rows[0]!.c).toBe('0');
+  });
+
+  it('locks out after too many wrong codes, even before it expires', async () => {
+    const { identifier } = await auth.beginRegistration({
+      email: `lockout-${Math.random().toString(36).slice(2)}@example.by`,
+      password: GOOD_PASSWORD,
+      displayName: 'Упарты',
+    });
+    for (let i = 0; i < 6; i += 1) {
+      await expect(auth.confirmRegistration(identifier, '000000')).rejects.toThrow();
+    }
+    await expect(auth.confirmRegistration(identifier, '000000')).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+  });
+
+  it('rejects an expired code', async () => {
+    const { identifier } = await auth.beginRegistration({
+      email: `expired-${Math.random().toString(36).slice(2)}@example.by`,
+      password: GOOD_PASSWORD,
+      displayName: 'Спазніўся',
+    });
+    await db.query(`UPDATE pending_registration SET expires_at = now() - interval '1 minute'`);
+    await expect(auth.confirmRegistration(identifier, '000000')).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+  });
+
+  it('resending replaces the code and resets the attempt counter', async () => {
+    const { identifier, code: firstCode } = await auth.beginRegistration({
+      email: `resend-${Math.random().toString(36).slice(2)}@example.by`,
+      password: GOOD_PASSWORD,
+      displayName: 'Другая спроба',
+    });
+    const secondCode = await auth.resendRegistrationCode(identifier);
+    expect(secondCode).toBeTruthy();
+    expect(secondCode).not.toBe(firstCode);
+
+    await expect(auth.confirmRegistration(identifier, firstCode)).rejects.toThrow();
+    await expect(auth.confirmRegistration(identifier, secondCode!)).resolves.toBeTruthy();
+  });
+
+  it('resend returns null rather than revealing that nothing is pending', async () => {
+    expect(await auth.resendRegistrationCode('nobody-pending@example.by')).toBeNull();
+  });
+
+  it('registering again with the same address replaces the old pending attempt', async () => {
+    const email = `retry-${Math.random().toString(36).slice(2)}@example.by`;
+    const first = await auth.beginRegistration({ email, password: GOOD_PASSWORD, displayName: 'Першая спроба' });
+    const second = await auth.beginRegistration({ email, password: GOOD_PASSWORD, displayName: 'Другая спроба' });
+
+    await expect(auth.confirmRegistration(email, first.code)).rejects.toThrow();
+    await expect(auth.confirmRegistration(email, second.code)).resolves.toBeTruthy();
+  });
+
+  it('does not reveal that an email already holds a real account', async () => {
     const email = 'taken@example.by';
     await register({ email });
-    await expect(register({ email })).rejects.toMatchObject({ code: 'ALREADY_EXISTS' });
+    await expect(auth.beginRegistration({ email, password: GOOD_PASSWORD, displayName: 'Хтосьці' })).rejects.toMatchObject({
+      code: 'ALREADY_EXISTS',
+    });
     // The message must not confirm the address exists.
-    await expect(register({ email })).rejects.toThrow(/Не удалось создать аккаунт/);
+    await expect(
+      auth.beginRegistration({ email, password: GOOD_PASSWORD, displayName: 'Хтосьці' }),
+    ).rejects.toThrow(/Не удалось создать аккаунт/);
   });
 
   it('rejects a company account with no company name', async () => {
-    await expect(register({ accountKind: 'COMPANY' })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    await expect(auth.beginRegistration({
+      email: `company-${Math.random().toString(36).slice(2)}@example.by`,
+      password: GOOD_PASSWORD,
+      displayName: 'Кампанія',
+      accountKind: 'COMPANY',
+    })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
   });
 
   it('rejects an account with neither email nor phone', async () => {
     await expect(
-      auth.register({ password: GOOD_PASSWORD, displayName: 'Ghost' }),
+      auth.beginRegistration({ password: GOOD_PASSWORD, displayName: 'Ghost' }),
     ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
   });
 
   it('rejects a weak password before touching the database', async () => {
-    await expect(register({ password: 'qwerty' })).rejects.toThrow(WeakPasswordError);
-    const { rows } = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM app_user`);
+    await expect(
+      auth.beginRegistration({
+        email: `weak-${Math.random().toString(36).slice(2)}@example.by`,
+        password: 'qwerty',
+        displayName: 'Слабы',
+      }),
+    ).rejects.toThrow(WeakPasswordError);
+    const { rows } = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM pending_registration`);
     expect(rows[0]!.c).toBe('0');
+  });
+});
+
+/* ================================================================== */
+
+describe('sign in with Google', () => {
+  const google = (over: Partial<Parameters<AuthService['continueWithGoogle']>[0]> = {}) => ({
+    sub: `sub-${Math.random().toString(36).slice(2)}`,
+    email: `google-${Math.random().toString(36).slice(2)}@example.by`,
+    emailVerified: true,
+    name: 'Гугл Карыстальнік',
+    ...over,
+  });
+
+  it('refuses when Google reports the email as unverified', async () => {
+    await expect(auth.continueWithGoogle(google({ emailVerified: false }))).rejects.toMatchObject({
+      code: 'VALIDATION_FAILED',
+    });
+  });
+
+  it('creates a new, already-verified account on first sign-in', async () => {
+    const g = google();
+    const { context } = await auth.continueWithGoogle(g);
+    expect(context.roles).toContain('TENANT');
+
+    const { rows } = await db.query<{ email_verified_at: string | null; google_sub: string | null }>(
+      `SELECT email_verified_at, google_sub FROM app_user WHERE id=$1`,
+      [context.userId],
+    );
+    expect(rows[0]!.email_verified_at).not.toBeNull();
+    expect(rows[0]!.google_sub).toBe(g.sub);
+  });
+
+  it('signing in again with the same Google account reaches the same user', async () => {
+    const g = google();
+    const first = await auth.continueWithGoogle(g);
+    const second = await auth.continueWithGoogle(g);
+    expect(second.context.userId).toBe(first.context.userId);
+
+    const { rows } = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM app_user WHERE google_sub=$1`, [g.sub]);
+    expect(rows[0]!.c).toBe('1');
+  });
+
+  it('links Google to an existing password account with the same email, rather than duplicating it', async () => {
+    const email = `linkme-${Math.random().toString(36).slice(2)}@example.by`;
+    const { userId } = await register({ email });
+
+    const { context } = await auth.continueWithGoogle(google({ email }));
+    expect(context.userId).toBe(userId);
+
+    const { rows } = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM app_user WHERE lower(email)=lower($1)`, [email]);
+    expect(rows[0]!.c).toBe('1');
+  });
+
+  it('writes an audit row for a brand-new Google account', async () => {
+    const g = google();
+    const { context } = await auth.continueWithGoogle(g);
+    const { rows } = await db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM audit_log WHERE action='auth.register' AND target_id=$1`,
+      [context.userId],
+    );
+    expect(rows[0]!.c).toBe('1');
   });
 });
 
@@ -288,11 +469,14 @@ describe('sessions', () => {
 
   it('revokes every session at once when required', async () => {
     const email = 'multi@example.by';
-    await register({ email });
+    // register() itself confirms the account, which mints a first session —
+    // so three are live going in, not two.
+    const registered = await register({ email });
     const a = await auth.login(email, GOOD_PASSWORD);
     const b = await auth.login(email, GOOD_PASSWORD);
 
-    expect(await auth.revokeAllSessions(a.context.userId, 'COMPROMISE')).toBe(2);
+    expect(await auth.revokeAllSessions(a.context.userId, 'COMPROMISE')).toBe(3);
+    expect(await auth.resolveSession(registered.session.token)).toBeNull();
     expect(await auth.resolveSession(a.session.token)).toBeNull();
     expect(await auth.resolveSession(b.session.token)).toBeNull();
   });
@@ -300,19 +484,7 @@ describe('sessions', () => {
 
 /* ================================================================== */
 
-describe('email verification and password reset', () => {
-  it('verifies an email exactly once', async () => {
-    const { userId, verificationToken } = await register();
-    expect(await auth.verifyEmail(verificationToken)).toBe(userId);
-    await expect(auth.verifyEmail(verificationToken)).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
-  });
-
-  it('rejects an expired verification token', async () => {
-    const { verificationToken } = await register();
-    await db.query(`UPDATE auth_token SET expires_at = now() - interval '1 hour'`);
-    await expect(auth.verifyEmail(verificationToken)).rejects.toThrow();
-  });
-
+describe('password reset', () => {
   it('returns null for an unknown account instead of revealing it', async () => {
     expect(await auth.requestPasswordReset('nobody@example.by')).toBeNull();
   });
@@ -349,13 +521,6 @@ describe('email verification and password reset', () => {
 
     await expect(auth.resetPassword(first!, 'parol-numar-adzin-x')).rejects.toThrow();
     await expect(auth.resetPassword(second!, 'parol-numar-dva-xx')).resolves.toBeUndefined();
-  });
-
-  it('cannot use a reset token as a verification token', async () => {
-    const email = 'crosspurpose@example.by';
-    await register({ email });
-    const reset = await auth.requestPasswordReset(email);
-    await expect(auth.verifyEmail(reset!)).rejects.toThrow();
   });
 });
 

@@ -81,8 +81,7 @@
     "map": {
       "empty": "No properties in this area",
       "ariaLabel": "Map of properties",
-      "approximateLocation": "Approximate location shown",
-      "notice": "The map layer isn't connected yet. Points are shown in their real relative positions."
+      "approximateLocation": "Approximate location shown"
     },
 
     "card": {

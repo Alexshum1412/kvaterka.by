@@ -1,7 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { renderToStaticMarkup } from 'react-dom/server';
+import type { Map as LeafletMap, Marker as LeafletMarker } from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { Link } from '@/i18n/navigation.ts';
 import { Icon } from '@/ui/icons.tsx';
 import { formatMoney, fromStorage } from '@/server/domain/money.ts';
@@ -17,18 +20,18 @@ export interface MapMarker {
 }
 
 /**
- * Map panel.
+ * Map panel — real OpenStreetMap tiles via Leaflet (LEGAL-014: the user's own
+ * explicit, direct choice of provider; flagged to them rather than decided
+ * silently — see the register entry for what that means for tile requests).
  *
- * The tile provider is intentionally abstracted (spec §19: "design provider
- * abstraction so map provider can be replaced later"). When
- * NEXT_PUBLIC_MAP_STYLE_URL is configured, the tile layer renders behind these
- * markers. It is NOT configured yet — no provider has been chosen, and that
- * choice interacts with LEGAL-014 (map/geolocation restrictions in Belarus).
+ * Leaflet touches `window` at import time, so it is dynamically imported
+ * inside the effect rather than at module scope — a static import would
+ * throw during this client component's server-side render pass.
  *
- * Rather than fake a map, this renders the markers in their true relative
- * geographic positions on a plain equirectangular projection. Relative
- * distances and clustering are real; only the basemap imagery is missing, and
- * the panel says so plainly instead of pretending.
+ * Markers are a custom `L.divIcon` built from the same price-pill markup the
+ * previous placeholder used (`renderToStaticMarkup`, not a second copy of the
+ * styles), so the product's own marker design carries over onto the real
+ * basemap instead of Leaflet's default pin.
  *
  * Every coordinate here is the BLURRED public point. The exact location is
  * never sent to the client before a booking is confirmed (DEC-020).
@@ -36,25 +39,78 @@ export interface MapMarker {
 export function MapPanel({ markers }: { markers: MapMarker[] }) {
   const t = useTranslations('Listing');
   const [active, setActive] = useState<string | null>(null);
-  const styleUrl = process.env.NEXT_PUBLIC_MAP_STYLE_URL;
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const markersRef = useRef<Map<string, LeafletMarker>>(new Map());
 
-  const projected = useMemo(() => {
-    if (markers.length === 0) return [];
-    const lats = markers.map((m) => m.latitude);
-    const lngs = markers.map((m) => m.longitude);
-    // Pad the bounds so markers never sit flush against the edge.
-    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-    const latSpan = Math.max(maxLat - minLat, 0.004);
-    const lngSpan = Math.max(maxLng - minLng, 0.004);
+  const activeMarker = active === null ? undefined : markers.find((m) => m.id === active);
 
-    return markers.map((m) => ({
-      ...m,
-      // y is inverted: latitude grows north, screen coordinates grow down.
-      x: 8 + ((m.longitude - minLng) / lngSpan) * 84,
-      y: 8 + (1 - (m.latitude - minLat) / latSpan) * 84,
-    }));
+  useEffect(() => {
+    if (!containerRef.current || markers.length === 0) return;
+    let cancelled = false;
+
+    (async () => {
+      const L = (await import('leaflet')).default;
+      if (cancelled || !containerRef.current) return;
+
+      const map = L.map(containerRef.current, { attributionControl: true, zoomControl: true });
+      mapRef.current = map;
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(map);
+
+      for (const marker of markers) {
+        const icon = L.divIcon({
+          html: renderToStaticMarkup(
+            <span className="map-pin__inner">
+              <span className="numeric">{formatMoney(fromStorage(marker.priceMinor), { showCurrency: false })}</span>
+            </span>,
+          ),
+          className: 'map-pin',
+          // A zero-size anchor box: width/height 0 with the default
+          // `overflow: visible` shows the pill without Leaflet constraining
+          // its box to a guessed size, and the anchor point (half of
+          // iconSize) lands exactly on the marker's own wrapper div — the
+          // inner span's CSS transform does the actual centering below.
+          iconSize: [0, 0],
+        });
+        const leafletMarker = L.marker([marker.latitude, marker.longitude], {
+          icon,
+          alt: `${marker.title}, ${formatMoney(fromStorage(marker.priceMinor))}`,
+        }).addTo(map);
+        leafletMarker.on('click', () => setActive((prev) => (prev === marker.id ? null : marker.id)));
+        markersRef.current.set(marker.id, leafletMarker);
+      }
+
+      if (markers.length === 1) {
+        map.setView([markers[0]!.latitude, markers[0]!.longitude], 14);
+      } else {
+        const bounds = L.latLngBounds(markers.map((m) => [m.latitude, m.longitude] as [number, number]));
+        map.fitBounds(bounds, { padding: [32, 32] });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      mapRef.current?.remove();
+      mapRef.current = null;
+      markersRef.current.clear();
+    };
+    // Markers are re-keyed by identity below via the marker id set, not by
+    // deep-diffing lat/lng — a fresh marker set tears down and rebuilds the
+    // whole map, which is cheap enough at listing-page and search-result scale.
   }, [markers]);
+
+  // Reflects `active` onto the marker DOM (a CSS class) without rebuilding
+  // the map — clicking a marker or the pin toggling must not re-fetch tiles.
+  useEffect(() => {
+    for (const [id, marker] of markersRef.current) {
+      const el = marker.getElement();
+      el?.classList.toggle('map-pin--active', id === active);
+    }
+  }, [active]);
 
   if (markers.length === 0) {
     return (
@@ -70,26 +126,10 @@ export function MapPanel({ markers }: { markers: MapMarker[] }) {
     );
   }
 
-  const activeMarker = active === null ? undefined : markers.find((m) => m.id === active);
-
   return (
     <div className="map-panel">
       <div className="map-panel__viewport">
-        <div className="map-panel__canvas" role="group" aria-label={t('map.ariaLabel')}>
-          {projected.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              className="map-pin"
-              style={{ left: `${m.x}%`, top: `${m.y}%` }}
-              aria-label={`${m.title}, ${formatMoney(fromStorage(m.priceMinor))}`}
-              aria-pressed={active === m.id}
-              onClick={() => setActive(active === m.id ? null : m.id)}
-            >
-              <span className="numeric">{formatMoney(fromStorage(m.priceMinor), { showCurrency: false })}</span>
-            </button>
-          ))}
-        </div>
+        <div ref={containerRef} className="map-panel__canvas" role="group" aria-label={t('map.ariaLabel')} />
 
         {activeMarker && (
           <div className="map-panel__card card">
@@ -107,22 +147,11 @@ export function MapPanel({ markers }: { markers: MapMarker[] }) {
         )}
       </div>
 
-      {!styleUrl && (
-        <p className="map-panel__notice">
-          <Icon name="info" size={14} />
-          {t('map.notice')}
-        </p>
-      )}
-
       <style>{MAP_CSS}</style>
     </div>
   );
 }
 
-/*
- * The notice sits in the flex column rather than over the viewport, so a long
- * line can wrap on a 375px phone without ever covering a pin.
- */
 const MAP_CSS = `
   .map-panel {
     position: relative;
@@ -152,17 +181,15 @@ const MAP_CSS = `
     position: relative;
     flex: 1 1 auto;
     min-height: 12rem;
-    /* A graticule, not a texture: barely there, only enough to read as a
-       plan view rather than an empty grey rectangle. */
-    background-image:
-      repeating-linear-gradient(0deg, transparent 0 47px, color-mix(in srgb, var(--border) 60%, transparent) 47px 48px),
-      repeating-linear-gradient(90deg, transparent 0 47px, color-mix(in srgb, var(--border) 60%, transparent) 47px 48px);
   }
-  .map-panel__canvas { position: absolute; inset: 0; }
+  .map-panel__canvas { position: absolute; inset: 0; background: var(--surface-sunken); }
 
-  .map-pin {
-    position: absolute;
-    z-index: 1;
+  /* Leaflet positions the marker's OWN wrapper div (.leaflet-marker-icon)
+     with an inline transform so its top-left corner sits at the geo point;
+     centering that on the point has to happen one level down, on this inner
+     span, so it never fights leaflet's own transform for the same property. */
+  .map-pin__inner {
+    display: inline-flex;
     transform: translate(-50%, -50%);
     min-height: 2.5rem;
     padding: 0.4rem 0.7rem;
@@ -177,19 +204,21 @@ const MAP_CSS = `
     cursor: pointer;
     white-space: nowrap;
     transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+    align-items: center;
   }
   /* --primary carries white text at 5.28:1; --accent would fail here. */
-  .map-pin:hover, .map-pin[aria-pressed='true'] {
-    z-index: 3;
+  .leaflet-marker-icon.map-pin--active .map-pin__inner,
+  .leaflet-marker-icon.map-pin:hover .map-pin__inner {
     background: var(--primary);
     color: var(--text-on-primary);
     border-color: var(--primary);
   }
+  .leaflet-marker-icon.map-pin--active { z-index: 1000 !important; }
 
   .map-panel__card {
     position: absolute;
     left: 0.75rem; right: 0.75rem; bottom: 0.75rem;
-    z-index: 4;
+    z-index: 1001;
     box-shadow: var(--shadow-overlay);
     overflow: hidden;
   }
@@ -201,14 +230,4 @@ const MAP_CSS = `
   }
   .map-card__price { font-size: var(--text-base); font-weight: 600; color: var(--text-primary); }
   .map-card__note { font-size: var(--text-2xs); color: var(--text-tertiary); }
-
-  .map-panel__notice {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.5rem 0.75rem 0.625rem;
-    font-size: var(--text-2xs);
-    line-height: 1.4;
-    color: var(--text-tertiary);
-  }
 `;

@@ -184,10 +184,19 @@ export const RETENTION_CATALOGUE: readonly TablePolicy[] = [
     table: 'auth_token',
     dataClass: 'PSEUDONYMOUS',
     subject: 'user_id',
-    purpose: 'Одноразовые ссылки: подтверждение почты, сброс пароля',
+    purpose: 'Одноразовые ссылки: сброс пароля и подобное — для уже существующей учётной записи',
     onErasure: 'HARD_DELETE',
     window: { kind: 'TECHNICAL', why: 'Использованный или истёкший токен бесполезен' },
     enforced: true,
+  },
+  {
+    table: 'pending_registration',
+    dataClass: 'PERSONAL',
+    subject: 'email',
+    purpose: 'Регистрация, ожидающая подтверждения почты — учётной записи ещё не существует',
+    onErasure: 'HARD_DELETE',
+    window: { kind: 'PER_ROW', column: 'expires_at', why: 'Код действует ограниченное время; после истечения строка бесполезна' },
+    note: 'Никакого юридического вопроса тут нет — это не персональные данные человека с учётной записью, а недооформленная попытка её создать. Строка заменяется целиком при повторной попытке тем же адресом, поэтому отдельного job-а на очистку просроченных строк сегодня нет; это не идентично «enforced», а лишь означает, что просроченная строка ничему не мешает и не выдаётся ни за какой код.',
   },
   {
     table: 'audit_log',
@@ -368,6 +377,7 @@ export const RETENTION_CATALOGUE: readonly TablePolicy[] = [
   },
   { table: 'notification_preference', dataClass: 'OPERATIONAL', subject: 'user_id', purpose: 'Настройки каналов', onErasure: 'HARD_DELETE', window: { kind: 'TECHNICAL', why: 'Настройка не переживает учётную запись' } },
   { table: 'telegram_connection', dataClass: 'PERSONAL', subject: 'user_id', purpose: 'Привязка Telegram', onErasure: 'HARD_DELETE', window: { kind: 'UNKNOWN', blockedBy: 'LEGAL-015', why: 'Отвязка оставляет строку; срок её хранения не определён' } },
+  { table: 'vk_connection', dataClass: 'PERSONAL', subject: 'user_id', purpose: 'Привязка VK для подтверждения телефона (0018)', onErasure: 'HARD_DELETE', window: { kind: 'UNKNOWN', blockedBy: LEGAL_004, why: 'Отвязка оставляет строку; срок её хранения не определён' } },
 
   /* -- convenience -------------------------------------------------- */
   { table: 'favorite', dataClass: 'OPERATIONAL', subject: 'user_id', purpose: 'Избранное', onErasure: 'HARD_DELETE', window: { kind: 'TECHNICAL', why: 'Не переживает учётную запись' } },

@@ -59,10 +59,14 @@ async function handle(request: Request): Promise<Response> {
     ip: headers['x-real-ip'] ?? headers['x-forwarded-for']?.split(',')[0]?.trim() ?? null,
   };
 
+  const config = env();
   const response = await dispatch(router(), apiRequest, {
     db: await ready(),
     services: await readyServices(),
-    jobToken: env().JOB_RUNNER_TOKEN,
+    jobToken: config.JOB_RUNNER_TOKEN,
+    phoneVerificationAvailable: Boolean(
+      config.TELEGRAM_BOT_TOKEN || config.VK_GROUP_TOKEN || config.WHATSAPP_ACCESS_TOKEN,
+    ),
     onError: ({ correlationId, error }) => {
       console.error(
         JSON.stringify({

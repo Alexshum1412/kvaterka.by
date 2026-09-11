@@ -19,15 +19,15 @@ export async function generateMetadata(): Promise<Metadata> {
  * Where the link in the "confirm your email" message lands.
  *
  * There is no form here — clicking the link already proved intent, so the
- * page's only job is to hand the token to the backend and report what
- * happened. See ui/verify-email.tsx for the three states that follow.
+ * page's only job is to hand the identifier/code to the backend and report
+ * what happened. See ui/verify-email.tsx for the three states that follow.
  */
 export default async function VerifyEmailPage({
   searchParams,
 }: {
-  searchParams: Promise<{ token?: string }>;
+  searchParams: Promise<{ identifier?: string; code?: string }>;
 }) {
-  const { token } = await searchParams;
+  const { identifier, code } = await searchParams;
   const t = await getTranslations('VerifyEmail');
 
   return (
@@ -40,8 +40,8 @@ export default async function VerifyEmailPage({
       </header>
 
       <section className="card ve__card">
-        {token ? (
-          <VerifyEmail token={token} />
+        {identifier && code ? (
+          <VerifyEmail identifier={identifier} code={code} />
         ) : (
           <div className="ve__missing">
             <p>{t('missingToken')}</p>

@@ -7,20 +7,26 @@ import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from './icons.tsx';
 
 /**
- * Confirming an email address.
+ * Confirming an email address from the link in the registration email.
  *
- * Unlike the password-reset confirm screen, there is nothing to type: the
- * token in the URL is the whole submission, and the person already proved
- * intent by clicking the link in their inbox. So the POST fires once on
- * mount, with no button in between.
+ * The link carries `identifier` and `code` — the same code a person could
+ * type by hand on `/login`'s code step — so clicking it is just a
+ * convenience for submitting that code. The POST fires once on mount, with
+ * no button in between, since the person already proved intent by clicking
+ * the link in their inbox.
+ *
+ * `POST /auth/register/confirm` finishes creating the account and sets the
+ * session cookie in the same response, so a success here already leaves the
+ * visitor signed in — the follow-up button goes straight to `/dashboard`,
+ * not back through `/login`.
  *
  * The `sent` ref (not state) guards that single fire against React 18/19
  * Strict Mode's dev-time double-invoke of effects — without it, the second
- * call would hit the token a moment after the first already consumed it and
- * come back as "reused", which is wrong: the token was fine, the effect just
- * ran twice.
+ * call would hit the code a moment after the first already consumed it and
+ * come back as "wrong code", which is wrong: the code was fine, the effect
+ * just ran twice.
  */
-export function VerifyEmail({ token }: { token: string }) {
+export function VerifyEmail({ identifier, code }: { identifier: string; code: string }) {
   const t = useTranslations('VerifyEmail');
   const [status, setStatus] = useState<'busy' | 'success' | 'error'>('busy');
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +38,7 @@ export function VerifyEmail({ token }: { token: string }) {
 
     (async () => {
       try {
-        await api.post('/auth/verify-email', { token });
+        await api.post('/auth/register/confirm', { identifier, code });
         setStatus('success');
       } catch (e) {
         setError(e instanceof ApiError ? e.message : t('genericError'));
@@ -40,8 +46,8 @@ export function VerifyEmail({ token }: { token: string }) {
       }
     })();
     // Fires the confirmation exactly once on mount (guarded by the `sent`
-    // ref above); `token` is the only value the request depends on.
-  }, [token]);
+    // ref above); `identifier`/`code` are the only values the request depends on.
+  }, [identifier, code]);
 
   if (status === 'busy') {
     return (
@@ -61,8 +67,8 @@ export function VerifyEmail({ token }: { token: string }) {
         <div>
           <h2>{t('successTitle')}</h2>
           <p>{t('successBody')}</p>
-          <Link href="/login" className="btn btn-primary">
-            {t('loginButton')}
+          <Link href="/dashboard" className="btn btn-primary">
+            {t('continueButton')}
           </Link>
         </div>
         <style>{VE_CSS}</style>

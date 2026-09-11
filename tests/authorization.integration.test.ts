@@ -34,7 +34,7 @@ beforeEach(async () => {
     INSERT INTO feature_flag (key, enabled, description, requires_legal_approval) VALUES
       ('fee.enforcement', true, 'test', true),
       ('rewards.lottery', false, 'test', true),
-      ('verification.identity_documents', false, 'test', true)
+      ('verification.property_documents', false, 'test', true)
     ON CONFLICT DO NOTHING;
   `);
 });
@@ -134,28 +134,30 @@ describe('identity documents', () => {
     // flag is off pending LEGAL-004, which is the intended state today.
     expect(res.status).not.toBe(403);
     expect(res.status).toBe(422);
-    expect(res.body.error.message).toMatch(/юридического заключения/);
+    expect(res.body.error.message).toMatch(/сейчас отключена/);
   });
 
   it('logs every document read', async () => {
     const verifier = await api.signUp();
     await api.grantRole(verifier.userId, 'VERIFIER');
     const owner = await api.signUp();
+    const propertyId = (await api.post('/listings', LISTING, { token: owner.token })).body.id as string;
 
     await db.query(
       `INSERT INTO feature_flag (key, enabled, description, requires_legal_approval)
-       VALUES ('verification.identity_documents', true, 'test', true)
+       VALUES ('verification.property_documents', true, 'test', true)
        ON CONFLICT (key) DO UPDATE SET enabled = true`,
     );
     const requestId = crypto.randomUUID();
     const documentId = crypto.randomUUID();
     await db.query(
-      `INSERT INTO verification_request (id, user_id, kind, target_level) VALUES ($1,$2,'IDENTITY',1)`,
-      [requestId, owner.userId],
+      `INSERT INTO verification_request (id, user_id, property_id, kind, target_level)
+       VALUES ($1,$2,$3,'PROPERTY_OWNERSHIP',2)`,
+      [requestId, owner.userId, propertyId],
     );
     await db.query(
       `INSERT INTO verification_document (id, request_id, doc_type, storage_key)
-       VALUES ($1,$2,'PASSPORT','private/docs/1.jpg')`,
+       VALUES ($1,$2,'OWNERSHIP_CERTIFICATE','private/docs/1.jpg')`,
       [documentId, requestId],
     );
 
@@ -179,14 +181,16 @@ describe('identity documents', () => {
     const verifier = await api.signUp();
     await api.grantRole(verifier.userId, 'VERIFIER');
     const owner = await api.signUp();
+    const propertyId = (await api.post('/listings', LISTING, { token: owner.token })).body.id as string;
     const requestId = crypto.randomUUID();
     await db.query(
-      `INSERT INTO verification_request (id, user_id, kind, target_level) VALUES ($1,$2,'IDENTITY',1)`,
-      [requestId, owner.userId],
+      `INSERT INTO verification_request (id, user_id, property_id, kind, target_level)
+       VALUES ($1,$2,$3,'PROPERTY_OWNERSHIP',2)`,
+      [requestId, owner.userId, propertyId],
     );
     await db.query(
       `INSERT INTO verification_document (id, request_id, doc_type, storage_key)
-       VALUES ($1,$2,'PASSPORT','private/docs/secret.jpg')`,
+       VALUES ($1,$2,'OWNERSHIP_CERTIFICATE','private/docs/secret.jpg')`,
       [crypto.randomUUID(), requestId],
     );
 

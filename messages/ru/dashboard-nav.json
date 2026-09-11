@@ -1,0 +1,11 @@
+{
+  "DashboardNav": {
+    "navAria": "Личный кабинет",
+    "overview": "Дашборд",
+    "bookings": "Бронирования",
+    "finance": "Финансы",
+    "messages": "Сообщения",
+    "verification": "Верификация",
+    "account": "Аккаунт"
+  }
+}

@@ -10,6 +10,7 @@ import { staffRoutes } from './staff.ts';
 import { accountSelfRoutes, retentionStaffRoutes } from './retention.ts';
 import { twoFactorRoutes } from './two-factor.ts';
 import { verificationSelfRoutes, verificationStaffRoutes } from './verification.ts';
+import { phoneVerificationRoutes } from './phone-verification.ts';
 import { defineRoute } from '../http.ts';
 
 /** Liveness/readiness. No auth, no rate limit — monitoring must always reach it. */
@@ -47,5 +48,6 @@ export const allRoutes: AnyRoute[] = [
   ...retentionStaffRoutes,
   ...verificationSelfRoutes,
   ...verificationStaffRoutes,
+  ...phoneVerificationRoutes,
   ...adminRoutes,
 ];

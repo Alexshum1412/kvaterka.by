@@ -59,6 +59,39 @@ const envSchema = z.object({
    * unset.
    */
   TELEGRAM_BOT_USERNAME: z.string().optional(),
+  /**
+   * "Sign in with Google". Both optional and checked together at the call
+   * site (not `.refine()`d here the way SMTP_URL/MAIL_FROM are): the button
+   * degrades to "not offered" when either is missing, the same posture every
+   * other optional channel in this file takes, and there is no login form
+   * left half-broken by one being absent — it simply doesn't render.
+   */
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  /**
+   * Phone verification channels (0018) — each independently optional, same
+   * "degrades to not offered" posture as TELEGRAM_BOT_TOKEN above. At least
+   * one must be set for the phone-verification gate to actually apply; see
+   * `phoneVerificationAvailable` at the dispatch call site.
+   */
+  VK_GROUP_TOKEN: z.string().optional(),
+  VK_GROUP_ID: z.string().optional(),
+  /**
+   * The one-time string VK's own "Callback API" settings screen asks the
+   * webhook to echo back verbatim, proving this deployment owns the URL
+   * before VK will send it anything else. Not a secret in the usual sense —
+   * VK itself displays it in the group's admin panel — but VK-specific, so it
+   * lives here rather than being guessed.
+   */
+  VK_CONFIRMATION_CODE: z.string().optional(),
+  /** VK's own optional shared secret, echoed on every callback once set in the community's Callback API settings. */
+  VK_CALLBACK_SECRET: z.string().optional(),
+  WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+  /** Meta's webhook-verification handshake token — chosen by this deployment, entered into Meta's console. */
+  WHATSAPP_VERIFY_TOKEN: z.string().optional(),
+  /** The wa.me deep-link target, e.g. "375291234567" — not a secret, same posture as TELEGRAM_BOT_USERNAME. */
+  WHATSAPP_BUSINESS_NUMBER: z.string().optional(),
   SMTP_URL: z.string().optional(),
   /**
    * From: header for outbound mail, e.g. "Кватэрка.by <noreply@kvaterka.by>".

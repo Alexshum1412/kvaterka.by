@@ -42,6 +42,8 @@ export interface Caller {
   readonly roles: readonly Role[];
   readonly displayName: string;
   readonly emailVerified: boolean;
+  /** Verified via a linked Telegram, VK or WhatsApp account — see 0018. */
+  readonly phoneVerified: boolean;
   /** Staff roles held but withheld from this session, so a handler can explain. */
   readonly withheldRoles: readonly Role[];
   /** When a second factor was last confirmed, for step-up. */
@@ -95,6 +97,16 @@ export interface RouteDefinition<B = unknown, Q = unknown> {
   readonly auth: 'none' | 'optional' | 'required';
   /** Staff permission required in addition to authentication. */
   readonly permission?: Permission;
+  /**
+   * Reachable on an `auth: 'required'` route even before the caller has
+   * verified their phone. Gated BY DEFAULT (fail closed, spec: "не мог войти
+   * в аккаунт и ничего делать" until email and phone are both verified) —
+   * this is the short, explicit allowlist for the handful of routes that
+   * must stay reachable anyway: resolving who you are, logging out, and the
+   * phone-verification flow itself. Everything else needs this true only if
+   * a genuine reason belongs here, stated at the call site.
+   */
+  readonly phoneGateExempt?: boolean;
   // Input type is left open: query schemas legitimately transform (a
   // comma-separated string becoming an array, "true" becoming a boolean), so
   // the parsed output need not match the wire shape.

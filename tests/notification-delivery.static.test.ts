@@ -122,10 +122,15 @@ describe('smtpProvider', () => {
 const BASE_URL = 'http://localhost:3000';
 
 describe('renderBody', () => {
-  it('an EMAIL_VERIFICATION payload renders the /verify-email link with the token', () => {
-    const body = renderBody('SECURITY', { kind: 'EMAIL_VERIFICATION', token: 'tok-123' }, BASE_URL);
+  it('a REGISTRATION_CODE payload renders the code and the /verify-email link', () => {
+    const body = renderBody(
+      'SECURITY',
+      { kind: 'REGISTRATION_CODE', code: '123456', identifier: 'user@example.by' },
+      BASE_URL,
+    );
 
-    expect(body).toContain(`${BASE_URL}/verify-email?token=tok-123`);
+    expect(body).toContain('123456');
+    expect(body).toContain(`${BASE_URL}/verify-email?identifier=user%40example.by&code=123456`);
   });
 
   it('a PASSWORD_RESET payload renders the /password-reset link with the token', () => {
@@ -139,8 +144,12 @@ describe('renderBody', () => {
     // (see its constructor) — renderBody itself does no normalizing, so a
     // caller that skipped that step would get a doubled slash. Documented here
     // rather than re-tested, since that stripping lives in DeliveryService.
-    const body = renderBody('SECURITY', { kind: 'EMAIL_VERIFICATION', token: 't' }, 'https://kvaterka.by');
-    expect(body).toContain('https://kvaterka.by/verify-email?token=t');
+    const body = renderBody(
+      'SECURITY',
+      { kind: 'REGISTRATION_CODE', code: '654321', identifier: 'u@example.by' },
+      'https://kvaterka.by',
+    );
+    expect(body).toContain('https://kvaterka.by/verify-email?identifier=u%40example.by&code=654321');
   });
 
   it('an unrelated category (BOOKING_REQUEST) is unchanged: title plus /trips or /dashboard, no token logic', () => {
