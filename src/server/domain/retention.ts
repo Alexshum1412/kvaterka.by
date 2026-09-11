@@ -377,7 +377,6 @@ export const RETENTION_CATALOGUE: readonly TablePolicy[] = [
   },
   { table: 'notification_preference', dataClass: 'OPERATIONAL', subject: 'user_id', purpose: 'Настройки каналов', onErasure: 'HARD_DELETE', window: { kind: 'TECHNICAL', why: 'Настройка не переживает учётную запись' } },
   { table: 'telegram_connection', dataClass: 'PERSONAL', subject: 'user_id', purpose: 'Привязка Telegram', onErasure: 'HARD_DELETE', window: { kind: 'UNKNOWN', blockedBy: 'LEGAL-015', why: 'Отвязка оставляет строку; срок её хранения не определён' } },
-  { table: 'vk_connection', dataClass: 'PERSONAL', subject: 'user_id', purpose: 'Привязка VK для подтверждения телефона (0018)', onErasure: 'HARD_DELETE', window: { kind: 'UNKNOWN', blockedBy: LEGAL_004, why: 'Отвязка оставляет строку; срок её хранения не определён' } },
 
   /* -- convenience -------------------------------------------------- */
   { table: 'favorite', dataClass: 'OPERATIONAL', subject: 'user_id', purpose: 'Избранное', onErasure: 'HARD_DELETE', window: { kind: 'TECHNICAL', why: 'Не переживает учётную запись' } },

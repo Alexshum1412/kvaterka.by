@@ -19,6 +19,20 @@ const MINOR_UNITS: Record<Currency, bigint> = {
   BYN: 100n,
 };
 
+/**
+ * The symbol shown to a person, as opposed to `Currency` itself — the ISO
+ * code, which stays `'BYN'` everywhere it functions as data (the DB's
+ * `currency = 'BYN'` CHECK constraints, ledger rows, this module's own
+ * `Money.currency` field). The National Bank of the Republic of Belarus's
+ * own currency mark for the ruble has no Unicode codepoint and cannot be
+ * relied on to render from a system font, so `Br` — the abbreviation
+ * Belarusian banks, shops and receipts already use — is what this codebase
+ * shows instead of the bare ISO code (0021; see DECISIONS.md DEC-071).
+ */
+const CURRENCY_SYMBOLS: Record<Currency, string> = {
+  BYN: 'Br',
+};
+
 export interface Money {
   /** Integer amount in minor units (kopecks). May be negative (landlord debt). */
   readonly amountMinor: bigint;
@@ -208,8 +222,10 @@ export function toDecimalString(m: Money): string {
 
 /**
  * Human display. Deliberately does NOT use Intl with a currency style: the
- * Belarusian convention is "1 234,56 BYN" and Intl output varies across ICU
- * versions, which would make snapshot tests and server/client rendering diverge.
+ * Belarusian convention is "1 234,56 Br" and Intl output varies across ICU
+ * versions, which would make snapshot tests and server/client rendering
+ * diverge. Shows `CURRENCY_SYMBOLS[m.currency]` ("Br"), not the raw ISO code
+ * — see that map's doc comment.
  */
 export function formatMoney(m: Money, opts: { showCurrency?: boolean; locale?: 'ru' | 'be' | 'en' } = {}): string {
   const { showCurrency = true } = opts;
@@ -220,7 +236,12 @@ export function formatMoney(m: Money, opts: { showCurrency?: boolean; locale?: '
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, '\u00A0');
   const body = frac ? `${grouped},${frac}` : grouped;
   const sign = negative ? '−' : ''; // U+2212 MINUS SIGN, not a hyphen
-  return showCurrency ? `${sign}${body}\u00A0${m.currency}` : `${sign}${body}`;
+  return showCurrency ? `${sign}${body}\u00A0${CURRENCY_SYMBOLS[m.currency]}` : `${sign}${body}`;
+}
+
+/** The display symbol for a currency - "Br" for BYN. See `CURRENCY_SYMBOLS`. */
+export function currencySymbol(currency: Currency = 'BYN'): string {
+  return CURRENCY_SYMBOLS[currency];
 }
 
 /** Persist as a string so no JSON layer can turn it into a float. */

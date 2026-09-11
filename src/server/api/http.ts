@@ -42,7 +42,7 @@ export interface Caller {
   readonly roles: readonly Role[];
   readonly displayName: string;
   readonly emailVerified: boolean;
-  /** Verified via a linked Telegram, VK or WhatsApp account — see 0018. */
+  /** Verified via a linked Telegram account — see 0018. */
   readonly phoneVerified: boolean;
   /** Staff roles held but withheld from this session, so a handler can explain. */
   readonly withheldRoles: readonly Role[];

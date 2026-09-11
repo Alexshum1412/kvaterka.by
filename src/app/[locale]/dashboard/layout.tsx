@@ -30,9 +30,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!user) redirect({ href: signInUrl('/dashboard'), locale });
 
   const isStaff = user!.roles.some((r) => r !== 'TENANT' && r !== 'LANDLORD');
-  const anyChannelConfigured = Boolean(
-    process.env.TELEGRAM_BOT_TOKEN || process.env.VK_GROUP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN,
-  );
+  const anyChannelConfigured = Boolean(process.env.TELEGRAM_BOT_TOKEN);
 
   if (!user!.phoneVerified && !isStaff && user!.withheldRoles.length === 0 && anyChannelConfigured) {
     redirect({ href: `/verify-phone?next=${encodeURIComponent('/dashboard')}`, locale });

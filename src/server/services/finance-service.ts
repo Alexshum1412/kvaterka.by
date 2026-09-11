@@ -20,7 +20,7 @@
  * flag's own description, where an administrator actually reads it.
  */
 
-import { formatMoney, fromStorage, money, toDecimalString, type Money } from '../domain/money.ts';
+import { currencySymbol, formatMoney, fromStorage, money, toDecimalString, type Money } from '../domain/money.ts';
 import { verifyStoredFee } from '../domain/pricing.ts';
 import type { Db } from '../db/sql.ts';
 import { forbidden, invalid, notFound } from './errors.ts';
@@ -192,7 +192,7 @@ export class FinanceService {
       // Every fee can be recomputed from its own stored inputs. Surfacing this
       // makes the number checkable by the person being charged.
       arithmeticVerified: verifyStoredFee(BigInt(r.base_minor), r.bps, BigInt(r.fee_minor)),
-      explanation: `${toDecimalString(fromStorage(r.base_minor))} × ${r.bps / 100}% = ${toDecimalString(fromStorage(r.fee_minor))} BYN`,
+      explanation: `${toDecimalString(fromStorage(r.base_minor))} × ${r.bps / 100}% = ${toDecimalString(fromStorage(r.fee_minor))} ${currencySymbol()}`,
     }));
   }
 

@@ -110,7 +110,7 @@
       "quoteHead": "{nights, plural, one {Estimate for # night} other {Estimate for # nights}}",
       "meterBilled": "metered",
       "totalLabel": "Total due to the host",
-      "depositNote": "Additionally, a refundable deposit of {amount} BYN — returned at check-out.",
+      "depositNote": "Additionally, a refundable deposit of {amount} Br — returned at check-out.",
       "variableCostsNote": "Utility costs are billed by meter and are not included in the amount above.",
       "submitError": "Couldn't send the request",
       "instantBookButton": "Book instantly",

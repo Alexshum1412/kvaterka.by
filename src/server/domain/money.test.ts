@@ -166,11 +166,11 @@ describe('parsing', () => {
 describe('formatting', () => {
   it('groups thousands the Belarusian way and uses a comma decimal', () => {
     // No-break spaces are intentional: amounts must not wrap mid-number.
-    expect(formatMoney(parseMoney('1234567.89'))).toBe('1\u00A0234\u00A0567,89\u00A0BYN');
+    expect(formatMoney(parseMoney('1234567.89'))).toBe('1\u00A0234\u00A0567,89\u00A0Br');
   });
 
   it('renders landlord debt with a real minus sign', () => {
-    expect(formatMoney(money(-5000n))).toBe('\u221250,00\u00A0BYN');
+    expect(formatMoney(money(-5000n))).toBe('\u221250,00\u00A0Br');
   });
 
   it('can omit the currency for compact UI', () => {

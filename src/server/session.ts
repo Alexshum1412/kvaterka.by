@@ -23,7 +23,7 @@ export interface PageCaller {
   readonly roles: readonly Role[];
   readonly displayName: string;
   readonly emailVerified: boolean;
-  /** Verified via a linked Telegram, VK or WhatsApp account — see 0018. */
+  /** Verified via a linked Telegram account — see 0018. */
   readonly phoneVerified: boolean;
   /** Held but withheld — the page shows a prompt instead of a bare 404. */
   readonly withheldRoles: readonly Role[];

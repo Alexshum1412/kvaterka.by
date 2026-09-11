@@ -250,7 +250,7 @@ export default async function ModerationQueuePage({
                       {item.base_price_minor && (
                         <>
                           {' · '}
-                          <Money minor={item.base_price_minor} showCurrency={false} /> BYN
+                          <Money minor={item.base_price_minor} />{' '}
                           {item.price_unit === 'MONTH' ? t('perMonth') : t('perNight')}
                         </>
                       )}

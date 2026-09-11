@@ -61,6 +61,14 @@ export function createServices(db: Db, publicBaseUrl: string): Services {
   // two sources of truth for one queue.
   const notifications = new NotificationService(db);
   const retention = new RetentionService(db);
+  const delivery = new DeliveryService(db, notifications, retention, undefined, publicBaseUrl);
+  // See NotificationService.setDeliverHook's doc comment: this is the one
+  // wiring point that lets `enqueue()` trigger an immediate best-effort send
+  // without the two services depending on each other's types. `enqueue()`
+  // awaits this, so a rejection must never escape it.
+  notifications.setDeliverHook(async (channel, notificationId) => {
+    await delivery.deliverNow(notificationId).catch(() => {});
+  });
 
   return {
     auth: new AuthService(db),
@@ -79,6 +87,6 @@ export function createServices(db: Db, publicBaseUrl: string): Services {
     finance: new FinanceService(db),
     verification: new VerificationService(db),
     retention,
-    delivery: new DeliveryService(db, notifications, retention, undefined, publicBaseUrl),
+    delivery,
   };
 }

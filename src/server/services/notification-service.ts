@@ -5,12 +5,27 @@
  * row and return. A worker delivers it. That keeps a failing third party from
  * rolling back a booking, and makes delivery retryable.
  *
- * Two rules the schema enforces rather than trusts:
- *   - `(user_id, channel, dedupe_key)` is unique, so a re-run job cannot send
- *     the same message twice (spec §55).
- *   - Telegram is opt-in. `notifications.telegram` is checked per user, per
- *     category, and a message is SUPPRESSED rather than sent when consent is
- *     absent — never sent "just this once".
+ * `(user_id, channel, dedupe_key)` is unique, so a re-run job cannot send the
+ * same message twice (spec §55).
+ *
+ * Telegram defaults ON, same as IN_APP/EMAIL, the moment a person has a live
+ * `telegram_connection` — linking the bot IS the consent (0021: a person who
+ * bothers to open the bot and press Start wants to hear from it, and making
+ * them separately flip a switch afterward is a second step nobody expects).
+ * An explicit `notification_preference` row still lets a person turn any one
+ * category off per channel; only the *absent-row* default changed.
+ *
+ * Enqueueing also makes one best-effort, AWAITED attempt to deliver
+ * EMAIL/TELEGRAM rows immediately (`deliverHook`, wired by `container.ts`)
+ * rather than leaving every message to wait for the next delivery-job tick —
+ * see DEC-070. Only when the row's own INSERT was not itself inside a
+ * caller's transaction (no `tx` argument): firing it before an enclosing
+ * transaction commits would read a row that is not visible yet. Awaited,
+ * not fire-and-forget, so this stays strictly sequential with the rest of
+ * the request — never a second, un-awaited query racing whatever this
+ * request does next. A row that fails, or skips, the immediate attempt is
+ * untouched: it is still PENDING, and the scheduled job picks it up exactly
+ * as before.
  */
 
 import { uuidv7 } from '../../lib/id.ts';
@@ -20,11 +35,11 @@ import { DomainError, invalid, notFound } from './errors.ts';
 import { writeAudit } from './audit.ts';
 
 /**
- * Telegram and WhatsApp hand back phone numbers in whatever shape their own
- * API uses (Telegram typically omits the leading `+`; both may include
- * separators) — normalised to the plain `+<digits>` form `app_user.phone`
- * and the registration form both already use, rather than trusting either
- * provider's formatting to already match.
+ * Telegram hands back phone numbers in whatever shape its own `contact`
+ * payload uses (typically no leading `+`, occasional separators) —
+ * normalised to the plain `+<digits>` form `app_user.phone` and the
+ * registration form both already use, rather than trusting the provider's
+ * formatting to already match.
  */
 function normalizePhone(raw: string): string {
   const digits = raw.replace(/[^\d]/g, '');
@@ -159,6 +174,21 @@ export class NotificationService {
   constructor(private readonly db: Db) {}
 
   /**
+   * Fired once, by `container.ts`, right after `DeliveryService` exists —
+   * `enqueue()` cannot construct `DeliveryService` itself (that would be the
+   * circular dependency the other direction: delivery already takes this
+   * service as a constructor argument), so it calls out through this instead.
+   * Awaited by `enqueue()`, but never allowed to THROW into it (the hook
+   * itself always swallows its own errors — see `container.ts`'s wiring) —
+   * see DEC-070 for why this is awaited rather than fire-and-forget.
+   */
+  private deliverHook?: (channel: Channel, notificationId: string) => Promise<void>;
+
+  setDeliverHook(hook: (channel: Channel, notificationId: string) => Promise<void>): void {
+    this.deliverHook = hook;
+  }
+
+  /**
    * Queue a notification on every channel the user permits.
    * Returns the channels actually queued — an empty array is a valid outcome.
    */
@@ -172,9 +202,10 @@ export class NotificationService {
       const status = allowed ? 'PENDING' : 'SUPPRESSED';
 
       try {
-        await sql.query(
+        const { rows } = await sql.query<{ id: string }>(
           `INSERT INTO notification (id, user_id, category, channel, dedupe_key, payload, status)
-           VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)`,
+           VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)
+           RETURNING id`,
           [
             uuidv7(),
             input.userId,
@@ -185,13 +216,58 @@ export class NotificationService {
             status,
           ],
         );
-        if (allowed) queued.push(channel);
+        if (allowed) {
+          queued.push(channel);
+          // Best-effort only, and only when this INSERT was its own statement
+          // (no `tx`) — so it already committed and the row is visible to the
+          // connection `deliverHook` queries on. When `enqueue` runs INSIDE a
+          // caller's transaction, firing the hook here would race a read
+          // against writes that have not committed yet, so it is skipped —
+          // that row still goes out on the next delivery-job tick, exactly as
+          // it always has. IN_APP is skipped unconditionally: the row itself
+          // is the message, already readable via inbox()/unreadCount().
+          //
+          // Awaited, not fired-and-forgotten: an un-awaited query here can
+          // run concurrently with whatever the rest of this request does
+          // next, and this codebase's test database (PGlite, a single
+          // embedded connection, not a real connection pool) cannot survive
+          // two logically-independent operations interleaved on it — it
+          // threw "SAVEPOINT can only be used in transaction blocks" the one
+          // time this was fire-and-forget. Awaiting keeps every query in one
+          // request strictly sequential, which is correct everywhere, not
+          // only under PGlite.
+          if (!tx && channel !== 'IN_APP') await this.deliverHook?.(channel, rows[0]!.id);
+        }
       } catch (e) {
         // Already queued for this exact event: the dedupe key did its job.
         if (!hasErrorCode(e, PG_ERROR.UNIQUE_VIOLATION)) throw e;
       }
     }
     return queued;
+  }
+
+  /**
+   * Claim exactly one row, if it is still there to claim.
+   *
+   * The single-row sibling of `claimForDelivery()`, for the immediate
+   * best-effort attempt `enqueue()` triggers via `deliverHook`. Same
+   * exclusivity guarantee (`SENDING` inside the claiming statement, so the
+   * scheduled job cannot double-send a row this already picked up) — just
+   * scoped to one id instead of a batch, and silent (returns null) rather
+   * than throwing when the row is gone, already claimed, or was never a
+   * channel worth attempting (that last case cannot happen here since
+   * `enqueue()` only calls this for a row it just inserted PENDING, but the
+   * WHERE clause stays honest about what it actually requires regardless).
+   */
+  async claimOneForDelivery(notificationId: string, now: Date = new Date()): Promise<ClaimedNotification | null> {
+    const { rows } = await this.db.query<ClaimedNotification>(
+      `UPDATE notification
+          SET status='SENDING', claimed_at=$2, attempts = attempts + 1
+        WHERE id=$1 AND status='PENDING' AND (next_attempt_at IS NULL OR next_attempt_at <= $2)
+        RETURNING id, user_id, category, channel, payload, attempts`,
+      [notificationId, now.toISOString()],
+    );
+    return rows[0] ?? null;
   }
 
   private async channelAllowed(
@@ -217,8 +293,10 @@ export class NotificationService {
       [userId, category, channel],
     );
 
-    // Default: in-app and email on, Telegram off until explicitly enabled.
-    if (rows.length === 0) return channel !== 'TELEGRAM';
+    // Default: every channel on, including Telegram (0021) — linking the bot
+    // is itself the consent; an absent row means "never touched the switch",
+    // not "chose to opt out".
+    if (rows.length === 0) return true;
     return rows[0]!.enabled;
   }
 
@@ -248,12 +326,9 @@ export class NotificationService {
     for (const category of NOTIFICATION_CATEGORIES) {
       /* These defaults must be the SAME defaults `channelAllowed` applies when
          no row exists, or the settings screen describes a system that does
-         something else. IN_APP previously defaulted to false here for every
-         non-mandatory category while `channelAllowed` treated it as on, so a
-         person would have read "booking requests: off" on a product that was
-         sending them. Nothing was broken in delivery; the description of it
-         was wrong, which is worse in a screen whose only job is to describe. */
-      out[category] = { IN_APP: true, EMAIL: true, TELEGRAM: false };
+         something else. All three now default to true (0021) — see this
+         file's header comment for why Telegram joined IN_APP/EMAIL here. */
+      out[category] = { IN_APP: true, EMAIL: true, TELEGRAM: true };
     }
     for (const r of rows) {
       (out[r.category] ??= {})[r.channel] = r.enabled;
@@ -382,41 +457,26 @@ export class NotificationService {
   }
 
   /* ---------------------------------------------------------------- *
-   * Phone verification — proving control of a phone-backed messenger
-   * account, in place of a passport upload (0018).
+   * Phone verification — proving control of a phone-backed Telegram
+   * account, in place of a passport upload (0018; Telegram-only since 0021 —
+   * VK and WhatsApp were dropped, see DECISIONS.md DEC-069).
    *
    * In Belarus a mobile number is tied to its owner at the point of sale, the
    * same fact a passport would establish, so this product treats "controls a
-   * live Telegram/VK/WhatsApp account" as the identity signal Level 1 needs —
-   * see LEGAL-004 in LEGAL_RISK_REGISTER.md for the reasoning and its still-
-   * open legal question.
+   * live Telegram account" as the identity signal Level 1 needs — see
+   * LEGAL-004 in LEGAL_RISK_REGISTER.md for the reasoning and its still-open
+   * legal question.
    *
    * ONE short-lived token (`PHONE_OTP`, reusing the purpose `auth_token`
    * already had — it was minted for an SMS one-time code that was never
-   * built) drives all three channels. Telegram and VK consume it as the
-   * `/start <token>` deep-link parameter, identical in shape to
-   * `beginTelegramLink`/`completeTelegramLink` above; WhatsApp's channel has
-   * no deep-link "start" concept, so the same token is sent back as the body
-   * of a WhatsApp message instead — see the WhatsApp webhook.
+   * built) drives the flow: Telegram consumes it as the `/start <token>`
+   * deep-link parameter, identical in shape to
+   * `beginTelegramLink`/`completeTelegramLink` above.
    *
-   * The three channels do not prove the same thing to the same degree, and
-   * this is written out rather than smoothed over:
-   *   - TELEGRAM proves an actual phone number. After the token links the
-   *     chat, the bot asks for the account's contact via Telegram's own
-   *     `request_contact` button; Telegram supplies the number, already
-   *     verified by Telegram itself, and it becomes `app_user.phone`.
-   *   - WHATSAPP proves an actual phone number too, for free: the Cloud API
-   *     webhook's `from` field on an inbound message IS the sender's real,
-   *     WhatsApp-registered E.164 number — no extra step needed.
-   *   - VK proves control of a VK ACCOUNT, not a phone number. VK's bot
-   *     messaging API (Callback API for a community) has no equivalent of
-   *     Telegram's contact-share button and does not hand a phone number to
-   *     a community bot at all — only VK ID (OAuth, with a `phone` scope VK
-   *     grants only to reviewed apps) could, and that is a materially
-   *     different integration from "a bot". So a VK link sets
-   *     `phone_verified_via='VK'` and grants Level 1 without ever touching
-   *     `app_user.phone` — an honest, weaker signal than the other two,
-   *     not a claim this service cannot back.
+   * TELEGRAM proves an actual phone number. After the token links the chat,
+   * the bot asks for the account's contact via Telegram's own
+   * `request_contact` button; Telegram supplies the number, already verified
+   * by Telegram itself, and it becomes `app_user.phone`.
    */
 
   /** Mint the one token all three channels race to consume. */
@@ -446,7 +506,7 @@ export class NotificationService {
   private async grantPhoneVerifiedLevel(
     tx: Sql,
     userId: string,
-    via: 'TELEGRAM' | 'VK' | 'WHATSAPP',
+    via: 'TELEGRAM',
     phone: string | null,
   ): Promise<void> {
     await tx.query(
@@ -502,30 +562,6 @@ export class NotificationService {
       // button, or is just poking the bot. Nothing to do; not an error.
       if (!userId) return null;
       await this.grantPhoneVerifiedLevel(tx, userId, 'TELEGRAM', normalizePhone(phoneNumber));
-      return userId;
-    });
-  }
-
-  /** VK: one round trip — the community bot has no contact-share equivalent. */
-  async completePhoneVerificationVk(token: string, vkUserId: number): Promise<string> {
-    return this.db.transaction(async (tx) => {
-      const userId = await this.consumePhoneVerificationToken(tx, token);
-      await tx.query(
-        `INSERT INTO vk_connection (user_id, vk_user_id)
-         VALUES ($1,$2)
-         ON CONFLICT (user_id) DO UPDATE SET vk_user_id = EXCLUDED.vk_user_id, linked_at = now(), unlinked_at = NULL`,
-        [userId, vkUserId],
-      );
-      await this.grantPhoneVerifiedLevel(tx, userId, 'VK', null);
-      return userId;
-    });
-  }
-
-  /** WhatsApp: the Cloud API webhook's sender field is already a real number. */
-  async completePhoneVerificationWhatsapp(token: string, fromE164: string): Promise<string> {
-    return this.db.transaction(async (tx) => {
-      const userId = await this.consumePhoneVerificationToken(tx, token);
-      await this.grantPhoneVerifiedLevel(tx, userId, 'WHATSAPP', normalizePhone(fromE164));
       return userId;
     });
   }

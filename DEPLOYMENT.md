@@ -434,16 +434,46 @@ Written to `/etc/kvaterka/kvaterka.env`, one `KEY=value` per line, no quotes nee
 | `DATABASE_POOL_MAX` | no | no | `10` default; `5` is plenty on a 2 GB box |
 | `SMTP_URL` | no | **yes** | Real SMTP delivery once set (DEC-066) — see §7. `MAIL_FROM` must be set alongside it |
 | `MAIL_FROM` | no | no | e.g. `Кватэрка.by <noreply@kvaterka.by>` — required together with `SMTP_URL` |
-| `TELEGRAM_BOT_TOKEN` | no | **yes** | Notification delivery AND phone verification (0018) once set |
+| `TELEGRAM_BOT_TOKEN` | no | **yes** | Notification delivery AND phone verification (0018) once set — see §5bis for the webhook-registration step this token requires |
 | `TELEGRAM_BOT_USERNAME` | no | no | Not secret — ships to the browser for the `t.me` deep link |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | no | secret is | "Sign in with Google" — OAuth Client in Google Cloud Console, redirect URI `<PUBLIC_BASE_URL>/api/auth/google/callback` |
-| `VK_GROUP_TOKEN` / `VK_GROUP_ID` / `VK_CONFIRMATION_CODE` / `VK_CALLBACK_SECRET` | no | token+secret are | Phone verification via VK (0018) — see `.env.example` for the exact VK community setup steps |
-| `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_VERIFY_TOKEN` / `WHATSAPP_BUSINESS_NUMBER` | no | token+verify token are | Phone verification via WhatsApp (0018), official Cloud API — see `.env.example` and DEC-068 for why not an unofficial client |
 | `MEDIA_BUCKET_URL` | no | no | Unset — see §8 |
 | `DOCUMENTS_BUCKET_URL` | no | no | Unset. Property-ownership documents are gated on LEGAL-004 (identity documents were retired in 0018, not merely gated); the process refuses to start if this equals `MEDIA_BUCKET_URL` |
 
 Nothing in this table belongs in the repository. `.env*` files are gitignored except
 `.env.example`, and the only tracked one contains placeholders.
+
+---
+
+## 5bis. Telegram bot setup
+
+Setting `TELEGRAM_BOT_TOKEN` alone is not enough — Telegram will not send this
+app anything until you register the webhook URL with Telegram's own API, and
+nothing in the app does this for you automatically. Three steps, done once per
+bot token:
+
+1. Create the bot (skip if you already have one): message
+   [@BotFather](https://t.me/BotFather) on Telegram, `/newbot`, follow the
+   prompts. It replies with the bot token — this is `TELEGRAM_BOT_TOKEN`. The
+   username it asks you to choose (without the `@`) is `TELEGRAM_BOT_USERNAME`.
+2. Set both env vars (§5 above) and restart the app so it picks them up.
+3. Register the webhook — a single authenticated GET request, from any
+   browser or `curl`, once `PUBLIC_BASE_URL` is live and reachable over HTTPS:
+
+   ```
+   https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=<PUBLIC_BASE_URL>/api/telegram/webhook
+   ```
+
+   A `{"ok":true,"result":true,"description":"Webhook was set"}` response
+   confirms it. `https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/getMe`
+   confirms the token itself is valid if that response is instead
+   `{"ok":false,"error_code":401,...}` — a 401 here means the token was
+   mistyped (a capital `O` and a digit `0` are easy to confuse copying it out
+   of BotFather's message by hand), not that anything else is wrong.
+
+Re-run step 3 whenever `PUBLIC_BASE_URL` changes (a new domain, moving off
+staging) — the webhook URL is registered by value, not re-derived from the
+env var on every request.
 
 ---
 

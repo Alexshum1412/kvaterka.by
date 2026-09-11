@@ -7,6 +7,7 @@ import type { AppLocale } from '@/i18n/routing.ts';
 import { api } from '@/lib/api-client.ts';
 import { Icon } from './icons.tsx';
 import { formatNightsGenitiveLocalized } from './primitives.tsx';
+import { currencySymbol } from '@/server/domain/money.ts';
 
 interface QuoteLine {
   code: string;
@@ -221,7 +222,7 @@ export function BookingPanel({
                   <span className="bp__lineLabel">{line.label}</span>
                   <span className="numeric bp__lineValue">
                     {/* A variable line shows a dash, never a made-up figure. */}
-                    {line.variable ? t('booking.meterBilled') : `${line.amountFormatted} BYN`}
+                    {line.variable ? t('booking.meterBilled') : `${line.amountFormatted} ${currencySymbol()}`}
                   </span>
                 </div>
               ))}
@@ -229,7 +230,7 @@ export function BookingPanel({
             <div className="bp__total">
               <span className="bp__totalLabel">{t('booking.totalLabel')}</span>
               <strong className="numeric bp__totalValue">
-                {quote.lines.find((l) => l.code === 'RENT') ? formatTotal(quote.totalExpectedMinor) : '—'} BYN
+                {quote.lines.find((l) => l.code === 'RENT') ? formatTotal(quote.totalExpectedMinor) : '—'} {currencySymbol()}
               </strong>
             </div>
 

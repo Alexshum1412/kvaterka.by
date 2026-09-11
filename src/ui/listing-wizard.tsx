@@ -14,6 +14,7 @@ import {
 } from '@/server/domain/moderation.ts';
 import type { AmenityOption } from '@/ui/search-filters.tsx';
 import type { AppLocale } from '@/i18n/routing.ts';
+import { currencySymbol } from '@/server/domain/money.ts';
 
 /**
  * The listing wizard.
@@ -1237,7 +1238,7 @@ function PreviewSummary({
       step: 7,
       label: t('preview.priceRow'),
       value: price
-        ? `${price} BYN ${draft.priceUnit === 'MONTH' ? t('preview.pricePerMonth') : t('preview.pricePerNight')}`
+        ? `${price} ${currencySymbol()} ${draft.priceUnit === 'MONTH' ? t('preview.pricePerMonth') : t('preview.pricePerNight')}`
         : dash,
     },
   ];
@@ -1259,7 +1260,7 @@ function PreviewSummary({
         <div className="pv__body">
           <h2 className="pv__title">{draft.title || t('preview.noTitle')}</h2>
           <p className="pv__price numeric">
-            {price ? `${price} BYN` : t('preview.noPrice')}{' '}
+            {price ? `${price} ${currencySymbol()}` : t('preview.noPrice')}{' '}
             <span className="pv__unit">
               {price ? (draft.priceUnit === 'MONTH' ? t('preview.perMonth') : t('preview.perNight')) : ''}
             </span>

@@ -229,6 +229,31 @@ export class DeliveryService {
     };
   }
 
+  /**
+   * The immediate, best-effort sibling of `run()`'s batch loop — see
+   * `NotificationService.setDeliverHook`'s doc comment for why this exists
+   * and who calls it. Claims exactly one row (via `claimOneForDelivery`, the
+   * single-row twin of `claimForDelivery`) and, if there was still something
+   * to claim, sends it through the exact same `deliverOne` path the
+   * scheduled job uses — same provider, same settle logic, same retry/backoff
+   * on failure. Never throws: a failed immediate attempt just leaves the row
+   * exactly where `run()` would still find it on the next tick.
+   */
+  async deliverNow(notificationId: string, now: Date = new Date()): Promise<void> {
+    const item = await this.notifications.claimOneForDelivery(notificationId, now);
+    if (!item) return; // Already claimed by the scheduled job, or gone.
+    try {
+      await this.deliverOne(item, now);
+    } catch (e) {
+      await this.notifications.markFailed(
+        notificationId,
+        e instanceof Error ? e.message : 'unexpected',
+        'TRANSIENT',
+        now,
+      );
+    }
+  }
+
   /* ---------------------------------------------------------------- */
 
   private async deliverOne(

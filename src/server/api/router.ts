@@ -128,8 +128,8 @@ export interface DispatchDeps {
    */
   readonly jobToken?: string | undefined;
   /**
-   * Whether at least one phone-verification channel (Telegram, VK, WhatsApp)
-   * is configured — see the phone gate below. Defaults to false when omitted
+   * Whether the phone-verification channel (Telegram) is configured — see
+   * the phone gate below. Defaults to false when omitted
    * (the shape every existing test fixture already has), which is also the
    * fail-open behaviour a deployment with nothing configured yet needs: a
    * caller cannot be required to clear a gate that has no door in it.

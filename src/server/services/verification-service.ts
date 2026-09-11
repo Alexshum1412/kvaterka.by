@@ -104,9 +104,9 @@ export class VerificationService {
   }): Promise<Record<string, unknown>> {
     // Level 1 (IDENTITY) is no longer a document a staff member reviews — see
     // 0018. It is granted automatically the moment a phone is verified
-    // through a linked Telegram, VK or WhatsApp account
-    // (NotificationService.completePhoneVerification*), so there is nothing
-    // left for a submission here to do. Refusing outright, rather than
+    // through a linked Telegram account (NotificationService's phone-
+    // verification methods), so there is nothing left for a submission here
+    // to do. Refusing outright, rather than
     // silently accepting a request that `evidenceSufficiency` can never
     // approve, tells the caller the truth immediately instead of after a
     // wait.
@@ -114,7 +114,7 @@ export class VerificationService {
       throw new DomainError(
         'FEATURE_DISABLED',
         'Подтверждение личности по документам больше не проводится. Привяжите и подтвердите номер ' +
-          'телефона через Telegram, VK или WhatsApp — уровень 1 присвоится автоматически.',
+          'телефона через Telegram — уровень 1 присвоится автоматически.',
       );
     }
 

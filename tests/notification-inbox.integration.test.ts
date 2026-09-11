@@ -35,8 +35,18 @@ beforeEach(async () => {
 });
 
 describe('what the settings screen says matches what the system does', () => {
-  it('reports every default exactly as the delivery path applies it', async () => {
+  it('reports every default exactly as the delivery path applies it, once a channel exists to deliver to', async () => {
     const user = await api.signUp();
+    // TELEGRAM's default is a channel PREFERENCE ("if linked, send here") —
+    // `channelAllowed` gates it a second time on an actual live
+    // `telegram_connection` (0018/0021), independent of the preference. That
+    // second gate is real-world plumbing, not a consent default, so it is
+    // held constant here (a live link) to test the preference default this
+    // block is actually about.
+    await db.query(
+      `INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1,$2)`,
+      [user.userId, 123456],
+    );
     const preferences = await notifications.getPreferences(user.userId);
 
     for (const category of NOTIFICATION_CATEGORIES) {
@@ -54,13 +64,23 @@ describe('what the settings screen says matches what the system does', () => {
     }
   });
 
-  it('never offers Telegram as on by default, since consent has not been given', async () => {
+  it('offers Telegram as on by default — linking the bot is itself the consent (0021)', async () => {
     const user = await api.signUp();
     const preferences = await notifications.getPreferences(user.userId);
 
     for (const category of NOTIFICATION_CATEGORIES) {
-      expect(preferences[category]!['TELEGRAM']).toBe(false);
+      expect(preferences[category]!['TELEGRAM']).toBe(true);
     }
+  });
+
+  it('still suppresses Telegram delivery for a user with no linked chat, regardless of the preference default', async () => {
+    const user = await api.signUp();
+    const queued = await notifications.enqueue({
+      userId: user.userId,
+      category: 'MESSAGE',
+      dedupeKey: 'no-telegram-link',
+    });
+    expect(queued).not.toContain('TELEGRAM');
   });
 
   it('refuses to silence in-app security, debt and moderation notices', async () => {

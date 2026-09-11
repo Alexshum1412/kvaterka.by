@@ -64,9 +64,7 @@ async function handle(request: Request): Promise<Response> {
     db: await ready(),
     services: await readyServices(),
     jobToken: config.JOB_RUNNER_TOKEN,
-    phoneVerificationAvailable: Boolean(
-      config.TELEGRAM_BOT_TOKEN || config.VK_GROUP_TOKEN || config.WHATSAPP_ACCESS_TOKEN,
-    ),
+    phoneVerificationAvailable: Boolean(config.TELEGRAM_BOT_TOKEN),
     onError: ({ correlationId, error }) => {
       console.error(
         JSON.stringify({

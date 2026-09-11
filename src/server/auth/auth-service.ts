@@ -72,7 +72,7 @@ export interface SessionContext {
   readonly displayName: string;
   readonly status: string;
   readonly emailVerified: boolean;
-  /** Verified via a linked Telegram, VK or WhatsApp account — see 0018. */
+  /** Verified via a linked Telegram account — see 0018. */
   readonly phoneVerified: boolean;
   readonly authLevel: AuthLevel;
   /** Staff roles held but not currently usable, so the UI can explain. */

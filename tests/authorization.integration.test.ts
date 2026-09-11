@@ -720,7 +720,7 @@ describe('debt restrictions', () => {
 
     const fees = await api.get('/me/fees', { token: landlord.token });
     expect(fees.body[0].arithmeticVerified).toBe(true);
-    expect(fees.body[0].explanation).toBe('590.00 × 5% = 29.50 BYN');
+    expect(fees.body[0].explanation).toBe('590.00 × 5% = 29.50 Br');
   });
 });
 

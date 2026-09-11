@@ -9,8 +9,6 @@ interface BeginResponse {
   readonly token: string;
   readonly expiresInSeconds: number;
   readonly telegram: { readonly botUsername: string | null } | null;
-  readonly vk: { readonly groupId: string | null } | null;
-  readonly whatsapp: { readonly businessNumber: string | null } | null;
 }
 
 type State =
@@ -20,19 +18,17 @@ type State =
   | { readonly status: 'error' };
 
 /**
- * Phone verification via a linked messenger account (0018).
- *
- * One token, three doors: whichever of Telegram, VK or WhatsApp the person
- * completes first verifies them — see the long comment on
- * `NotificationService`'s phone-verification methods for what each channel
- * actually proves. The code is also shown as plain text, not only baked into
- * the deep links, because a deep link that fails to pre-fill the message (a
- * real possibility on some VK/WhatsApp client versions) must still leave the
- * person something they can paste by hand.
+ * Phone verification via a linked Telegram account (0018; Telegram-only
+ * since 0021 dropped VK and WhatsApp — see DECISIONS.md DEC-069). See the
+ * long comment on `NotificationService`'s phone-verification methods for
+ * what this proves. The code is also shown as plain text, not only baked
+ * into the deep link, because a deep link that fails to pre-fill `/start`
+ * on some Telegram client version must still leave the person something
+ * they can paste by hand.
  *
  * Polls `/auth/me` — the one route that stays reachable through the phone
- * gate itself — so the moment any channel's webhook confirms the phone, this
- * screen notices without the person needing to click anything.
+ * gate itself — so the moment the webhook confirms the phone, this screen
+ * notices without the person needing to click anything.
  */
 export function PhoneVerify({ next = '/dashboard' }: { next?: string }) {
   const t = useTranslations('VerifyPhone');
@@ -61,7 +57,7 @@ export function PhoneVerify({ next = '/dashboard' }: { next?: string }) {
       try {
         const data = await api.post<BeginResponse>('/verification/phone/begin');
         if (cancelled) return;
-        setState(data.telegram || data.vk || data.whatsapp ? { status: 'ready', data } : { status: 'none-configured' });
+        setState(data.telegram ? { status: 'ready', data } : { status: 'none-configured' });
       } catch {
         if (!cancelled) setState({ status: 'error' });
       }
@@ -109,7 +105,7 @@ export function PhoneVerify({ next = '/dashboard' }: { next?: string }) {
     );
   }
 
-  const { token, telegram, vk, whatsapp } = state.data;
+  const { token, telegram } = state.data;
   const encoded = encodeURIComponent(token);
 
   async function copyToken() {
@@ -146,30 +142,6 @@ export function PhoneVerify({ next = '/dashboard' }: { next?: string }) {
           >
             <Icon name="message" size={18} />
             {t('channelTelegram')}
-          </a>
-        )}
-        {vk && (
-          <a
-            className="pv__channel"
-            href={vk.groupId ? `https://vk.me/im?sel=-${vk.groupId}&text=${encoded}` : undefined}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-disabled={!vk.groupId}
-          >
-            <Icon name="message" size={18} />
-            {t('channelVk')}
-          </a>
-        )}
-        {whatsapp && (
-          <a
-            className="pv__channel"
-            href={whatsapp.businessNumber ? `https://wa.me/${whatsapp.businessNumber}?text=${encoded}` : undefined}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-disabled={!whatsapp.businessNumber}
-          >
-            <Icon name="message" size={18} />
-            {t('channelWhatsapp')}
           </a>
         )}
       </div>

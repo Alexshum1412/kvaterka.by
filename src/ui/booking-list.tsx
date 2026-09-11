@@ -108,7 +108,7 @@ export async function BookingList({
                 )}
                 {' · '}
                 <span className="numeric">
-                  <Money minor={r.total_expected_minor} showCurrency={false} /> BYN
+                  <Money minor={r.total_expected_minor} />
                 </span>
               </span>
             </span>
