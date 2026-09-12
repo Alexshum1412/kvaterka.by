@@ -435,6 +435,28 @@ export class NotificationService {
     });
   }
 
+  /**
+   * What the bot itself can honestly say about a chat, from the chat id
+   * alone — used by `/status` and `/unlink` in the webhook, which arrive
+   * with nothing else to identify the sender by (same lookup
+   * `completePhoneVerificationTelegramContact` above already makes: a live
+   * `telegram_connection` row keyed by chat id). Joined with `app_user` in
+   * one query rather than two, since `/status` needs both halves and
+   * `/unlink` only needs `userId` — cheaper to compute the join once than to
+   * give each command its own round trip.
+   */
+  async telegramLinkState(chatId: number): Promise<{ userId: string; phoneVerified: boolean } | null> {
+    const { rows } = await this.db.query<{ user_id: string; phone_verified_at: Date | null }>(
+      `SELECT tc.user_id, u.phone_verified_at
+         FROM telegram_connection tc
+         JOIN app_user u ON u.id = tc.user_id
+        WHERE tc.telegram_chat_id=$1 AND tc.unlinked_at IS NULL`,
+      [chatId],
+    );
+    const row = rows[0];
+    return row ? { userId: row.user_id, phoneVerified: row.phone_verified_at !== null } : null;
+  }
+
   async unlinkTelegram(userId: string): Promise<void> {
     await this.db.transaction(async (tx) => {
       const { rowCount } = await tx.query(

@@ -449,8 +449,9 @@ Nothing in this table belongs in the repository. `.env*` files are gitignored ex
 
 Setting `TELEGRAM_BOT_TOKEN` alone is not enough — Telegram will not send this
 app anything until you register the webhook URL with Telegram's own API, and
-nothing in the app does this for you automatically. Three steps, done once per
-bot token:
+the bot's own "/" command menu stays empty until you register that
+separately too. Nothing in the app does either for you automatically. Four
+steps, done once per bot token:
 
 1. Create the bot (skip if you already have one): message
    [@BotFather](https://t.me/BotFather) on Telegram, `/newbot`, follow the
@@ -470,10 +471,21 @@ bot token:
    `{"ok":false,"error_code":401,...}` — a 401 here means the token was
    mistyped (a capital `O` and a digit `0` are easy to confuse copying it out
    of BotFather's message by hand), not that anything else is wrong.
+4. Register the command menu (0021/DEC-078 — `/start`, `/status`, `/unlink`,
+   `/help`) so it shows up when someone taps the "/" button in the chat:
+
+   ```
+   TELEGRAM_BOT_TOKEN=<token> node scripts/telegram-set-commands.mjs
+   ```
+
+   Prints `{"ok":true,...}` on success. The command list lives in that
+   script, kept in sync by hand with what `src/app/api/telegram/webhook/
+   route.ts` actually answers — re-run this step whenever either changes.
 
 Re-run step 3 whenever `PUBLIC_BASE_URL` changes (a new domain, moving off
 staging) — the webhook URL is registered by value, not re-derived from the
-env var on every request.
+env var on every request. Step 4 only needs re-running when the command list
+itself changes, not on every deploy.
 
 ---
 

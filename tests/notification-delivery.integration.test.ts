@@ -556,3 +556,55 @@ describe('booking expiry', () => {
     expect(rows[0]!.c).toBe('1');
   });
 });
+
+/**
+ * `telegramLinkState` — the one query the bot's `/status` and `/unlink`
+ * handlers (src/app/api/telegram/webhook/route.ts, DEC-078) run to answer
+ * "whose chat is this, and is the phone behind it verified". Covering it
+ * directly, at the service layer, is more useful than driving the whole HTTP
+ * webhook route (which would mean mocking Telegram's own API — this
+ * repository has no existing fetch-mock pattern to reuse for that, and the
+ * actual decision logic lives entirely in this one query).
+ */
+describe('telegramLinkState', () => {
+  it('reports a linked, phone-verified chat', async () => {
+    const user = await api.signUp();
+    await db.query(
+      `INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1,$2)`,
+      [user.userId, 555001],
+    );
+    await db.query(
+      `UPDATE app_user SET phone_verified_at = now(), phone_verified_via = 'TELEGRAM' WHERE id=$1`,
+      [user.userId],
+    );
+
+    const state = await notifications.telegramLinkState(555001);
+    expect(state).toEqual({ userId: user.userId, phoneVerified: true });
+  });
+
+  it('reports a linked chat whose phone is not yet verified', async () => {
+    const user = await api.signUp();
+    await db.query(
+      `INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1,$2)`,
+      [user.userId, 555002],
+    );
+
+    const state = await notifications.telegramLinkState(555002);
+    expect(state).toEqual({ userId: user.userId, phoneVerified: false });
+  });
+
+  it('returns null for a chat id nobody has ever linked', async () => {
+    expect(await notifications.telegramLinkState(555003)).toBeNull();
+  });
+
+  it('returns null once the link has been unlinked, even for a previously-known chat id', async () => {
+    const user = await api.signUp();
+    await db.query(
+      `INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1,$2)`,
+      [user.userId, 555004],
+    );
+    await notifications.unlinkTelegram(user.userId);
+
+    expect(await notifications.telegramLinkState(555004)).toBeNull();
+  });
+});
