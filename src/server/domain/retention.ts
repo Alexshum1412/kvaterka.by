@@ -311,6 +311,24 @@ export const RETENTION_CATALOGUE: readonly TablePolicy[] = [
     window: { kind: 'UNKNOWN', blockedBy: 'LEGAL-002', why: 'Оплаченная запись; срок хранения финансовых записей не определён' },
     note: 'Оплата отражена в ledger_entry как BOOST_CHARGED; сама строка — единственная запись о том, что именно было куплено и на какой срок.',
   },
+  {
+    table: 'listing_highlight',
+    dataClass: 'FINANCIAL',
+    subject: 'purchased_by',
+    purpose: 'Платное выделение объявления цветом (DEC-072)',
+    onErasure: 'KEEP_AS_AUDIT',
+    window: { kind: 'UNKNOWN', blockedBy: 'LEGAL-002', why: 'Оплаченная запись; срок хранения финансовых записей не определён' },
+    note: 'Тот же принцип, что и listing_boost: оплата отражена в ledger_entry как HIGHLIGHT_CHARGED, а эта строка — единственная запись о том, что было куплено и на какой срок.',
+  },
+  {
+    table: 'listing_pin',
+    dataClass: 'FINANCIAL',
+    subject: 'purchased_by',
+    purpose: 'Платное закрепление объявления в топе поиска (DEC-072)',
+    onErasure: 'KEEP_AS_AUDIT',
+    window: { kind: 'UNKNOWN', blockedBy: 'LEGAL-002', why: 'Оплаченная запись; срок хранения финансовых записей не определён' },
+    note: 'Тот же принцип, что и listing_boost: оплата отражена в ledger_entry как PIN_CHARGED, а эта строка — единственная запись о том, что было куплено и на какой срок.',
+  },
 
   /* -- verification ------------------------------------------------ */
   {
@@ -355,6 +373,16 @@ export const RETENTION_CATALOGUE: readonly TablePolicy[] = [
     note: 'Содержит утверждения одного человека о другом. Ни строки не уничтожается, пока LEGAL-017 открыт.',
   },
   { table: 'case_event', dataClass: 'PERSONAL', subject: 'actor_user_id', purpose: 'Ход рассмотрения, включая внутренние заметки', onErasure: 'KEEP_AS_AUDIT', window: { kind: 'UNKNOWN', blockedBy: LEGAL_017, why: 'Срок хранения не определён' }, appendOnly: true },
+  {
+    table: 'support_ticket',
+    dataClass: 'PERSONAL',
+    subject: 'opened_by',
+    purpose: 'Обращение в поддержку (DEC-073) — не привязано к конкретному бронированию',
+    onErasure: 'KEEP_AS_AUDIT',
+    window: { kind: 'UNKNOWN', blockedBy: LEGAL_017, why: 'Тот же нерешённый вопрос, что и для dispute_case — что можно хранить и сколько' },
+    note: 'Отдельная от dispute_case таблица (нет обязательной второй стороны, не завязана на статус бронирования), но то же самое открытое решение о сроке хранения переписки с пользователем.',
+  },
+  { table: 'ticket_event', dataClass: 'PERSONAL', subject: 'actor_user_id', purpose: 'Переписка по обращению в поддержку, включая внутренние заметки', onErasure: 'KEEP_AS_AUDIT', window: { kind: 'UNKNOWN', blockedBy: LEGAL_017, why: 'Срок хранения не определён' }, appendOnly: true },
   {
     table: 'fraud_signal',
     dataClass: 'PSEUDONYMOUS',

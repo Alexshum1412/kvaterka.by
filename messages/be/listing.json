@@ -45,8 +45,9 @@
       },
       "otherAmenityCategory": "Іншае",
       "toggle": "Фільтры",
-      "onMap": "На карце",
       "sortSrOnly": "Сартаванне",
+      "queryLabel": "Пошук па аб'явах",
+      "queryPlaceholder": "Напрыклад, студыя ля метро",
       "priceLegend": "Цана за ноч або месяц, Br",
       "priceFromLabel": "Ад",
       "priceToLabel": "Да",
@@ -65,6 +66,10 @@
       "smokingAllowed": "Можна курыць",
       "verifiedOnly": "Толькі правераныя",
       "instantBooking": "Імгненнае браніраванне",
+      "negotiable": "Цана абмяркоўваецца",
+      "ownerKindLegend": "Хто здае",
+      "ownerPrivate": "Прыватная асоба",
+      "ownerCompany": "Кампанія",
       "showAllAmenities": "Паказаць усе зручнасці",
       "collapseAmenities": "Схаваць зручнасці",
       "reset": "Скінуць",
@@ -97,7 +102,9 @@
       "fromDuration": "ад {duration}",
       "outOfFive": "з 5",
       "reviewsCount": ", {count, plural, one {# водгук} few {# водгукі} many {# водгукаў} other {# водгукаў}}",
-      "propertyVerified": "Аб'ект правераны"
+      "propertyVerified": "Аб'ект правераны",
+      "ownerCompany": "Кампанія",
+      "ownerPrivate": "Прыватны гаспадар"
     },
 
     "favourite": {

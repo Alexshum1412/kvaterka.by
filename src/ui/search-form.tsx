@@ -406,6 +406,14 @@ export function SearchForm({
         .sf__seg { display: flex; flex-direction: column; justify-content: center; gap: 0.375rem; min-width: 0; }
         .sf__label { font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary); }
 
+        /* .sf__tray below anchors to THIS segment, not to .sf (the whole
+           form) — without its own positioning context the tray's
+           top:100% resolved against .sf instead, so the overlay rendered
+           full-width from the bottom of the entire module and covered
+           whatever sat under it (the results-count strip on the search
+           page, at mobile widths). */
+        .sf__seg--duration { position: relative; }
+
         .sf__pinned { position: relative; display: flex; align-items: center; }
         .sf__pinned svg { position: absolute; left: 0.875rem; color: var(--text-tertiary); pointer-events: none; }
         .sf__city { padding-left: 2.5rem; }

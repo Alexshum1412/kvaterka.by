@@ -83,6 +83,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       children: str(params.children) === 'true' ? true : undefined,
       minRating: num(params.minRating),
       negotiable: str(params.negotiable) === 'true' ? true : undefined,
+      ownerKind: str(params.ownerKind) as 'PRIVATE' | 'COMPANY' | undefined,
       sort:
         (str(params.sort) as 'RELEVANCE' | 'PRICE_ASC' | 'PRICE_DESC' | 'RATING' | 'NEWEST') ??
         'RELEVANCE',
@@ -97,7 +98,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
   const database = await ready();
   const amenityRows = await database.query<AmenityOption>(
-    `SELECT code, category, name_ru, icon FROM amenity ORDER BY sort_order`,
+    `SELECT code, category, name_ru, name_be, name_en, icon FROM amenity ORDER BY sort_order`,
   );
 
   // One query for the whole page rather than one per card.

@@ -1,9 +1,46 @@
 {
   "Boost": {
-    "button": "Boost in search",
-    "boosting": "Boosting…",
-    "boostedUntil": "Boosted until {date}",
     "badge": "Boosted",
-    "error": "Couldn't boost this listing"
+    "pinnedBadge": "Pinned",
+    "error": "Couldn't complete the purchase",
+    "confirmQuestion": "Buy \"{name}\" for {price}?",
+    "confirmYes": "Buy",
+    "confirmCancel": "Cancel",
+    "buying": "Buying…",
+    "boost": {
+      "heading": "Boost in search",
+      "hint": "Bumps the listing to the top of search for 24 hours — once, or on a schedule.",
+      "successUntil": "The next bump runs through {date}",
+      "tiers": {
+        "SINGLE": { "name": "Single bump", "description": "One bump to the top for 24 hours" },
+        "TRIPLE_WEEKLY": { "name": "3 bumps", "description": "Three bumps, a week apart" },
+        "MONTHLY": {
+          "name": "Monthly — best value",
+          "description": "4 bumps, a week apart, all month — the lowest price per bump"
+        },
+        "CONTINUOUS_WEEK": {
+          "name": "Uninterrupted week",
+          "description": "Guaranteed top placement for 7 straight days, no gaps"
+        }
+      }
+    },
+    "highlight": {
+      "heading": "Colour highlight",
+      "hint": "The card gets a colour accent in listings — never affects search position.",
+      "successUntil": "The highlight runs through {date}",
+      "tiers": {
+        "WEEK": { "name": "One week", "description": "A colour accent on the card for 7 days" }
+      }
+    },
+    "pin": {
+      "heading": "Pin to the top",
+      "hint": "The strongest placement — ranked above every boosted-but-unpinned listing.",
+      "successUntil": "The pin runs through {date}",
+      "tiers": {
+        "1D": { "name": "1 day", "description": "Top of search for 1 day" },
+        "2D": { "name": "2 days", "description": "Top of search for 2 days" },
+        "7D": { "name": "7 days", "description": "Top of search for 7 days — premium placement" }
+      }
+    }
   }
 }

@@ -178,6 +178,41 @@ export class ListingService {
 
   /* ---------------------------------------------------------------- */
 
+  /**
+   * Publishing requires a verified Belarusian phone number (+375). This is a
+   * product owner directive, not a default this codebase invented (DEC-076) —
+   * the same "не должны иметь возможность выкладывать объявления" instruction
+   * that motivated it applies at both places a listing can go live: creating
+   * a new draft (mirroring how `finance.assertNotRestricted` already gates
+   * `CANNOT_PUBLISH_NEW_LISTINGS` at this exact call site) and submitting an
+   * existing one for moderation.
+   *
+   * A caller with no verified phone at all never reaches this check: the
+   * platform-wide phone gate (router.ts) already refuses every
+   * `auth: 'required'` route before dispatch gets here. This only has to
+   * tell "verified, but not +375" apart from "verified, +375" — and a phone
+   * that is somehow null despite phone_verified_at being set (no live path
+   * produces that shape, but migration 0019/DEC-069 shows VK-verified rows
+   * from before Telegram-only could carry it) is treated as no signal
+   * rather than a mismatch, since there is nothing concrete to refuse on.
+   */
+  async assertBelarusianPhone(userId: string): Promise<void> {
+    const { rows } = await this.db.query<{ phone: string | null; phone_verified_at: Date | null }>(
+      `SELECT phone, phone_verified_at FROM app_user WHERE id = $1`,
+      [userId],
+    );
+    const user = rows[0];
+    if (user?.phone_verified_at && user.phone !== null && !user.phone.startsWith('+375')) {
+      throw new DomainError(
+        'FORBIDDEN',
+        'Публикация объявлений доступна только пользователям с подтверждённым белорусским номером телефона (+375). Ваш подтверждённый номер зарегистрирован в другой стране.',
+        { reason: 'PHONE_COUNTRY_MISMATCH' },
+      );
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+
   async createDraft(ownerId: string, input: ListingDraftInput): Promise<{ id: string }> {
     // A location is optional at creation but never half-specified: one
     // coordinate without the other cannot be blurred, mapped or searched.

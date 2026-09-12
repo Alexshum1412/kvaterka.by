@@ -161,7 +161,19 @@ export async function SiteHeader() {
           {user ? (
             <Link href="/dashboard" className="sh__me" aria-label={t('myAccountAria', { name: user.displayName })}>
               <span className="sh__monogram" aria-hidden="true">
-                {initial === '' ? <Icon name="users" size={16} /> : initial}
+                {user.avatarStorageKey ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={`/media/${user.avatarStorageKey}`} alt="" className="sh__avatarImg" />
+                ) : initial === '' ? (
+                  <Icon name="users" size={16} />
+                ) : (
+                  initial
+                )}
+                {/* Same signal as the bell's badge, same colour, deliberately no
+                    number: this dot sits on an identity chip that means "you",
+                    not an inbox count. Reuses the bell's own aggregate rather
+                    than a second query — see the comment on `unread` above. */}
+                {unread > 0 && <span className="sh__avatarDot" aria-hidden="true" />}
               </span>
               <span className="sh__name truncate">{user.displayName}</span>
             </Link>
@@ -293,6 +305,7 @@ export async function SiteHeader() {
           color: var(--text-secondary);
         }
         .sh__monogram {
+          position: relative;
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -305,7 +318,23 @@ export async function SiteHeader() {
           font-size: var(--text-sm);
           font-weight: 600;
           line-height: 1;
+          overflow: hidden;
           transition: background-color 140ms ease;
+        }
+        .sh__avatarImg { width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-full); }
+        /* Same corner as the bell's badge, same accent — the one visual
+           vocabulary for "something needs you" this header has, reused
+           rather than invented a second time. No number: this sits on an
+           identity chip, not an inbox. */
+        .sh__avatarDot {
+          position: absolute;
+          top: -0.05rem;
+          inset-inline-end: -0.05rem;
+          width: 0.55rem;
+          height: 0.55rem;
+          border-radius: 999px;
+          background: var(--primary);
+          border: 1.5px solid var(--surface);
         }
         .sh__me:hover .sh__monogram { background: var(--primary-soft-hover); }
         .sh__me:hover .sh__name { color: var(--text-primary); }

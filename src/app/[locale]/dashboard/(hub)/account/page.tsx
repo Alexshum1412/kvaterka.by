@@ -88,7 +88,11 @@ export default async function AccountPage() {
     category,
     title: notificationCategoryTitle(category, locale) ?? category,
     mandatoryInApp: MANDATORY_IN_APP.includes(category),
-    channels: preferences[category] ?? { IN_APP: true, EMAIL: true, TELEGRAM: false },
+    // Telegram defaults on (DEC-070) — this fallback only matters if a
+    // category were ever missing from `getPreferences()`'s own defaults,
+    // which would be a bug there, not a reason for this one to disagree
+    // with it about what "no answer yet" means.
+    channels: preferences[category] ?? { IN_APP: true, EMAIL: true, TELEGRAM: true },
   }));
 
   const channelInfo: ChannelInfo[] = [
@@ -115,7 +119,7 @@ export default async function AccountPage() {
         <p className="acc__lede">{t('header.lede')}</p>
       </header>
 
-      <ProfileSettings />
+      <ProfileSettings roles={user!.roles} />
 
       <SecuritySettings />
 

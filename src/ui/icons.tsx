@@ -283,6 +283,24 @@ export function amenityCategoryLabel(key: string, locale: 'ru' | 'be' | 'en'): s
 }
 
 /**
+ * Locale-aware sibling of `amenityCategoryLabel`, for the amenity itself
+ * rather than its category. Unlike the category headers there is no fixed
+ * vocabulary to translate against — `amenity.name_be`/`name_en` already come
+ * straight out of the database (see the `amenity` table) — so this just
+ * picks the matching column and falls back to Russian when a translation
+ * is missing (an amenity added before its be/en name was, or a caller that
+ * never selected the extra columns to begin with).
+ */
+export function amenityName(
+  amenity: { name_ru: string; name_be?: string | null; name_en?: string | null },
+  locale: 'ru' | 'be' | 'en',
+): string {
+  if (locale === 'be' && amenity.name_be) return amenity.name_be;
+  if (locale === 'en' && amenity.name_en) return amenity.name_en;
+  return amenity.name_ru;
+}
+
+/**
  * Amenities a tenant actually decides on, in the order they decide.
  * Used to pick the two or three worth showing on a card — a card that
  * lists every amenity has stopped being scannable.

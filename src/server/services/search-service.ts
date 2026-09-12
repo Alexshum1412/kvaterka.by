@@ -98,8 +98,12 @@ export interface SearchResultItem {
   readonly rating: number | null;
   readonly reviewCount: number;
   readonly calendarUpdatedAt: string;
-  /** Paid placement — a separate top tier, never a factor in the relevance score. See orderClause(). */
+  /** Paid placement — a separate tier, never a factor in the relevance score. See orderClause(). */
   readonly isBoosted: boolean;
+  /** The strongest paid placement — ranked above isBoosted. See orderClause(). */
+  readonly isPinned: boolean;
+  /** Visual treatment only (listing-card.tsx) — never joined into orderClause(). */
+  readonly isHighlighted: boolean;
   readonly distanceMeters?: number;
   /** Total for the requested dates, present only when dates were supplied. */
   readonly stayTotalMinor?: string;
@@ -305,13 +309,35 @@ export class SearchService {
 
     /* Paid placement, joined as its own sibling to ratingJoin rather than
        folded into any existing subquery. Only ever read for the fixed
-       tie-break at the front of orderClause() and for `isBoosted` below —
-       never for the relevance score itself (see that method's comment). Not
-       added to countSql: a LEFT JOIN cannot change how many rows match, and
-       nothing here filters on it. */
+       tie-breaks at the front of orderClause() and for `isBoosted`/`isPinned`
+       below — never for the relevance score itself (see that method's
+       comment). Not added to countSql: a LEFT JOIN cannot change how many
+       rows match, and nothing here filters on it.
+
+       `starts_at <= now()` matters here in a way it did not before a boost
+       could be bought in bundles: a MONTHLY boost tier inserts four rows up
+       front, three of them dated in the future, and without this check the
+       third and fourth week's rows would already read as active the moment
+       they were purchased. */
     const boostJoin = `
       LEFT JOIN listing_boost lb
-        ON lb.property_id = p.id AND lb.status = 'ACTIVE' AND lb.ends_at > now()`;
+        ON lb.property_id = p.id AND lb.status = 'ACTIVE'
+       AND lb.starts_at <= now() AND lb.ends_at > now()`;
+
+    // Same shape as boostJoin, against the stronger placement table — see
+    // pin-service.ts. A pin has no multi-row schedule today, but the same
+    // starts_at guard is kept for consistency and because nothing about this
+    // join assumes a single row.
+    const pinJoin = `
+      LEFT JOIN listing_pin lp
+        ON lp.property_id = p.id AND lp.status = 'ACTIVE'
+       AND lp.starts_at <= now() AND lp.ends_at > now()`;
+
+    // Visual-only — read for `isHighlighted` alone, never for ordering.
+    const highlightJoin = `
+      LEFT JOIN listing_highlight lh
+        ON lh.property_id = p.id AND lh.status = 'ACTIVE'
+       AND lh.starts_at <= now() AND lh.ends_at > now()`;
 
     const orderBy = this.orderClause(filters, push);
     const whereSql = where.join('\n  AND ');
@@ -329,12 +355,14 @@ export class SearchService {
              o.id AS owner_id, o.display_name AS owner_name, o.account_kind AS owner_kind,
              o.verification_level AS owner_verification, o.completed_rentals_as_landlord AS owner_completed,
              rv.rating, COALESCE(rv.review_count, 0) AS review_count,
-             lb.id AS lb_id
+             lb.id AS lb_id, lp.id AS lp_id, lh.id AS lh_id
              ${distanceSelect}
         FROM property p
         JOIN app_user o ON o.id = p.owner_id
         ${ratingJoin}
         ${boostJoin}
+        ${pinJoin}
+        ${highlightJoin}
        WHERE ${whereSql}
        ORDER BY ${orderBy}
        LIMIT ${push(limit)} OFFSET ${push(offset)}`;
@@ -396,6 +424,8 @@ export class SearchService {
         reviewCount: Number(row.review_count),
         calendarUpdatedAt: row.calendar_updated_at,
         isBoosted: row.lb_id !== null,
+        isPinned: row.lp_id !== null,
+        isHighlighted: row.lh_id !== null,
         ...(row.distance_m !== undefined ? { distanceMeters: Math.round(Number(row.distance_m)) } : {}),
       };
 
@@ -421,32 +451,35 @@ export class SearchService {
   // parameters. It stays in the signature so the clause builders share one
   // shape with the filter builders that do bind values.
   private orderClause(filters: SearchFilters, _push: (v: unknown) => string): string {
-    /* Paid placement is a separate top tier, prepended as the FIRST key of
-       every branch below — never blended into any of them. A boosted listing
-       floats above the untouched ordering for whichever sort the visitor
-       picked; it never changes the relative order of the listings beneath it,
-       because every branch's own keys still decide everything after this one.
-       The relevance formula in the default branch stays exactly as it was:
+    /* Paid placement is two separate top tiers, prepended as the FIRST keys
+       of every branch below — never blended into any of them. A pinned
+       listing floats above a merely boosted one, which floats above the
+       untouched ordering for whichever sort the visitor picked; neither tier
+       changes the relative order of the listings beneath it, because every
+       branch's own keys still decide everything after these two. The
+       relevance formula in the default branch stays exactly as it was:
        sponsored slots must never enter organic ranking (spec §45) — this is
        the "separate tier", not a repeal of that rule. */
+    const pinTier = `(CASE WHEN lp.id IS NOT NULL THEN 1 ELSE 0 END) DESC`;
     const boostTier = `(CASE WHEN lb.id IS NOT NULL THEN 1 ELSE 0 END) DESC`;
 
     switch (filters.sort) {
       case 'PRICE_ASC':
-        return `${boostTier}, p.base_price_minor ASC, p.id`;
+        return `${pinTier}, ${boostTier}, p.base_price_minor ASC, p.id`;
       case 'PRICE_DESC':
-        return `${boostTier}, p.base_price_minor DESC, p.id`;
+        return `${pinTier}, ${boostTier}, p.base_price_minor DESC, p.id`;
       case 'RATING':
-        return `${boostTier}, COALESCE(rv.rating, 0) DESC, rv.review_count DESC, p.id`;
+        return `${pinTier}, ${boostTier}, COALESCE(rv.rating, 0) DESC, rv.review_count DESC, p.id`;
       case 'NEWEST':
-        return `${boostTier}, p.published_at DESC NULLS LAST, p.id`;
+        return `${pinTier}, ${boostTier}, p.published_at DESC NULLS LAST, p.id`;
       default:
         // Relevance blends verification, freshness and rating. Paid placement
         // is deliberately absent FROM THIS FORMULA: sponsored slots must never
-        // enter organic ranking (spec §45). boostTier above is not that —
-        // it is a fixed tier ABOVE the formula's output, not a term inside it.
+        // enter organic ranking (spec §45). pinTier/boostTier above are not
+        // that — they are fixed tiers ABOVE the formula's output, not terms
+        // inside it.
         return `
-          ${boostTier},
+          ${pinTier}, ${boostTier},
           (CASE WHEN p.property_verified_at IS NOT NULL THEN 2 ELSE 0 END
            + CASE WHEN o.verification_level >= 1 THEN 1 ELSE 0 END
            + CASE WHEN p.calendar_updated_at > now() - interval '7 days' THEN 2

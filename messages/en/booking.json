@@ -94,6 +94,7 @@
     "individualLabel": "Individual",
     "identityVerified": "Identity verified",
     "identityNotVerified": "Identity not verified",
+    "phoneCountryMismatch": "Guest's phone is not a Belarusian number",
     "completedDealsCount": "{count, plural, one {# completed deal} other {# completed deals}}",
     "completedRentalsCount": "{count, plural, one {# completed rental} other {# completed rentals}}",
     "openProfileButton": "Open profile",

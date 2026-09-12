@@ -2,6 +2,9 @@ import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/navigation.ts';
 import { Prose } from '@/ui/prose.tsx';
+import { TicketForm } from '@/ui/ticket-form.tsx';
+import { currentUser, signInUrl } from '@/server/session.ts';
+import { ready } from '@/server/runtime.ts';
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('Support');
@@ -14,20 +17,32 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * Support.
  *
- * Several screens tell a person to "write to support" and route them to
- * `/dashboard/chat`, which is a list of conversations about flats — there is
- * no support conversation type, and `startConversation` requires a real
- * property and a real owner, so no such thread can exist. The instruction was
- * a dead end.
+ * Several screens tell a person to "write to support". Until DEC-073 there
+ * was nowhere for that to actually go for a problem that is not a booking
+ * dispute, a verification resubmission, or a moderation resubmit — this page
+ * used to say so plainly rather than pretend otherwise.
  *
- * This page does not invent a channel that does not exist. What it does is
- * route each real problem to the mechanism that genuinely handles it — a
- * dispute has a queue and staff, verification has a resubmission path, account
- * data has a screen — and state plainly which problems currently have no
- * route, rather than sending somebody in a circle.
+ * That gap is now closed: every real problem is still routed to the
+ * mechanism that genuinely handles it first (a dispute has a queue and
+ * staff, verification has a resubmission path, account data has a screen),
+ * and anything left over — or anything where the person cannot even reach
+ * those paths — goes through the ticket form below, which reaches an actual
+ * person and is tracked to a decision.
  */
 export default async function SupportPage() {
   const t = await getTranslations('Support');
+  const tt = await getTranslations('SupportTickets');
+  const user = await currentUser();
+
+  let properties: { id: string; title: string }[] = [];
+  if (user) {
+    const database = await ready();
+    const { rows } = await database.query<{ id: string; title: string }>(
+      `SELECT id, title FROM property WHERE owner_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 100`,
+      [user.userId],
+    );
+    properties = rows;
+  }
 
   return (
     <Prose title={t('title')} lede={t('lede')}>
@@ -91,6 +106,32 @@ export default async function SupportPage() {
         </p>
         <p>{t('note.p2')}</p>
       </div>
+
+      <h2>{tt('formTitle')}</h2>
+      <p>{tt('formIntro')}</p>
+
+      {user ? (
+        <>
+          <TicketForm properties={properties} />
+          <p className="support__myTickets">
+            {tt('myTicketsIntro')}{' '}
+            <Link href="/dashboard/support" className="link">
+              {tt('myTicketsLink')}
+            </Link>
+          </p>
+        </>
+      ) : (
+        <p>
+          {tt('formSignInPrompt')}{' '}
+          <Link href={signInUrl('/support')} className="link">
+            {tt('formSignInLink')}
+          </Link>
+        </p>
+      )}
+
+      <style>{`
+        .support__myTickets { margin-top: var(--space-3); }
+      `}</style>
     </Prose>
   );
 }

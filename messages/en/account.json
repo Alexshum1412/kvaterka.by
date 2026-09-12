@@ -24,7 +24,33 @@
       "saveButton": "Save",
       "savingButton": "Saving…",
       "savedNotice": "Changes saved",
-      "saveError": "Couldn't save changes"
+      "saveError": "Couldn't save changes",
+      "avatarAlt": "Profile photo",
+      "avatarChangeButton": "Change photo",
+      "avatarUploading": "Uploading…",
+      "avatarError": "Couldn't upload the photo. Check the format (JPEG, PNG, WebP) and size (up to 3 MB).",
+      "emailLabel": "Email",
+      "phoneLabel": "Phone",
+      "notProvided": "Not provided",
+      "verifiedBadge": "verified",
+      "unverifiedBadge": "not verified",
+      "rolesLabel": "Roles",
+      "levelLabel": "Trust level",
+      "memberSinceLabel": "Member since",
+      "level": {
+        "0": "New",
+        "1": "Identity verified",
+        "2": "Rental right verified"
+      },
+      "roles": {
+        "TENANT": "Tenant",
+        "LANDLORD": "Host",
+        "SUPPORT": "Support",
+        "MODERATOR": "Moderator",
+        "VERIFIER": "Verifier",
+        "FINANCE": "Finance",
+        "ADMIN": "Admin"
+      }
     },
     "security": {
       "passwordTitle": "Change password",

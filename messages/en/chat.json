@@ -15,6 +15,7 @@
     "conversationTitle": "Conversation",
     "allMessages": "All messages",
     "verified": "Identity verified",
+    "phoneCountryMismatch": "Guest's phone is not a Belarusian number",
     "listing": "Listing",
     "listingUnavailable": "Listing unavailable",
     "contactNotice": "You can exchange phone numbers once a booking is confirmed. Until then, the conversation stays here — so both sides keep a record if a dispute comes up.",

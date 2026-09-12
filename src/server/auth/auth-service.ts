@@ -81,6 +81,8 @@ export interface SessionContext {
   readonly stepUpAt: Date | null;
   /** Whether an authenticator is set up at all. False means enrolment is due. */
   readonly twoFactorEnrolled: boolean;
+  /** Storage key of the uploaded profile picture — see 0022. Null means "no photo, draw the initial". */
+  readonly avatarStorageKey: string | null;
 }
 
 export interface IssuedSession {
@@ -501,10 +503,11 @@ export class AuthService {
       auth_level: AuthLevel;
       step_up_at: Date | null;
       totp_confirmed_at: Date | null;
+      avatar_storage_key: string | null;
     }>(
       `SELECT s.id AS session_id, u.id AS user_id, u.display_name, u.status,
               u.email_verified_at, u.phone_verified_at, s.revoked_at, (s.expires_at <= now()) AS expired,
-              s.auth_level, s.step_up_at, t.confirmed_at AS totp_confirmed_at
+              s.auth_level, s.step_up_at, t.confirmed_at AS totp_confirmed_at, u.avatar_storage_key
          FROM user_session s
          JOIN app_user u ON u.id = s.user_id
          LEFT JOIN user_totp t ON t.user_id = u.id
@@ -548,6 +551,7 @@ export class AuthService {
       withheldRoles: withheldRoles(granted, row.auth_level),
       stepUpAt: row.step_up_at,
       twoFactorEnrolled: row.totp_confirmed_at !== null,
+      avatarStorageKey: row.avatar_storage_key,
     };
   }
 

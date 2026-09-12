@@ -75,7 +75,13 @@ export default async function LandlordBookingsPage({
             (SELECT storage_key FROM property_photo ph
               WHERE ph.property_id = p.id ORDER BY is_cover DESC, sort_order LIMIT 1) AS cover_photo,
             u.display_name AS counterparty_name,
-            u.verification_level AS counterparty_verified
+            u.verification_level AS counterparty_verified,
+            -- This page is landlord-only (WHERE b.landlord_id = $1 below), so
+            -- u is always the tenant — no viewer-role gating needed here,
+            -- unlike the shared query in bookings/[id]/page.tsx. Still just
+            -- the derived boolean, never the raw phone number (DEC-076).
+            (u.phone_verified_via IS NOT NULL AND u.phone_verified_at IS NOT NULL
+                AND u.phone IS NOT NULL AND u.phone NOT LIKE '+375%') AS counterparty_phone_mismatch
        FROM booking b
        JOIN property p ON p.id = b.property_id
        JOIN app_user u ON u.id = b.tenant_id

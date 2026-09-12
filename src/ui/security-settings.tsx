@@ -112,8 +112,8 @@ export function SecuritySettings() {
   }
 
   return (
-    <>
-      <section className="card ss">
+    <section className="card ss">
+      <div className="ss__block">
         <h2 className="ss__h2">{t('security.passwordTitle')}</h2>
         <form onSubmit={changePassword} className="ss__form">
           <label className="field">
@@ -178,9 +178,9 @@ export function SecuritySettings() {
             </button>
           </div>
         </form>
-      </section>
+      </div>
 
-      <section className="card ss">
+      <div className="ss__block">
         <h2 className="ss__h2">{t('security.sessionsTitle')}</h2>
         <p className="ss__muted">{t('security.sessionsHint')}</p>
 
@@ -239,9 +239,16 @@ export function SecuritySettings() {
             </button>
           </div>
         )}
-      </section>
+      </div>
 
+      {/* Two independent forms (see the file header for why), one card —
+          they used to be two separate `.card` boxes stacked directly on top
+          of each other with nothing between them but the page's own gap,
+          reading as two settled decisions rather than one. A rule between
+          two blocks in the same card says "related, but separate" more
+          clearly than a second white rectangle does. */}
       <style>{`
+        .ss__block + .ss__block { margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--border); }
         .ss__h2 { font-size: var(--text-base); font-weight: 600; margin-bottom: var(--space-3); }
         .ss__muted { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; margin-bottom: var(--space-3); }
         .ss__form { display: grid; gap: var(--space-4); max-width: 28rem; }
@@ -258,6 +265,6 @@ export function SecuritySettings() {
         .ss__sessionDevice { font-size: var(--text-sm); font-weight: 500; overflow-wrap: anywhere; }
         .ss__sessionMeta { font-size: var(--text-xs); color: var(--text-tertiary); margin-top: 0.15rem; }
       `}</style>
-    </>
+    </section>
   );
 }

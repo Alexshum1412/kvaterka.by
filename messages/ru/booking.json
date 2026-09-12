@@ -94,6 +94,7 @@
     "individualLabel": "Частное лицо",
     "identityVerified": "Личность подтверждена",
     "identityNotVerified": "Личность не подтверждена",
+    "phoneCountryMismatch": "У гостя не белорусский номер телефона",
     "completedDealsCount": "{count, plural, one {# завершённая сделка} few {# завершённые сделки} many {# завершённых сделок} other {# завершённых сделок}}",
     "completedRentalsCount": "{count, plural, one {# завершённая аренда} few {# завершённые аренды} many {# завершённых аренд} other {# завершённых аренд}}",
     "openProfileButton": "Открыть профиль",

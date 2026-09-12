@@ -288,7 +288,13 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
           className="btn btn-primary"
           disabled={!saved}
           onClick={() => {
-            router.push('/staff');
+            // `required` is true only for the staff-required flow
+            // (staff/security), which is the one place a person setting up
+            // 2FA has no account page of their own to return to — everyone
+            // else got here from /dashboard/account and should land back on
+            // it, not on a console page an ordinary tenant/landlord has no
+            // permission to open.
+            router.push(required ? '/staff' : '/dashboard/account');
             router.refresh();
           }}
         >

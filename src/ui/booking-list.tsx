@@ -28,6 +28,13 @@ export interface BookingListRow {
   cover_photo: string | null;
   counterparty_name: string;
   counterparty_verified: number;
+  /**
+   * Landlord-only signal (DEC-076): true only when this row's query chose to
+   * compute it — the tenant's own "мои поездки" page (viewerRole="TENANT")
+   * never selects this column, so it stays `undefined`/falsy there and the
+   * badge below never renders for a tenant looking at their landlord.
+   */
+  counterparty_phone_mismatch?: boolean;
   message_count?: number;
 }
 
@@ -106,6 +113,12 @@ export async function BookingList({
                     {t('verified')}
                   </span>
                 )}
+                {viewerRole === 'LANDLORD' && r.counterparty_phone_mismatch && (
+                  <span className="bl__phoneWarn">
+                    <Icon name="alert" size={12} />
+                    {t('phoneCountryMismatch')}
+                  </span>
+                )}
                 {' · '}
                 <span className="numeric">
                   <Money minor={r.total_expected_minor} />
@@ -139,6 +152,7 @@ export async function BookingList({
         .bl__title { font-size: var(--text-sm); }
         .bl__meta { font-size: var(--text-xs); color: var(--text-secondary); display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
         .bl__ok { display: inline-flex; align-items: center; gap: 0.2rem; color: var(--success); font-weight: 600; }
+        .bl__phoneWarn { display: inline-flex; align-items: center; gap: 0.2rem; color: var(--warning); font-weight: 600; }
         @media (max-width: 520px) { .bl__thumb { display: none; } }
       `}</style>
     </ul>

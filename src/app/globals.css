@@ -483,6 +483,9 @@ a.card:active, .card--interactive:active { transform: translateY(0); }
 .badge-neutral { background: transparent; color: var(--text-secondary); padding-inline: 0; font-weight: 500; }
 .badge-solid-neutral { background: var(--surface-sunken); color: var(--text-secondary); }
 .badge-primary { background: var(--primary-soft); color: var(--primary); }
+/* Filled counterpart to badge-primary — reserved for the one badge that must
+   visually outrank a soft one on the same card (pin vs. boost, DEC-072). */
+.badge-solid-primary { background: var(--primary); color: var(--text-on-primary); }
 .badge-verified { background: var(--success-soft); color: var(--success); }
 .badge-warning { background: var(--warning-soft); color: var(--warning); }
 .badge-danger { background: var(--error-soft); color: var(--error); }

@@ -3,6 +3,7 @@
     "landlord": "Гаспадар",
     "tenant": "Арандатар",
     "verified": "пацверджаны",
+    "phoneCountryMismatch": "не беларускі нумар",
     "guests": "{count, plural, one {# госць} few {# госці} many {# гасцей} other {# гасцей}}"
   }
 }

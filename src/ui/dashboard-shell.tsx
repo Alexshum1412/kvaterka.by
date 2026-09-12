@@ -44,6 +44,7 @@ const SECTIONS: Section[] = [
   { href: '/dashboard/finance', labelKey: 'finance', icon: 'wallet', match: ['/dashboard/finance'] },
   { href: '/dashboard/chat', labelKey: 'messages', icon: 'message', match: ['/dashboard/chat'] },
   { href: '/dashboard/verification', labelKey: 'verification', icon: 'shieldCheck', match: ['/dashboard/verification'] },
+  { href: '/dashboard/support', labelKey: 'support', icon: 'phone', match: ['/dashboard/support'] },
   { href: '/dashboard/account', labelKey: 'account', icon: 'user', match: ['/dashboard/account'] },
 ];
 

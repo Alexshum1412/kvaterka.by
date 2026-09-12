@@ -100,6 +100,8 @@ export const listingRoutes: AnyRoute[] = [
       // A landlord in arrears may keep managing what exists but may not add
       // more inventory (spec §12).
       await ctx.services.finance.assertNotRestricted(caller.userId, 'CANNOT_PUBLISH_NEW_LISTINGS');
+      // A verified phone that is not Belarusian blocks publishing (DEC-076).
+      await ctx.services.listings.assertBelarusianPhone(caller.userId);
       const result = await ctx.services.listings.createDraft(caller.userId, body);
       return ok({ id: result.id, status: 'DRAFT' }, 201);
     },
@@ -182,6 +184,8 @@ export const listingRoutes: AnyRoute[] = [
     auth: 'required',
     async handler({ params, ctx, caller }) {
       await ctx.services.finance.assertNotRestricted(caller.userId, 'CANNOT_PUBLISH_NEW_LISTINGS');
+      // A verified phone that is not Belarusian blocks publishing (DEC-076).
+      await ctx.services.listings.assertBelarusianPhone(caller.userId);
       await ctx.services.listings.submitForModeration(params.id!, caller.userId);
       return { status: 'PENDING_MODERATION' };
     },
@@ -203,14 +207,40 @@ export const listingRoutes: AnyRoute[] = [
   defineRoute({
     method: 'POST',
     path: '/listings/:id/boost',
-    summary: 'Pay to pin a published listing to the top of search results',
+    summary: 'Pay to bump a published listing to the top of search results, on one of a fixed set of tiers',
     tags: ['listings'],
     auth: 'required',
-    // Price and duration are server-side constants (BoostService), not
-    // client input — there is nothing for the caller to supply.
-    body: z.object({}),
-    async handler({ params, ctx, caller }) {
-      return ctx.services.boost.purchase(params.id!, caller.userId);
+    // Price and schedule are server-side constants (BoostService.BOOST_TIERS),
+    // keyed by tierId — never trust a client-supplied price or day count.
+    body: z.object({ tierId: z.enum(['SINGLE', 'TRIPLE_WEEKLY', 'MONTHLY', 'CONTINUOUS_WEEK']) }),
+    async handler({ params, body, ctx, caller }) {
+      return ctx.services.boost.purchase(params.id!, caller.userId, body.tierId);
+    },
+  }),
+
+  defineRoute({
+    method: 'POST',
+    path: '/listings/:id/highlight',
+    summary: 'Pay for a colour-highlighted listing card — visual only, no ranking effect',
+    tags: ['listings'],
+    auth: 'required',
+    // Price and duration are server-side constants (HighlightService.HIGHLIGHT_TIERS).
+    body: z.object({ tierId: z.enum(['WEEK']) }),
+    async handler({ params, body, ctx, caller }) {
+      return ctx.services.highlight.purchase(params.id!, caller.userId, body.tierId);
+    },
+  }),
+
+  defineRoute({
+    method: 'POST',
+    path: '/listings/:id/pin',
+    summary: 'Pay to pin a published listing above boosted-but-unpinned results',
+    tags: ['listings'],
+    auth: 'required',
+    // Price and duration are server-side constants (PinService.PIN_TIERS).
+    body: z.object({ tierId: z.enum(['1D', '2D', '7D']) }),
+    async handler({ params, body, ctx, caller }) {
+      return ctx.services.pin.purchase(params.id!, caller.userId, body.tierId);
     },
   }),
 

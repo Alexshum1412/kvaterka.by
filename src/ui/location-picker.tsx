@@ -13,9 +13,14 @@ const CITY_ZOOM = 13;
  *
  * Exists because a listing cannot leave DRAFT without `latitude`/`longitude`
  * (`property_complete_unless_draft`, db/migrations/0008), and the city field
- * next to this accepts free text now — a host can type a place that isn't in
- * the popular-city list, and this is the only way for them to still supply a
- * point for it, since there is no geocoding integration in front of it.
+ * next to this accepts free text — a host can type a place that isn't in the
+ * popular-city list, and dragging a pin here is how they supply a point for
+ * it regardless. `listing-wizard.tsx`'s "Найти на карте" button (DEC-077) can
+ * pre-fill `latitude`/`longitude` from a geocoded address before this ever
+ * renders a marker, but that only changes the STARTING position passed in —
+ * every pin this component shows stays exactly as draggable as before, since
+ * a geocoder can be wrong (especially about a house number) and this is
+ * still the only thing a host's own confirmation ever comes from.
  *
  * A fresh Leaflet map for one draggable pin, not `MapPanel`: that component
  * is built around a read-only array of priced listing markers, and forcing a

@@ -3,6 +3,7 @@
     "landlord": "Host",
     "tenant": "Tenant",
     "verified": "verified",
+    "phoneCountryMismatch": "not a Belarusian number",
     "guests": "{count, plural, one {# guest} other {# guests}}"
   }
 }

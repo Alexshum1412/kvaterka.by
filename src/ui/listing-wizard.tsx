@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from '@/i18n/navigation.ts';
 import { useLocale, useTranslations } from 'next-intl';
 import { api, ApiError } from '@/lib/api-client.ts';
-import { Icon, AMENITY_CATEGORY, amenityCategoryLabel, amenityIcon, type IconName } from '@/ui/icons.tsx';
+import { Icon, AMENITY_CATEGORY, amenityCategoryLabel, amenityIcon, amenityName, type IconName } from '@/ui/icons.tsx';
 import { LocationPicker } from '@/ui/location-picker.tsx';
 import { formatNightsGenitiveLocalized } from '@/ui/primitives.tsx';
 import {
@@ -39,6 +39,21 @@ import { currencySymbol } from '@/server/domain/money.ts';
  * the real translator carries more (`.rich`, `.raw`…), and a variable with
  * extra members is assignable wherever only the call signature is used. */
 type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+/**
+ * Every other server-side refusal in this wizard is shown verbatim via
+ * `e.message` — that text is already "safe to show" Russian (errors.ts).
+ * This one refusal (DEC-076) gets a translated message instead, keyed off
+ * the stable `details.reason` it carries, so a be/en landlord reads it in
+ * their own language rather than only in Russian like every other
+ * server-side validation string in this file still does.
+ */
+function isPhoneCountryMismatch(e: unknown): boolean {
+  return (
+    e instanceof ApiError &&
+    (e.details as { reason?: string } | undefined)?.reason === 'PHONE_COUNTRY_MISMATCH'
+  );
+}
 
 /** Non-text metadata for property types — labels come from ListingWizard.propertyTypes.* via t(). */
 const PROPERTY_TYPE_META: { value: string; icon: IconName }[] = [
@@ -103,6 +118,15 @@ export interface WizardListing {
 }
 
 type Draft = Record<string, any>;
+
+/** Mirrors `GeocodeResult` from `src/app/api/geocode/route.ts` — kept as a
+ *  separate local shape rather than an import so this client component never
+ *  pulls in a Next.js route module (which assumes a server runtime). */
+interface GeocodeResult {
+  latitude: number;
+  longitude: number;
+  displayName: string;
+}
 
 interface Photo {
   id: string;
@@ -209,6 +233,53 @@ export function ListingWizard({
     };
   }, []);
 
+  /* --- geocoding (step 1's "Найти на карте") ------------------------ */
+
+  // idle: nothing tried yet. loading: request in flight. found/empty/error
+  // are the three ways it can settle — `found` is the only one that ever
+  // moves the pin; the other two just explain, briefly, why nothing moved.
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'loading' | 'found' | 'empty' | 'error'>('idle');
+  const [geoPlace, setGeoPlace] = useState<string | null>(null);
+
+  /**
+   * Geocoding only ever SETS A STARTING POINT for the pin — it never runs on
+   * its own (no per-keystroke or debounced auto-search: this is the button's
+   * click handler and nothing else calls it), and every outcome besides an
+   * actual match falls back silently to the manual drag-and-drop flow that
+   * already works end to end, because a listing needs SOME coordinate to
+   * leave DRAFT regardless of how it got there.
+   */
+  async function findOnMap() {
+    const city = String(draft.city ?? '').trim();
+    if (!city) return;
+    const street = [draft.street, draft.houseNumber].filter(Boolean).join(' ').trim();
+    const district = String(draft.district ?? '').trim();
+    const query = [street, district, city, 'Беларусь'].filter(Boolean).join(', ');
+
+    setGeoStatus('loading');
+    setGeoPlace(null);
+    try {
+      const { result } = await api.get<{ result: GeocodeResult | null }>(
+        `/geocode?q=${encodeURIComponent(query)}`,
+      );
+      if (result) {
+        // Still fully draggable afterward — this only pre-fills `onChange`'s
+        // usual target, the same patch a manual drag already sends.
+        patch({ latitude: result.latitude, longitude: result.longitude });
+        setGeoPlace(result.displayName);
+        setGeoStatus('found');
+      } else {
+        setGeoStatus('empty');
+      }
+    } catch {
+      // Not signed in (should not happen this deep in the wizard), the query
+      // was rejected, or something upstream broke in a way the route itself
+      // could not already normalise to "nothing found". Either way: same
+      // fallback message as `empty`, never a blocking error.
+      setGeoStatus('error');
+    }
+  }
+
   /** Creates the row on the first answer, so everything after it autosaves. */
   async function start(propertyType: string) {
     setError(null);
@@ -224,7 +295,13 @@ export function ListingWizard({
       setStep(1);
     } catch (e) {
       setSaveState('error');
-      setError(e instanceof ApiError ? e.message : t('errors.draftFailed'));
+      setError(
+        isPhoneCountryMismatch(e)
+          ? t('errors.phoneCountryMismatch')
+          : e instanceof ApiError
+            ? e.message
+            : t('errors.draftFailed'),
+      );
     }
   }
 
@@ -253,7 +330,13 @@ export function ListingWizard({
       await api.post(`/listings/${id}/submit`, {});
       router.push('/dashboard?submitted=1');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('errors.submitFailed'));
+      setError(
+        isPhoneCountryMismatch(e)
+          ? t('errors.phoneCountryMismatch')
+          : e instanceof ApiError
+            ? e.message
+            : t('errors.submitFailed'),
+      );
       setSubmitting(false);
     }
   }
@@ -431,6 +514,26 @@ export function ListingWizard({
 
             {draft.city && (
               <Field label={t('step1.pinLabel')} hint={t('step1.pinHint')}>
+                <div className="wz__geoRow">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => void findOnMap()}
+                    disabled={geoStatus === 'loading'}
+                  >
+                    <Icon name="search" size={14} />
+                    {geoStatus === 'loading' ? t('step1.findOnMapBusy') : t('step1.findOnMapButton')}
+                  </button>
+                  <span className="hint">{t('step1.findOnMapHint')}</span>
+                </div>
+                {geoStatus === 'found' && (
+                  <p className="wz__geoNote wz__geoNote--ok">
+                    <Icon name="pin" size={14} />
+                    {t('step1.findOnMapSuccess', { place: geoPlace ?? '' })}
+                  </p>
+                )}
+                {geoStatus === 'empty' && <p className="wz__geoNote">{t('step1.findOnMapEmpty')}</p>}
+                {geoStatus === 'error' && <p className="wz__geoNote">{t('step1.findOnMapError')}</p>}
                 <LocationPicker
                   latitude={draft.latitude ?? null}
                   longitude={draft.longitude ?? null}
@@ -615,7 +718,7 @@ export function ListingWizard({
                         }
                       >
                         <Icon name={amenityIcon(a.icon)} size={15} />
-                        {a.name_ru}
+                        {amenityName(a, locale)}
                       </button>
                     );
                   })}
@@ -866,6 +969,11 @@ export function ListingWizard({
 
         .wz__note { display: flex; align-items: center; gap: 0.4rem; font-size: var(--text-sm); color: var(--text-secondary); }
         .wz__note svg { color: var(--primary); }
+
+        .wz__geoRow { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-3); }
+        .wz__geoNote { display: flex; align-items: center; gap: 0.4rem; font-size: var(--text-xs); color: var(--text-tertiary); margin: 0 0 var(--space-3); }
+        .wz__geoNote--ok { color: var(--primary); }
+        .wz__geoNote svg { flex-shrink: 0; }
 
         .wz__drop {
           display: grid; justify-items: center; gap: 0.3rem;
@@ -1192,7 +1300,7 @@ function PreviewSummary({
   const t = useTranslations('ListingWizard');
   const locale = useLocale() as AppLocale;
   const cover = photos.find((p) => p.isCover) ?? photos[0];
-  const names = new Map(amenities.map((a) => [a.code, a.name_ru]));
+  const names = new Map(amenities.map((a) => [a.code, amenityName(a, locale)]));
   const chosen: string[] = draft.amenities ?? [];
   const price = draft.basePriceMinor ? Math.round(Number(draft.basePriceMinor) / 100) : null;
   const dash = t('preview.dash');

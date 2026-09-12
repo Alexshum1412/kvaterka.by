@@ -64,6 +64,8 @@
     "checkoutLabel": "check-out",
     "hide": "Hide",
     "republish": "Publish again",
+    "promoToggleOpen": "Promote",
+    "promoToggleClose": "Collapse",
     "confirmWithdrawDelete": "Withdraw the request and delete?",
     "confirmDeletePublished": "Delete the published listing?",
     "confirmDelete": "Delete this listing?",

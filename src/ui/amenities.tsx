@@ -1,10 +1,18 @@
 import { getLocale, getTranslations } from 'next-intl/server';
-import { AMENITY_CATEGORY, Icon, amenityCategoryLabel, amenityIcon } from './icons.tsx';
+import { AMENITY_CATEGORY, Icon, amenityCategoryLabel, amenityIcon, amenityName } from './icons.tsx';
 
 export interface AmenityRow {
   code: string;
   category: string;
   name_ru: string;
+  /**
+   * Optional rather than required: a caller that only ever needs the
+   * Russian name (nothing else selects these two columns yet) still
+   * satisfies this type, and `amenityName` below falls back to `name_ru`
+   * when they are absent.
+   */
+  name_be?: string | null;
+  name_en?: string | null;
   icon: string | null;
 }
 
@@ -70,7 +78,7 @@ export async function Amenities({
                     <Icon name={amenityIcon(item.icon)} size={18} />
                   </span>
                   <span className="amn__body">
-                    <span className="amn__name">{item.name_ru}</span>
+                    <span className="amn__name">{amenityName(item, locale as 'ru' | 'be' | 'en')}</span>
                     {fact && fact.total > 0 && (
                       <span className="amn__confirm">
                         <Icon name="checkCircle" size={13} />

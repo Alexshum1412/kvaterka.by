@@ -32,8 +32,8 @@
       "privacyLink": "Data and privacy"
     },
     "note": {
-      "p1Rich": "<strong>What doesn't exist yet.</strong> A dedicated support channel — email, chat, or a form — doesn't exist on the platform yet, and we won't pretend it does. If your question isn't solved by any of the paths above (for example, you can't sign in to your account), right now it will go unanswered.",
-      "p2": "This is a known gap, not an oversight on this page."
+      "p1Rich": "<strong>None of these fit?</strong> Describe the situation in the form below — it goes to a support agent, and the answer arrives in the ticket's own thread and in your notifications.",
+      "p2": "This also works if, for example, you can't sign in to your account: the form below doesn't require solving the problem that's actually blocking you first."
     }
   }
 }

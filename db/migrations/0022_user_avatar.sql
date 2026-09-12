@@ -1,0 +1,16 @@
+-- 0022_user_avatar.sql
+--
+-- A profile picture. Until now every "avatar" in the product was a CSS
+-- circle showing the first letter of a display name — the header, chat,
+-- listings and bookings all draw it independently from the same one piece
+-- of data (display_name) because there was never a second piece to draw.
+--
+-- Nullable, because most accounts will never set one and NULL is exactly
+-- "no photo, fall back to the initial" rather than a sentinel string
+-- somebody has to remember to check for. The value is a storage key in the
+-- same convention listing photos already use (see property_photo.storage_key
+-- and src/app/media/[...key]/route.ts) — namespaced under avatars/<user id>/
+-- so the media route needs no new logic to serve it, and no new logic to
+-- refuse it either: it is a public picture the person chose to show, not a
+-- document, so it belongs in the same public bucket as listing photos.
+ALTER TABLE app_user ADD COLUMN avatar_storage_key text;

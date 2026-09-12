@@ -45,8 +45,9 @@
       },
       "otherAmenityCategory": "Прочее",
       "toggle": "Фильтры",
-      "onMap": "На карте",
       "sortSrOnly": "Сортировка",
+      "queryLabel": "Поиск по объявлениям",
+      "queryPlaceholder": "Например, студия у метро",
       "priceLegend": "Цена за ночь или месяц, Br",
       "priceFromLabel": "От",
       "priceToLabel": "До",
@@ -65,6 +66,10 @@
       "smokingAllowed": "Можно курить",
       "verifiedOnly": "Только проверенные",
       "instantBooking": "Мгновенное бронирование",
+      "negotiable": "Цена обсуждается",
+      "ownerKindLegend": "Кто сдаёт",
+      "ownerPrivate": "Частное лицо",
+      "ownerCompany": "Компания",
       "showAllAmenities": "Показать все удобства",
       "collapseAmenities": "Свернуть удобства",
       "reset": "Сбросить",
@@ -97,7 +102,9 @@
       "fromDuration": "от {duration}",
       "outOfFive": "из 5",
       "reviewsCount": ", {count, plural, one {# отзыв} few {# отзыва} many {# отзывов} other {# отзывов}}",
-      "propertyVerified": "Объект проверен"
+      "propertyVerified": "Объект проверен",
+      "ownerCompany": "Компания",
+      "ownerPrivate": "Частный хозяин"
     },
 
     "favourite": {

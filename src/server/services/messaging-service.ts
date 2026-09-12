@@ -20,7 +20,18 @@ export interface ConversationSummary {
   readonly propertyTitle: string | null;
   readonly bookingId: string | null;
   readonly bookingStatus: string | null;
-  readonly counterparty: { id: string; displayName: string; verificationLevel: number };
+  readonly counterparty: {
+    id: string;
+    displayName: string;
+    verificationLevel: number;
+    /**
+     * True when the viewer is the LANDLORD and this tenant counterparty has
+     * a verified phone that is not Belarusian — never the reverse (DEC-076).
+     * A derived signal only: see the query in `listConversations` for why
+     * this never carries the raw phone number.
+     */
+    phoneCountryMismatch: boolean;
+  };
   readonly contactReleased: boolean;
   readonly lastMessageAt: string | null;
   readonly unreadCount: number;
@@ -233,6 +244,15 @@ export class MessagingService {
               CASE WHEN c.tenant_id = $1 THEN c.landlord_id ELSE c.tenant_id END AS counterparty_id,
               cu.display_name AS counterparty_name,
               cu.verification_level AS counterparty_verification,
+              -- Only a derived, non-PII boolean — never the raw phone number,
+              -- which stays out of this SELECT list entirely (DEC-076). Gated
+              -- on "$1 is the landlord" so the value is meaningful only when
+              -- the viewer IS the landlord and cu is their tenant; a tenant
+              -- looking at their landlord always gets false, never the real
+              -- answer about the landlord's own phone.
+              (c.landlord_id = $1
+                AND cu.phone_verified_via IS NOT NULL AND cu.phone_verified_at IS NOT NULL
+                AND cu.phone IS NOT NULL AND cu.phone NOT LIKE '+375%') AS counterparty_phone_mismatch,
               (SELECT count(*)::int FROM message m
                 WHERE m.conversation_id = c.id AND m.read_at IS NULL
                   AND m.sender_id IS DISTINCT FROM $1 AND m.deleted_at IS NULL) AS unread
@@ -256,6 +276,7 @@ export class MessagingService {
         id: r.counterparty_id,
         displayName: r.counterparty_name,
         verificationLevel: r.counterparty_verification,
+        phoneCountryMismatch: r.counterparty_phone_mismatch === true,
       },
       contactReleased: r.contact_release_state === 'RELEASED',
       lastMessageAt: r.last_message_at,

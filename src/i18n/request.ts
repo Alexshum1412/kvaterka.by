@@ -45,6 +45,7 @@ const NAMESPACES = [
   'terms',
   'privacy',
   'support',
+  'support-tickets',
   'home',
   'not-found',
   'error',

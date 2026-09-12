@@ -3,6 +3,7 @@
     "landlord": "Хозяин",
     "tenant": "Арендатор",
     "verified": "подтверждён",
+    "phoneCountryMismatch": "не белорусский номер",
     "guests": "{count, plural, one {# гость} few {# гостя} many {# гостей} other {# гостей}}"
   }
 }

@@ -24,7 +24,33 @@
       "saveButton": "Захаваць",
       "savingButton": "Захоўваем…",
       "savedNotice": "Змены захаваны",
-      "saveError": "Не ўдалося захаваць змены"
+      "saveError": "Не ўдалося захаваць змены",
+      "avatarAlt": "Фота профілю",
+      "avatarChangeButton": "Змяніць фота",
+      "avatarUploading": "Загружаем…",
+      "avatarError": "Не ўдалося загрузіць фота. Праверце фармат (JPEG, PNG, WebP) і памер (да 3 МБ).",
+      "emailLabel": "Email",
+      "phoneLabel": "Тэлефон",
+      "notProvided": "Не пазначана",
+      "verifiedBadge": "пацверджаны",
+      "unverifiedBadge": "не пацверджаны",
+      "rolesLabel": "Ролі",
+      "levelLabel": "Узровень даверу",
+      "memberSinceLabel": "На пляцоўцы з",
+      "level": {
+        "0": "Пачатковец",
+        "1": "Асоба пацверджана",
+        "2": "Права здачы пацверджана"
+      },
+      "roles": {
+        "TENANT": "Арандатар",
+        "LANDLORD": "Гаспадар",
+        "SUPPORT": "Падтрымка",
+        "MODERATOR": "Мадэратар",
+        "VERIFIER": "Верыфікатар",
+        "FINANCE": "Фінансы",
+        "ADMIN": "Адміністратар"
+      }
     },
     "security": {
       "passwordTitle": "Змена пароля",

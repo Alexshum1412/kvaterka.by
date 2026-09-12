@@ -15,13 +15,16 @@ import { DashboardService } from './dashboard-service.ts';
 import { DisputeService } from './dispute-service.ts';
 import { FavoriteService } from './favorite-service.ts';
 import { FinanceService } from './finance-service.ts';
+import { HighlightService } from './highlight-service.ts';
 import { ListingService } from './listing-service.ts';
 import { MessagingService } from './messaging-service.ts';
 import { NotificationService } from './notification-service.ts';
 import { DeliveryService } from './delivery-service.ts';
+import { PinService } from './pin-service.ts';
 import { RetentionService } from './retention-service.ts';
 import { ReviewService } from './review-service.ts';
 import { SearchService } from './search-service.ts';
+import { TicketService } from './support-ticket-service.ts';
 import { TrustService } from './trust-service.ts';
 import { VerificationService } from './verification-service.ts';
 
@@ -29,11 +32,14 @@ export interface Services {
   readonly auth: AuthService;
   readonly listings: ListingService;
   readonly boost: BoostService;
+  readonly highlight: HighlightService;
+  readonly pin: PinService;
   readonly search: SearchService;
   readonly availability: AvailabilityService;
   readonly bookings: BookingService;
   readonly dashboard: DashboardService;
   readonly disputes: DisputeService;
+  readonly tickets: TicketService;
   readonly favorites: FavoriteService;
   readonly reviews: ReviewService;
   readonly messaging: MessagingService;
@@ -74,11 +80,14 @@ export function createServices(db: Db, publicBaseUrl: string): Services {
     auth: new AuthService(db),
     listings: new ListingService(db),
     boost: new BoostService(db),
+    highlight: new HighlightService(db),
+    pin: new PinService(db),
     search: new SearchService(db),
     availability: new AvailabilityService(db),
     bookings: new BookingService(db),
     dashboard: new DashboardService(db),
     disputes: new DisputeService(db),
+    tickets: new TicketService(db),
     favorites: new FavoriteService(db),
     reviews: new ReviewService(db),
     messaging: new MessagingService(db),

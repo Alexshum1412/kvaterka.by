@@ -64,6 +64,8 @@
     "checkoutLabel": "выезд",
     "hide": "Скрыть",
     "republish": "Опубликовать снова",
+    "promoToggleOpen": "Продвинуть",
+    "promoToggleClose": "Свернуть",
     "confirmWithdrawDelete": "Отозвать заявку и удалить?",
     "confirmDeletePublished": "Удалить опубликованное объявление?",
     "confirmDelete": "Удалить объявление?",

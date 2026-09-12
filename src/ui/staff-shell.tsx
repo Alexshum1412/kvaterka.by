@@ -33,6 +33,10 @@ interface Section {
 const SECTIONS: Section[] = [
   { href: '/staff', labelKey: 'overview', icon: 'home', permission: 'case.view', match: ['/staff'] },
   { href: '/staff/disputes', labelKey: 'disputes', icon: 'alert', permission: 'case.view', match: ['/staff/disputes'] },
+  // The general "contact support" console (DEC-073) — a sibling of disputes,
+  // not a replacement: a dispute is booking-specific and adversarial, a
+  // ticket is neither, so it gets its own queue rather than a filter on this one.
+  { href: '/staff/tickets', labelKey: 'tickets', icon: 'phone', permission: 'case.view', match: ['/staff/tickets'] },
   { href: '/moderation', labelKey: 'moderation', icon: 'checkCircle', permission: 'listing.moderate', match: ['/moderation'] },
   // VERIFIER's only section. Until now a verifier had no way into the console
   // at all: they hold neither `case.view` nor `listing.moderate`, so every

@@ -29,7 +29,7 @@ export default async function NewListingPage() {
 
   const database = await ready();
   const amenities = await database.query<AmenityOption>(
-    `SELECT code, category, name_ru, icon FROM amenity ORDER BY sort_order`,
+    `SELECT code, category, name_ru, name_be, name_en, icon FROM amenity ORDER BY sort_order`,
   );
 
   return <ListingWizard listing={null} amenities={amenities.rows} />;

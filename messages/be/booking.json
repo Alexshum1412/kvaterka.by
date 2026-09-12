@@ -94,6 +94,7 @@
     "individualLabel": "Фізічная асоба",
     "identityVerified": "Асоба пацверджана",
     "identityNotVerified": "Асоба не пацверджана",
+    "phoneCountryMismatch": "У госця не беларускі нумар тэлефона",
     "completedDealsCount": "{count, plural, one {# завершаная здзелка} few {# завершаныя здзелкі} many {# завершаных здзелак} other {# завершаных здзелак}}",
     "completedRentalsCount": "{count, plural, one {# завершаная арэнда} few {# завершаныя арэнды} many {# завершаных арэнд} other {# завершаных арэнд}}",
     "openProfileButton": "Адкрыць профіль",

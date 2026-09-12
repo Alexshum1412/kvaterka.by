@@ -273,7 +273,8 @@ export const profileRoutes: AnyRoute[] = [
     async handler({ ctx, caller }) {
       const { rows } = await ctx.db.query(
         `SELECT id, email, phone, display_name, account_kind, company_name, locale,
-                email_verified_at, phone_verified_at, verification_level, status, created_at
+                email_verified_at, phone_verified_at, verification_level, status, created_at,
+                avatar_storage_key
            FROM app_user WHERE id=$1`,
         [caller.userId],
       );
@@ -291,6 +292,7 @@ export const profileRoutes: AnyRoute[] = [
         verificationLevel: u.verification_level,
         status: u.status,
         memberSince: u.created_at,
+        avatarStorageKey: u.avatar_storage_key,
         trust: await ctx.services.trust.profile(caller.userId),
       };
     },

@@ -28,6 +28,8 @@ export interface PageCaller {
   /** Held but withheld — the page shows a prompt instead of a bare 404. */
   readonly withheldRoles: readonly Role[];
   readonly twoFactorEnrolled: boolean;
+  /** Storage key of the uploaded profile picture — see 0022. Null draws the initial-letter circle. */
+  readonly avatarStorageKey: string | null;
 }
 
 /**
@@ -53,6 +55,7 @@ export const currentUser = cache(async (): Promise<PageCaller | null> => {
     phoneVerified: session.phoneVerified,
     withheldRoles: session.withheldRoles,
     twoFactorEnrolled: session.twoFactorEnrolled,
+    avatarStorageKey: session.avatarStorageKey,
   };
 });
 

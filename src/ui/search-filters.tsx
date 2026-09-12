@@ -1,16 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/navigation.ts';
 import type { AppLocale } from '@/i18n/routing.ts';
-import { Icon, AMENITY_CATEGORY, amenityCategoryLabel, amenityIcon } from './icons.tsx';
+import { Icon, AMENITY_CATEGORY, amenityCategoryLabel, amenityIcon, amenityName } from './icons.tsx';
 import { propertyTypeLabel } from './primitives.tsx';
 
 export interface AmenityOption {
   code: string;
   category: string;
   name_ru: string;
+  name_be: string;
+  name_en: string;
   icon: string | null;
 }
 
@@ -88,6 +90,7 @@ export function SearchFilters({
   const [pets, setPets] = useState(() => params.get('pets') === 'true');
   const [verified, setVerified] = useState(() => params.get('verified') === 'true');
   const [instant, setInstant] = useState(() => params.get('instant') === 'true');
+  const [negotiable, setNegotiable] = useState(() => params.get('negotiable') === 'true');
   const [chosen, setChosen] = useState<Set<string>>(
     () => new Set((params.get('amenities') ?? '').split(',').filter(Boolean)),
   );
@@ -98,10 +101,19 @@ export function SearchFilters({
   const [rating, setRating] = useState(() => params.get('rating') ?? '');
   const [smoking, setSmoking] = useState(() => params.get('smoking') === 'true');
   const [children, setChildren] = useState(() => params.get('children') === 'true');
+  const [ownerKind, setOwnerKind] = useState<'' | 'PRIVATE' | 'COMPANY'>(() => {
+    const value = params.get('ownerKind');
+    return value === 'PRIVATE' || value === 'COMPANY' ? value : '';
+  });
+  // The free-text box lives outside the collapsible panel (see `.fl__query`
+  // below) and pushes on its own submit, same as `sort` — it describes the
+  // search itself rather than narrowing it, which is also why `q` is in
+  // KEPT_ON_RESET rather than cleared alongside the filters above.
+  const [q, setQ] = useState(() => params.get('q') ?? '');
 
   const amenityNames = useMemo(
-    () => new Map(amenities.map((a) => [a.code, a.name_ru])),
-    [amenities],
+    () => new Map(amenities.map((a) => [a.code, amenityName(a, locale)])),
+    [amenities, locale],
   );
 
   /* The chips describe the APPLIED search, read straight off the URL. */
@@ -143,6 +155,12 @@ export function SearchFilters({
     if (params.get('pets') === 'true') out.push({ key: 'pets', label: t('filters.petsAllowed') });
     if (params.get('verified') === 'true') out.push({ key: 'verified', label: t('filters.verifiedOnly') });
     if (params.get('instant') === 'true') out.push({ key: 'instant', label: t('filters.instantBooking') });
+    if (params.get('negotiable') === 'true') out.push({ key: 'negotiable', label: t('filters.negotiable') });
+
+    const ok = params.get('ownerKind');
+    if (ok === 'PRIVATE' || ok === 'COMPANY') {
+      out.push({ key: 'ownerKind', label: ok === 'COMPANY' ? t('filters.ownerCompany') : t('filters.ownerPrivate') });
+    }
 
     for (const code of (params.get('amenities') ?? '').split(',').filter(Boolean)) {
       out.push({ key: `amenity:${code}`, label: amenityNames.get(code) ?? code });
@@ -170,12 +188,14 @@ export function SearchFilters({
     set('pets', pets ? 'true' : null);
     set('verified', verified ? 'true' : null);
     set('instant', instant ? 'true' : null);
+    set('negotiable', negotiable ? 'true' : null);
     set('amenities', chosen.size > 0 ? [...chosen].join(',') : null);
     set('types', types.size > 0 ? [...types].join(',') : null);
     set('beds', beds || null);
     set('minRating', rating || null);
     set('smoking', smoking ? 'true' : null);
     set('children', children ? 'true' : null);
+    set('ownerKind', ownerKind || null);
 
     setOpen(false);
     push(next);
@@ -212,6 +232,8 @@ export function SearchFilters({
       if (key === 'pets') setPets(false);
       if (key === 'verified') setVerified(false);
       if (key === 'instant') setInstant(false);
+      if (key === 'negotiable') setNegotiable(false);
+      if (key === 'ownerKind') setOwnerKind('');
     }
     push(next);
   }
@@ -230,13 +252,24 @@ export function SearchFilters({
     setPets(false);
     setVerified(false);
     setInstant(false);
+    setNegotiable(false);
     setChosen(new Set());
     setTypes(new Set());
     setBeds('');
     setRating('');
     setSmoking(false);
     setChildren(false);
+    setOwnerKind('');
     setOpen(false);
+    push(next);
+  }
+
+  function submitQuery(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const next = new URLSearchParams(params.toString());
+    const trimmed = q.trim();
+    if (trimmed) next.set('q', trimmed);
+    else next.delete('q');
     push(next);
   }
 
@@ -277,6 +310,17 @@ export function SearchFilters({
 
   return (
     <div className="fl">
+      <form className="fl__query" onSubmit={submitQuery} role="search" aria-label={t('filters.queryLabel')}>
+        <Icon name="search" size={16} className="fl__queryIcon" />
+        <input
+          type="search"
+          className="input fl__queryInput"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={t('filters.queryPlaceholder')}
+        />
+      </form>
+
       <div className="fl__bar">
         <button
           type="button"
@@ -305,10 +349,6 @@ export function SearchFilters({
         )}
 
         <div className="fl__end">
-          <a href="#map" className="btn btn-ghost btn-sm fl__map">
-            <Icon name="map" size={16} />
-            {t('filters.onMap')}
-          </a>
           <label className="fl__sort">
             <span className="sr-only">{t('filters.sortSrOnly')}</span>
             <select
@@ -501,6 +541,37 @@ export function SearchFilters({
                   <Icon name="check" size={15} />
                   {t('filters.instantBooking')}
                 </button>
+                <button
+                  type="button"
+                  className="chip chip-sm"
+                  aria-pressed={negotiable}
+                  onClick={() => setNegotiable(!negotiable)}
+                >
+                  <Icon name="message" size={15} />
+                  {t('filters.negotiable')}
+                </button>
+              </div>
+            </fieldset>
+
+            <fieldset className="fl__set">
+              <legend className="fl__legend">{t('filters.ownerKindLegend')}</legend>
+              <div className="fl__row">
+                <button
+                  type="button"
+                  className="chip chip-sm"
+                  aria-pressed={ownerKind === 'PRIVATE'}
+                  onClick={() => setOwnerKind(ownerKind === 'PRIVATE' ? '' : 'PRIVATE')}
+                >
+                  {t('filters.ownerPrivate')}
+                </button>
+                <button
+                  type="button"
+                  className="chip chip-sm"
+                  aria-pressed={ownerKind === 'COMPANY'}
+                  onClick={() => setOwnerKind(ownerKind === 'COMPANY' ? '' : 'COMPANY')}
+                >
+                  {t('filters.ownerCompany')}
+                </button>
               </div>
             </fieldset>
 
@@ -517,7 +588,7 @@ export function SearchFilters({
                       onClick={() => toggleAmenity(a.code)}
                     >
                       <Icon name={amenityIcon(a.icon)} size={15} />
-                      {a.name_ru}
+                      {amenityName(a, locale)}
                     </button>
                   ))}
                 </div>
@@ -549,6 +620,14 @@ export function SearchFilters({
 
       <style>{`
         .fl { display: grid; gap: var(--space-3); }
+
+        /* Same icon-in-input shape as .sf__pinned on the main search form —
+           one established pattern for a leading glyph rather than a second
+           way of positioning one. */
+        .fl__query { position: relative; display: flex; align-items: center; }
+        .fl__queryIcon { position: absolute; left: 0.75rem; color: var(--text-tertiary); pointer-events: none; }
+        .fl__queryInput { width: 100%; padding-left: 2.25rem; }
+
         .fl__bar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
         .fl__toggle { gap: 0.4rem; }
         /* Same pressed language as .chip[aria-pressed] — the button that
@@ -580,9 +659,6 @@ export function SearchFilters({
         .fl__chip:hover { background: var(--primary-soft-hover); }
         .fl__end { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
         .fl__sort .select { min-height: 2.5rem; font-size: var(--text-sm); border-color: var(--border-strong); }
-        /* The map lives below the listings on a phone; this is the way up to
-           it. On desktop the map is already beside the results. */
-        @media (min-width: 1024px) { .fl__map { display: none; } }
 
         .fl__panel {
           background: var(--surface);

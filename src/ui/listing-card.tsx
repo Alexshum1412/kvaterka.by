@@ -28,6 +28,10 @@ export interface ListingCardData {
   rating: number | null;
   reviewCount: number;
   isBoosted?: boolean;
+  /** The strongest paid placement — see search-service.ts's orderClause(). */
+  isPinned?: boolean;
+  /** Visual treatment only; never affects search order. */
+  isHighlighted?: boolean;
   distanceMeters?: number;
   stayTotalMinor?: string;
 }
@@ -92,7 +96,7 @@ export async function ListingCard({
       : t('card.stayNoteAllInclusive');
 
   return (
-    <article className="lc">
+    <article className={`lc${listing.isHighlighted ? ' lc--highlighted' : ''}`}>
       <div className="lc__media media-zoom">
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -121,7 +125,16 @@ export async function ListingCard({
       <div className="lc__body">
         {/* Paid placement is a claim about how the card got here, not about
             the listing itself — it stays out of the photo overlay, which is
-            reserved for facts about the object (see lc__flag above). */}
+            reserved for facts about the object (see lc__flag above). Pin is
+            the stronger product and gets the visually stronger (solid)
+            badge; boost keeps its original soft treatment. A listing can
+            hold both at once, so both can render together. */}
+        {listing.isPinned && (
+          <span className="badge badge-solid-primary lc__boostBadge">
+            <Icon name="pin" size={12} />
+            {tBoost('pinnedBadge')}
+          </span>
+        )}
         {listing.isBoosted && (
           <span className="badge badge-primary lc__boostBadge">{tBoost('badge')}</span>
         )}
@@ -153,6 +166,13 @@ export async function ListingCard({
         </p>
 
         <p className="lc__place">{place}</p>
+
+        {/* Same wording as the listing page's owner line (spec: "чтобы люди
+            знали, к кого снимают") — one fact, stated the same way wherever
+            it appears, rather than a card-specific rewording. */}
+        <p className="lc__owner">
+          {listing.owner.accountKind === 'COMPANY' ? t('card.ownerCompany') : t('card.ownerPrivate')}
+        </p>
 
         <div className="lc__facts">
           {basics && <p className="lc__basics truncate">{basics}</p>}
@@ -196,6 +216,16 @@ export async function ListingCard({
         .lc:hover { box-shadow: var(--shadow-raised); transform: translateY(-2px); }
         .lc:focus-within { box-shadow: var(--shadow-raised); }
         .lc:active { transform: translateY(0); }
+
+        /* Colour highlight: a paid visual treatment, not a ranking signal —
+           an inset ring plus a tinted ground rather than a badge, so it reads
+           as a property of the card itself. --warning/--warning-soft are the
+           existing amber tokens (see globals.css); reused rather than adding
+           a new design token for what is, visually, the same amber accent. */
+        .lc--highlighted { box-shadow: inset 0 0 0 2px var(--warning); background: var(--warning-soft); }
+        .lc--highlighted:hover, .lc--highlighted:focus-within {
+          box-shadow: inset 0 0 0 2px var(--warning), var(--shadow-raised);
+        }
 
         /* 3:2 — the ratio phone cameras and estate photography actually use.
            4:3 crops interiors awkwardly. */
@@ -278,6 +308,7 @@ export async function ListingCard({
         .lc__min { font-size: var(--text-xs); color: var(--text-tertiary); }
 
         .lc__place { margin-top: 0.25rem; font-size: var(--text-sm); color: var(--text-secondary); }
+        .lc__owner { margin-top: 0.125rem; font-size: var(--text-xs); color: var(--text-tertiary); }
 
         .lc__facts { display: flex; align-items: center; gap: var(--space-2); }
         .lc__basics { flex: 1 1 auto; font-size: var(--text-xs); color: var(--text-tertiary); }

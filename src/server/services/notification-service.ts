@@ -63,6 +63,11 @@ export const NOTIFICATION_CATEGORIES = [
   'VERIFICATION',
   'SECURITY',
   'MODERATION',
+  /** A support ticket's status changed, or the other side wrote something
+   * in the thread — DEC-073. Not mandatory/transactional: a support
+   * conversation is not money owed or an account-security event, so a
+   * person may switch it off like any other product notification. */
+  'SUPPORT',
 ] as const;
 
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
@@ -89,6 +94,7 @@ export const NOTIFICATION_CATEGORY_TITLE: Record<string, string> = {
   VERIFICATION: 'Решение по проверке',
   SECURITY: 'Безопасность аккаунта',
   MODERATION: 'Решение модерации',
+  SUPPORT: 'Обновление по обращению в поддержку',
 };
 
 const NOTIFICATION_CATEGORY_TITLE_BE: Record<string, string> = {
@@ -106,6 +112,7 @@ const NOTIFICATION_CATEGORY_TITLE_BE: Record<string, string> = {
   VERIFICATION: 'Рашэнне па праверцы',
   SECURITY: 'Бяспека акаунта',
   MODERATION: 'Рашэнне мадэрацыі',
+  SUPPORT: 'Абнаўленне па зваротах у падтрымку',
 };
 
 const NOTIFICATION_CATEGORY_TITLE_EN: Record<string, string> = {
@@ -123,6 +130,7 @@ const NOTIFICATION_CATEGORY_TITLE_EN: Record<string, string> = {
   VERIFICATION: 'Verification decision',
   SECURITY: 'Account security',
   MODERATION: 'Moderation decision',
+  SUPPORT: 'Support ticket update',
 };
 
 /** Locale-aware sibling of `NOTIFICATION_CATEGORY_TITLE` — same fixed,

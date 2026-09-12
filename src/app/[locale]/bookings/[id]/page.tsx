@@ -103,14 +103,21 @@ export default async function BookingDetailPage({
       [booking.property_id],
     ),
     // Public trust facts only — no email, no phone, nothing from the
-    // verification documents.
+    // verification documents. The one narrow exception (DEC-076, a product
+    // owner directive) is `phone_country_mismatch`: a derived boolean, never
+    // the raw phone digits, and gated by `$2` so it can only ever be true
+    // when the viewer is the LANDLORD and `u` is their tenant — a tenant
+    // viewing their landlord always gets `false` here, never the real
+    // answer about the landlord's own phone.
     database.query<Record<string, any>>(
       `SELECT u.id, u.display_name, u.account_kind, u.company_name, u.verification_level,
               u.created_at, u.completed_rentals_as_tenant, u.completed_rentals_as_landlord,
               (SELECT round(avg(r.overall)::numeric,2) FROM review r
-                WHERE r.subject_id = u.id AND r.status = 'PUBLISHED') AS rating
+                WHERE r.subject_id = u.id AND r.status = 'PUBLISHED') AS rating,
+              ($2::boolean AND u.phone_verified_via IS NOT NULL AND u.phone_verified_at IS NOT NULL
+                  AND u.phone IS NOT NULL AND u.phone NOT LIKE '+375%') AS phone_country_mismatch
          FROM app_user u WHERE u.id = $1`,
-      [counterpartyId],
+      [counterpartyId, isLandlord],
     ),
     database.query<{ id: string }>(
       `SELECT id FROM conversation WHERE property_id = $1 AND tenant_id = $2`,
@@ -411,6 +418,14 @@ export default async function BookingDetailPage({
                       <span className="muted">{t('identityNotVerified')}</span>
                     )}
                   </li>
+                  {other.phone_country_mismatch && (
+                    <li>
+                      <span className="bk__phoneWarn">
+                        <Icon name="alert" size={14} />
+                        {t('phoneCountryMismatch')}
+                      </span>
+                    </li>
+                  )}
                   {other.rating !== null && (
                     <li className="numeric">
                       <Icon name="star" size={14} solid />
@@ -532,6 +547,7 @@ export default async function BookingDetailPage({
         .bk__trust { display: grid; gap: 0.35rem; margin: 0 0 var(--space-3); padding: 0; list-style: none; font-size: var(--text-sm); }
         .bk__trust li { display: flex; align-items: center; gap: 0.3rem; }
         .bk__ok { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--success); font-weight: 600; }
+        .bk__phoneWarn { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--warning); font-weight: 600; }
         .bk__chatNote { margin-bottom: var(--space-3); }
 
         .bk__history { margin-top: var(--space-6); padding-top: var(--space-5); border-top: 1px solid var(--border); }

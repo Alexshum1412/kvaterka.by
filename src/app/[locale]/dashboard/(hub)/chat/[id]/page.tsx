@@ -69,6 +69,14 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
                 {t('verified')}
               </span>
             )}
+            {/* Landlord-only, tenant-guest-only signal (DEC-076) — the
+                service already returns `false` for the reverse direction. */}
+            {conversation.counterparty.phoneCountryMismatch && (
+              <span className="cv__phoneWarn">
+                <Icon name="alert" size={13} />
+                {t('phoneCountryMismatch')}
+              </span>
+            )}
           </div>
           {conversation.propertyId ? (
             <Link href={`/listing/${conversation.propertyId}`} className="cv__property truncate">
@@ -126,6 +134,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         .cv__nameRow { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
         .cv__name { font-size: var(--text-base); }
         .cv__verified { display: inline-flex; align-items: center; gap: 0.25rem; font-size: var(--text-2xs); font-weight: 600; color: var(--success); }
+        .cv__phoneWarn { display: inline-flex; align-items: center; gap: 0.25rem; font-size: var(--text-2xs); font-weight: 600; color: var(--warning); }
         .cv__property { font-size: var(--text-sm); color: var(--text-secondary); }
         .cv__property:hover { color: var(--primary); }
         .cv__booking { flex: 0 0 auto; }

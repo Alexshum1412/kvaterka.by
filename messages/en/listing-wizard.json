@@ -86,7 +86,13 @@
       "houseLabel": "Building number",
       "apartmentLabel": "Apartment",
       "apartmentHint": "Never shared with anyone until a booking is confirmed",
-      "approxPoint": "Approximate point: {lat}, {lng}"
+      "approxPoint": "Approximate point: {lat}, {lng}",
+      "findOnMapButton": "Find on map",
+      "findOnMapBusy": "Searching…",
+      "findOnMapHint": "We'll look up a point from the street, building number and city. You can always adjust the pin by hand.",
+      "findOnMapSuccess": "Found: {place}. Check the pin on the map and adjust it if needed.",
+      "findOnMapEmpty": "Couldn't find that address. Place the pin on the map by hand.",
+      "findOnMapError": "Couldn't look up the address automatically. Place the pin on the map by hand."
     },
 
     "step2": {
@@ -251,7 +257,8 @@
       "addPhoto": "Add at least one photo.",
       "titleTooShort": "The title must be at least 8 characters.",
       "invalidDuration": "The maximum stay can't be shorter than the minimum.",
-      "setPrice": "Set a price."
+      "setPrice": "Set a price.",
+      "phoneCountryMismatch": "Publishing listings requires a verified Belarusian phone number (+375). Your verified number is registered in another country."
     }
   }
 }

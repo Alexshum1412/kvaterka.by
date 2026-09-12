@@ -85,7 +85,7 @@ export default async function ListingPage({ params }: { params: Promise<{ locale
     reviewService.confirmedFacts(id),
     reviewService.dimensionSummary(id),
     database.query<AmenityRow>(
-      `SELECT a.code, a.category, a.name_ru, a.icon FROM property_amenity pa
+      `SELECT a.code, a.category, a.name_ru, a.name_be, a.name_en, a.icon FROM property_amenity pa
         JOIN amenity a ON a.code = pa.amenity_code
        WHERE pa.property_id = $1 ORDER BY a.sort_order`,
       [id],

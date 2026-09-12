@@ -7,6 +7,7 @@ import { favoriteRoutes } from './favorites.ts';
 import { chatRoutes, dashboardRoutes, notificationRoutes, profileRoutes, reviewRoutes } from './social.ts';
 import { adminRoutes, financeRoutes } from './admin.ts';
 import { staffRoutes } from './staff.ts';
+import { supportTicketSelfRoutes, supportTicketStaffRoutes } from './support-tickets.ts';
 import { accountSelfRoutes, retentionStaffRoutes } from './retention.ts';
 import { twoFactorRoutes } from './two-factor.ts';
 import { verificationSelfRoutes, verificationStaffRoutes } from './verification.ts';
@@ -43,6 +44,8 @@ export const allRoutes: AnyRoute[] = [
   ...notificationRoutes,
   ...financeRoutes,
   ...staffRoutes,
+  ...supportTicketSelfRoutes,
+  ...supportTicketStaffRoutes,
   ...accountSelfRoutes,
   ...twoFactorRoutes,
   ...retentionStaffRoutes,

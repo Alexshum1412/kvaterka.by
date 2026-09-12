@@ -24,7 +24,33 @@
       "saveButton": "Сохранить",
       "savingButton": "Сохраняем…",
       "savedNotice": "Изменения сохранены",
-      "saveError": "Не удалось сохранить изменения"
+      "saveError": "Не удалось сохранить изменения",
+      "avatarAlt": "Фото профиля",
+      "avatarChangeButton": "Изменить фото",
+      "avatarUploading": "Загружаем…",
+      "avatarError": "Не удалось загрузить фото. Проверьте формат (JPEG, PNG, WebP) и размер (до 3 МБ).",
+      "emailLabel": "Email",
+      "phoneLabel": "Телефон",
+      "notProvided": "Не указано",
+      "verifiedBadge": "подтверждён",
+      "unverifiedBadge": "не подтверждён",
+      "rolesLabel": "Роли",
+      "levelLabel": "Уровень доверия",
+      "memberSinceLabel": "На платформе с",
+      "level": {
+        "0": "Новичок",
+        "1": "Личность подтверждена",
+        "2": "Право сдачи подтверждено"
+      },
+      "roles": {
+        "TENANT": "Арендатор",
+        "LANDLORD": "Хозяин",
+        "SUPPORT": "Поддержка",
+        "MODERATOR": "Модератор",
+        "VERIFIER": "Верификатор",
+        "FINANCE": "Финансы",
+        "ADMIN": "Администратор"
+      }
     },
     "security": {
       "passwordTitle": "Смена пароля",
