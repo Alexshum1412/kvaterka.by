@@ -21,7 +21,7 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 - [x] Test suite passes — 1034 tests (`npm test` is the source of truth for the number)
 - [x] Typecheck clean
 - [x] **Suite run against a real PostgreSQL server** — 1135 tests pass on **PostgreSQL 10.23**, the version production runs, under a `NOSUPERUSER` role with **zero extensions installed**; 1134 pass on PGlite with one skipped. Includes 20 genuine-concurrency assertions that cannot run under PGlite. The harness needed a schema per test file before this was possible at all, and CI now runs `postgres:10.23` rather than `postgres:18` — testing against something more capable than production proves the wrong thing
-- [~] Authorization test suite for every API endpoint — audited all 141 endpoints across 13 route files against the real test suite (DEC-083); closed the 9 high-risk gaps with regression tests and fixed the one real bug it found (a moderation-bypass on listing republish). 41 medium/low-risk gaps remain, logged as backlog, not yet actioned
+- [x] Authorization test suite for every API endpoint — audited all 141 endpoints across 13 route files against the real test suite and closed every gap with a real regression test (DEC-083, DEC-084). Found and fixed two real bugs along the way: a moderation-bypass on listing republish, and an existence oracle on the profile-surface favorites route
 - [ ] End-to-end browser tests for critical flows
 - [ ] Mobile viewport tests
 
