@@ -13,6 +13,7 @@ import { hasErrorCode, isPgError, PG_ERROR } from '../db/sql.ts';
 import { WeakPasswordError } from '../auth/credentials.ts';
 import { IllegalTransitionError } from '../domain/booking/states.ts';
 import { IllegalDisputeTransitionError } from '../domain/dispute.ts';
+import { IllegalTicketTransitionError } from '../domain/support-ticket.ts';
 import { IllegalVerificationTransitionError } from '../domain/verification.ts';
 import { PricingError } from '../domain/pricing.ts';
 import { MoneyError } from '../domain/money.ts';
@@ -90,6 +91,14 @@ export function toProblem(
   // action a colleague already performed gets a 500 and an entry in the error
   // log, rather than "this is no longer available".
   if (error instanceof IllegalDisputeTransitionError) {
+    return error.reason === 'REASON_REQUIRED'
+      ? problem('VALIDATION_FAILED', 422, 'Для этого действия нужно указать причину', correlationId)
+      : problem('ILLEGAL_TRANSITION', 409, 'Это действие сейчас недоступно', correlationId);
+  }
+  // Same shape as the dispute case above, for support tickets - without this
+  // a duplicate/out-of-order ticket action (e.g. two staff clicking TAKE at
+  // once) reported a correct refusal as a server fault.
+  if (error instanceof IllegalTicketTransitionError) {
     return error.reason === 'REASON_REQUIRED'
       ? problem('VALIDATION_FAILED', 422, 'Для этого действия нужно указать причину', correlationId)
       : problem('ILLEGAL_TRANSITION', 409, 'Это действие сейчас недоступно', correlationId);
