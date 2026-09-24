@@ -72,7 +72,10 @@ export class Router {
   }
 
   match(method: string, path: string): MatchResult | null {
-    const parts = path.split('?')[0]!.split('/').filter((s) => s.length > 0);
+    const parts = path
+      .split('?')[0]!
+      .split('/')
+      .filter((s) => s.length > 0);
     let pathMatchedAnyMethod = false;
 
     // Candidates are collected rather than returned on first hit, because a
@@ -242,10 +245,7 @@ export async function dispatch(
         caller.withheldRoles.length === 0 &&
         deps.phoneVerificationAvailable
       ) {
-        throw new DomainError(
-          'PHONE_VERIFICATION_REQUIRED',
-          'Подтвердите номер телефона, чтобы продолжить',
-        );
+        throw new DomainError('PHONE_VERIFICATION_REQUIRED', 'Подтвердите номер телефона, чтобы продолжить');
       }
     }
 
@@ -263,20 +263,20 @@ export async function dispatch(
         }
       } else {
         if (!caller) throw new DomainError('UNAUTHENTICATED', 'Требуется вход в аккаунт');
-      if (!can(caller.roles, route.permission)) {
-        // Deliberately identical to any other permission failure: the response
-        // must not tell a prober which permission would have worked.
-        //
-        // NOTE that `caller.roles` are the EFFECTIVE roles: a staff member who
-        // has not satisfied their second factor does not carry staff roles at
-        // all (see AuthService.resolveSession), so 2FA is already enforced here
-        // and on every page and service that reads the same roles. Nothing was
-        // added to this block for that — which is the point, since a check
-        // added here would have protected only the routed half of the product.
-        throw new DomainError('FORBIDDEN', 'Недостаточно прав');
-      }
+        if (!can(caller.roles, route.permission)) {
+          // Deliberately identical to any other permission failure: the response
+          // must not tell a prober which permission would have worked.
+          //
+          // NOTE that `caller.roles` are the EFFECTIVE roles: a staff member who
+          // has not satisfied their second factor does not carry staff roles at
+          // all (see AuthService.resolveSession), so 2FA is already enforced here
+          // and on every page and service that reads the same roles. Nothing was
+          // added to this block for that — which is the point, since a check
+          // added here would have protected only the routed half of the product.
+          throw new DomainError('FORBIDDEN', 'Недостаточно прав');
+        }
 
-      /* Step-up is the one thing this block does add. Some actions are too
+        /* Step-up is the one thing this block does add. Some actions are too
          consequential to ride on a challenge passed hours ago — opening a
          passport, granting a badge, writing the ledger, taking an account
          away. Those need a confirmation within the last few minutes.
@@ -284,12 +284,12 @@ export async function dispatch(
          It is safe for this to live in the router because step-up guards
          ACTIONS, and every action is a route. The console pages that bypass
          the router are reads. */
-      if (needsStepUp(route.permission) && !stepUpSatisfied(caller.stepUpAt, now)) {
-        throw new DomainError(
-          'STEP_UP_REQUIRED',
-          'Подтвердите вход кодом из приложения — это действие требует свежего подтверждения',
-        );
-      }
+        if (needsStepUp(route.permission) && !stepUpSatisfied(caller.stepUpAt, now)) {
+          throw new DomainError(
+            'STEP_UP_REQUIRED',
+            'Подтвердите вход кодом из приложения — это действие требует свежего подтверждения',
+          );
+        }
       }
     }
 
@@ -312,7 +312,13 @@ export async function dispatch(
     /* ---- idempotency ------------------------------------------------- */
     const idempotencyKey = request.headers[IDEMPOTENCY_HEADER];
     if (route.idempotent && idempotencyKey && caller) {
-      const lookup = await beginIdempotent(deps.db, caller.userId, routeId(route), idempotencyKey, request.body);
+      const lookup = await beginIdempotent(
+        deps.db,
+        caller.userId,
+        routeId(route),
+        idempotencyKey,
+        request.body,
+      );
       if (lookup.kind === 'REPLAY') return withCorrelation(lookup.response, correlationId);
       claimedIdempotencyId = lookup.recordId;
     }
@@ -342,7 +348,12 @@ export async function dispatch(
   } catch (error) {
     // A failed request must release its key so an honest retry can proceed.
     if (claimedIdempotencyId !== null) {
-      await abandonIdempotent(deps.db, claimedIdempotencyId).catch(() => {});
+      await abandonIdempotent(deps.db, claimedIdempotencyId).catch((abandonError: unknown) => {
+        // Bounded impact even unlogged — pruneIdempotencyRecords eventually
+        // deletes expired rows — but a silent failure here previously left no
+        // way to observe a client stuck unable to retry until TTL expiry.
+        deps.onError?.({ correlationId, error: abandonError, unexpected: true });
+      });
     }
     return withCorrelation(toProblem(error, correlationId, deps.onError), correlationId);
   }

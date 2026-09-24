@@ -195,7 +195,16 @@ export default async function FaqPage() {
           background: var(--surface);
           border: 1px solid var(--border);
           border-radius: var(--radius-md);
+          /* Lets the browser animate ::details-content between its 0 and
+             auto heights instead of the native instant snap. */
+          interpolate-size: allow-keywords;
         }
+        .faq-item::details-content {
+          height: 0;
+          overflow: hidden;
+          transition: height 200ms ease-out, content-visibility 200ms allow-discrete;
+        }
+        .faq-item[open]::details-content { height: auto; }
 
         .faq-item__q {
           display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);

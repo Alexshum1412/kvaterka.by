@@ -57,6 +57,9 @@ export function ChatThread({
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const months = t.raw('months') as string[];
+  // Messages present on mount never animate — only ones appended afterward
+  // (via `send`) get `.ct__msg--enter`, and only for their one real mount.
+  const initialCount = useRef(initial.length);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });
@@ -90,18 +93,22 @@ export function ChatThread({
   return (
     <div className="ct">
       <div className="ct__scroll">
-        {messages.length === 0 && (
-          <p className="ct__empty">{t('emptyThread')}</p>
-        )}
+        {messages.length === 0 && <p className="ct__empty">{t('emptyThread')}</p>}
 
-        {messages.map((m) => {
+        {messages.map((m, index) => {
           const day = dayLabel(m.createdAt, t('today'), months);
           const showDay = day !== lastDay;
           lastDay = day;
+          // Only a message appended after mount plays the entrance — the
+          // ones the thread loaded with must appear already in place.
+          const isNew = index >= initialCount.current;
+          const msgClass = ['ct__msg', m.mine && 'ct__msg--mine', isNew && 'ct__msg--enter']
+            .filter(Boolean)
+            .join(' ');
           return (
             <div key={m.id}>
               {showDay && <p className="ct__day">{day}</p>}
-              <div className={m.mine ? 'ct__msg ct__msg--mine' : 'ct__msg'}>
+              <div className={msgClass}>
                 <p className="ct__body">{m.body}</p>
                 <span className="ct__time numeric">{clock(m.createdAt)}</span>
               </div>
@@ -177,6 +184,13 @@ export function ChatThread({
         /* The tenant's own words on the soft brand ground: enough to tell the
            two sides apart without turning the thread into two colours. */
         .ct__msg--mine { background: var(--primary-soft); margin-right: 0; margin-left: auto; }
+        /* Only a freshly-appended message gets this class, so it fires
+           once on that one real mount — never on the initial thread load,
+           and never replays for messages already in the list. */
+        .ct__msg--enter { transition: opacity 180ms ease-out, transform 180ms ease-out; }
+        @starting-style {
+          .ct__msg--enter { opacity: 0; transform: translateY(6px); }
+        }
         .ct__body { font-size: var(--text-sm); line-height: 1.5; white-space: pre-wrap; word-break: break-word; flex: 1 1 auto; min-width: 0; }
         .ct__time { font-size: var(--text-2xs); color: var(--text-tertiary); flex: 0 0 auto; }
 

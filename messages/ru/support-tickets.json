@@ -23,6 +23,7 @@
     "formPropertyLabel": "Каких объявлений это касается (необязательно)",
     "formPropertyNone": "Не относится к конкретному объявлению",
     "formPropertyEmpty": "У вас пока нет своих объявлений",
+    "formPropertyUntitled": "Черновик без названия",
     "formSummaryLabel": "Опишите ситуацию",
     "formSummaryPlaceholder": "Что случилось, когда и что вы уже пробовали сделать",
     "formSummaryHint": "Минимум 10 символов.",

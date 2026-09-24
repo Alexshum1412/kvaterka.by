@@ -4,7 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from '@/i18n/navigation.ts';
 import { useLocale, useTranslations } from 'next-intl';
 import { api, ApiError } from '@/lib/api-client.ts';
-import { Icon, AMENITY_CATEGORY, amenityCategoryLabel, amenityIcon, amenityName, type IconName } from '@/ui/icons.tsx';
+import {
+  Icon,
+  AMENITY_CATEGORY,
+  amenityCategoryLabel,
+  amenityIcon,
+  amenityName,
+  type IconName,
+} from '@/ui/icons.tsx';
 import { LocationPicker } from '@/ui/location-picker.tsx';
 import { formatNightsGenitiveLocalized } from '@/ui/primitives.tsx';
 import {
@@ -163,12 +170,14 @@ export function ListingWizard({
     () => SMOKING_CODES.map((code) => ({ value: code, label: t(`smoking.${code}`) })),
     [t],
   );
-  const PETS = useMemo(
-    () => PETS_CODES.map((code) => ({ value: code, label: t(`pets.${code}`) })),
-    [t],
-  );
+  const PETS = useMemo(() => PETS_CODES.map((code) => ({ value: code, label: t(`pets.${code}`) })), [t]);
   const BOOKING_MODES = useMemo(
-    () => BOOKING_MODE_CODES.map((code) => ({ value: code, label: t(`bookingModes.${code}.label`), hint: t(`bookingModes.${code}.hint`) })),
+    () =>
+      BOOKING_MODE_CODES.map((code) => ({
+        value: code,
+        label: t(`bookingModes.${code}.label`),
+        hint: t(`bookingModes.${code}.hint`),
+      })),
     [t],
   );
   const UTILITIES = useMemo(
@@ -177,8 +186,8 @@ export function ListingWizard({
   );
   const [id, setId] = useState<string | null>(listing?.id ?? null);
   const [draft, setDraft] = useState<Draft>(() => ({ ...(listing ?? {}) }));
-  const [photos, setPhotos] = useState<Photo[]>(
-    () => ((listing?.photos as Photo[] | undefined) ?? []).map((p) => ({ ...p })),
+  const [photos, setPhotos] = useState<Photo[]>(() =>
+    ((listing?.photos as Photo[] | undefined) ?? []).map((p) => ({ ...p })),
   );
   const [step, setStep] = useState(() => {
     if (!listing) return 0;
@@ -188,6 +197,9 @@ export function ListingWizard({
     if (listing.status === 'REJECTED' && codes.length > 0) return firstStepForReasons(codes);
     return firstIncompleteStep(listing);
   });
+  // Which way the step content should slide in from — read by
+  // `.wz__section`'s `@starting-style` rule below.
+  const [direction, setDirection] = useState<'forward' | 'back'>('forward');
   const [noticeOpen, setNoticeOpen] = useState(listing?.status === 'REJECTED');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -292,6 +304,7 @@ export function ListingWizard({
       // Replace so "back" does not return to an empty wizard that would
       // create a second draft.
       window.history.replaceState(null, '', `/dashboard/listings/${created.id}/edit`);
+      setDirection('forward');
       setStep(1);
     } catch (e) {
       setSaveState('error');
@@ -313,7 +326,9 @@ export function ListingWizard({
     }
     setError(null);
     await flush();
-    setStep(Math.max(0, Math.min(STEPS.length - 1, next)));
+    const clamped = Math.max(0, Math.min(STEPS.length - 1, next));
+    setDirection(clamped >= step ? 'forward' : 'back');
+    setStep(clamped);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -409,7 +424,14 @@ export function ListingWizard({
           </button>
           <SaveBadge state={saveState} />
         </div>
-        <div className="wz__progress" role="progressbar" aria-valuenow={step + 1} aria-valuemin={1} aria-valuemax={STEPS.length} aria-label={t('stepAriaLabel', { step: step + 1, total: STEPS.length })}>
+        <div
+          className="wz__progress"
+          role="progressbar"
+          aria-valuenow={step + 1}
+          aria-valuemin={1}
+          aria-valuemax={STEPS.length}
+          aria-label={t('stepAriaLabel', { step: step + 1, total: STEPS.length })}
+        >
           <span className="wz__progressFill" style={{ width: `${progress}%` }} />
         </div>
         <p className="wz__stepLabel">
@@ -417,7 +439,7 @@ export function ListingWizard({
         </p>
       </header>
 
-      <main className="wz__body">
+      <main className="wz__body" data-dir={direction}>
         {noticeOpen && (
           <aside className="wz__rejected" role="status">
             <div className="wz__rejectedHead">
@@ -447,11 +469,11 @@ export function ListingWizard({
               ))}
             </ul>
             {typeof draft.moderatorComment === 'string' && draft.moderatorComment && (
-              <p className="wz__rejectedComment">{t('rejected.comment', { comment: draft.moderatorComment })}</p>
+              <p className="wz__rejectedComment">
+                {t('rejected.comment', { comment: draft.moderatorComment })}
+              </p>
             )}
-            <p className="hint">
-              {t('rejected.footer')}
-            </p>
+            <p className="hint">{t('rejected.footer')}</p>
           </aside>
         )}
 
@@ -472,17 +494,12 @@ export function ListingWizard({
                 </button>
               ))}
             </div>
-            {id && draft.propertyType && (
-              <p className="hint">{t('step0.draftSaved')}</p>
-            )}
+            {id && draft.propertyType && <p className="hint">{t('step0.draftSaved')}</p>}
           </Step>
         )}
 
         {step === 1 && (
-          <Step
-            title={t('step1.title')}
-            lead={t('step1.lead')}
-          >
+          <Step title={t('step1.title')} lead={t('step1.lead')}>
             <Field label={t('step1.cityLabel')} hint={t('step1.cityHint')}>
               <input
                 className="input"
@@ -555,9 +572,7 @@ export function ListingWizard({
             <details className="wz__details">
               <summary>{t('step1.exactAddressSummary')}</summary>
               <div className="wz__detailsBody">
-                <p className="hint">
-                  {t('step1.exactAddressHint')}
-                </p>
+                <p className="hint">{t('step1.exactAddressHint')}</p>
                 <div className="wz__pair">
                   <Field label={t('step1.streetLabel')}>
                     <input
@@ -597,10 +612,7 @@ export function ListingWizard({
         )}
 
         {step === 2 && (
-          <Step
-            title={t('step2.title')}
-            lead={t('step2.lead')}
-          >
+          <Step title={t('step2.title')} lead={t('step2.lead')}>
             <label className="wz__drop">
               <input
                 type="file"
@@ -627,7 +639,11 @@ export function ListingWizard({
                     {p.isCover && <span className="wz__cover">{t('step2.cover')}</span>}
                     <div className="wz__photoActions">
                       {!p.isCover && (
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => void makeCover(p.id)}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => void makeCover(p.id)}
+                        >
                           {t('step2.makeCover')}
                         </button>
                       )}
@@ -667,29 +683,46 @@ export function ListingWizard({
                 <NumberInput value={draft.rooms} min={0} max={30} onChange={(v) => patch({ rooms: v })} />
               </Field>
               <Field label={t('step3.areaLabel')}>
-                <NumberInput value={draft.areaSqm} min={1} max={9999} onChange={(v) => patch({ areaSqm: v })} />
+                <NumberInput
+                  value={draft.areaSqm}
+                  min={1}
+                  max={9999}
+                  onChange={(v) => patch({ areaSqm: v })}
+                />
               </Field>
               <Field label={t('step3.floorLabel')}>
                 <NumberInput value={draft.floor} min={-5} max={200} onChange={(v) => patch({ floor: v })} />
               </Field>
               <Field label={t('step3.totalFloorsLabel')}>
-                <NumberInput value={draft.totalFloors} min={1} max={200} onChange={(v) => patch({ totalFloors: v })} />
+                <NumberInput
+                  value={draft.totalFloors}
+                  min={1}
+                  max={200}
+                  onChange={(v) => patch({ totalFloors: v })}
+                />
               </Field>
               <Field label={t('step3.bedsLabel')}>
                 <NumberInput value={draft.beds} min={0} max={50} onChange={(v) => patch({ beds: v })} />
               </Field>
               <Field label={t('step3.bathroomsLabel')}>
-                <NumberInput value={draft.bathrooms} min={0} max={20} onChange={(v) => patch({ bathrooms: v })} />
+                <NumberInput
+                  value={draft.bathrooms}
+                  min={0}
+                  max={20}
+                  onChange={(v) => patch({ bathrooms: v })}
+                />
               </Field>
               <Field label={t('step3.maxGuestsLabel')}>
-                <NumberInput value={draft.maxGuests} min={1} max={50} onChange={(v) => patch({ maxGuests: v })} />
+                <NumberInput
+                  value={draft.maxGuests}
+                  min={1}
+                  max={50}
+                  onChange={(v) => patch({ maxGuests: v })}
+                />
               </Field>
             </div>
 
-            <Field
-              label={t('step3.descriptionLabel')}
-              hint={t('step3.descriptionHint')}
-            >
+            <Field label={t('step3.descriptionLabel')} hint={t('step3.descriptionHint')}>
               <textarea
                 className="textarea"
                 rows={7}
@@ -851,9 +884,7 @@ export function ListingWizard({
               </Field>
             )}
             {draft.utilitiesMode === 'VARIABLE_METERED' && (
-              <p className="hint">
-                {t('step7.utilitiesMeteredHint')}
-              </p>
+              <p className="hint">{t('step7.utilitiesMeteredHint')}</p>
             )}
 
             <Field label={t('step7.depositLabel')} hint={t('step7.depositHint')}>
@@ -875,9 +906,7 @@ export function ListingWizard({
               />
               <span>
                 <strong>{t('step7.negotiationTitle')}</strong>
-                <span className="hint">
-                  {t('step7.negotiationHint')}
-                </span>
+                <span className="hint">{t('step7.negotiationHint')}</span>
               </span>
             </label>
           </Step>
@@ -885,17 +914,10 @@ export function ListingWizard({
 
         {step === 8 && (
           <Step title={t('step8.title')} lead={t('step8.lead')}>
-            <PreviewSummary
-              draft={draft}
-              photos={photos}
-              amenities={amenities}
-              onEdit={(s) => void go(s)}
-            />
+            <PreviewSummary draft={draft} photos={photos} amenities={amenities} onEdit={(s) => void go(s)} />
 
             <div className="wz__submit">
-              <p className="hint">
-                {t('step8.submitHint')}
-              </p>
+              <p className="hint">{t('step8.submitHint')}</p>
               <button
                 type="button"
                 className="btn btn-primary btn-lg btn-block"
@@ -917,10 +939,20 @@ export function ListingWizard({
       </main>
 
       <nav className="wz__nav" aria-label={t('navAriaLabel')}>
-        <button type="button" className="btn btn-ghost" onClick={() => void go(step - 1)} disabled={step === 0}>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() => void go(step - 1)}
+          disabled={step === 0}
+        >
           {t('back')}
         </button>
-        <button type="button" className="btn btn-secondary wz__exit" onClick={() => void saveAndExit()} disabled={!id}>
+        <button
+          type="button"
+          className="btn btn-secondary wz__exit"
+          onClick={() => void saveAndExit()}
+          disabled={!id}
+        >
           {t('saveAndExit')}
         </button>
         {step < STEPS.length - 1 && (
@@ -944,7 +976,19 @@ export function ListingWizard({
         .wz__head { display: grid; gap: var(--space-2); }
         .wz__title { font-size: var(--text-2xl); font-weight: 650; letter-spacing: -0.022em; }
         .wz__lead { color: var(--text-secondary); font-size: var(--text-sm); max-width: 54ch; line-height: 1.6; }
-        .wz__section { display: grid; gap: var(--space-4); }
+
+        /* One step is mounted at a time ({step === N && <Step/>}), so each
+           step change is a genuine new element — @starting-style bridges
+           the hard cut with a short slide, direction set by .wz__body's
+           data-dir (see the direction state and go() above). */
+        .wz__section {
+          display: grid; gap: var(--space-4);
+          transition: opacity 200ms ease-out, transform 200ms ease-out;
+        }
+        @starting-style {
+          .wz__body[data-dir='forward'] .wz__section { opacity: 0; transform: translateX(8px); }
+          .wz__body[data-dir='back'] .wz__section { opacity: 0; transform: translateX(-8px); }
+        }
 
         .wz__cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: var(--space-3); }
         .wz__card {
@@ -967,8 +1011,20 @@ export function ListingWizard({
         .wz__legend { padding: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text-secondary); margin-bottom: var(--space-3); }
         .wz__chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
-        .wz__details { border-top: 1px solid var(--border); padding-top: var(--space-3); }
+        .wz__details {
+          border-top: 1px solid var(--border);
+          padding-top: var(--space-3);
+          /* Lets the browser animate ::details-content between its 0 and
+             auto heights instead of the native instant snap. */
+          interpolate-size: allow-keywords;
+        }
         .wz__details summary { cursor: pointer; font-size: var(--text-sm); font-weight: 500; min-height: 2.25rem; display: flex; align-items: center; }
+        .wz__details::details-content {
+          height: 0;
+          overflow: hidden;
+          transition: height 200ms ease-out, content-visibility 200ms allow-discrete;
+        }
+        .wz__details[open]::details-content { height: auto; }
         .wz__detailsBody { display: grid; gap: var(--space-3); padding-top: var(--space-3); }
 
         .wz__note { display: flex; align-items: center; gap: 0.4rem; font-size: var(--text-sm); color: var(--text-secondary); }
@@ -1058,15 +1114,7 @@ function Step({ title, lead, children }: { title: string; lead?: string; childre
   );
 }
 
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <label className="field">
       <span className="label">{label}</span>
@@ -1207,8 +1255,16 @@ function DurationStep({
   return (
     <Step title={t('step6.title')} lead={t('step6.lead')}>
       <div className="wz__pair">
-        <DurationPicker label={t('step6.minLabel')} nights={minNights} onChange={(n) => onChange(n, maxNights)} />
-        <DurationPicker label={t('step6.maxLabel')} nights={maxNights} onChange={(n) => onChange(minNights, n)} />
+        <DurationPicker
+          label={t('step6.minLabel')}
+          nights={minNights}
+          onChange={(n) => onChange(n, maxNights)}
+        />
+        <DurationPicker
+          label={t('step6.maxLabel')}
+          nights={maxNights}
+          onChange={(n) => onChange(minNights, n)}
+        />
       </div>
 
       {invalid ? (
@@ -1316,8 +1372,16 @@ function PreviewSummary({
       label: t('preview.typeRow'),
       value: propertyType ? t(`propertyTypes.${propertyType.value}.label`) : dash,
     },
-    { step: 1, label: t('preview.cityRow'), value: draft.district ? `${draft.city} · ${draft.district}` : (draft.city ?? dash) },
-    { step: 2, label: t('preview.photosRow'), value: photos.length > 0 ? `${photos.length}` : t('preview.photosNone') },
+    {
+      step: 1,
+      label: t('preview.cityRow'),
+      value: draft.district ? `${draft.city} · ${draft.district}` : (draft.city ?? dash),
+    },
+    {
+      step: 2,
+      label: t('preview.photosRow'),
+      value: photos.length > 0 ? `${photos.length}` : t('preview.photosNone'),
+    },
     {
       step: 3,
       label: t('preview.paramsRow'),
@@ -1325,7 +1389,9 @@ function PreviewSummary({
         [
           draft.rooms != null && t('preview.roomsCount', { count: Number(draft.rooms) }),
           draft.areaSqm != null && `${Math.round(Number(draft.areaSqm))} ${t('preview.areaUnit')}`,
-          draft.floor != null && draft.totalFloors != null && `${draft.floor}/${draft.totalFloors} ${t('preview.floorShort')}`,
+          draft.floor != null &&
+            draft.totalFloors != null &&
+            `${draft.floor}/${draft.totalFloors} ${t('preview.floorShort')}`,
         ]
           .filter(Boolean)
           .join(' · ') || dash,
@@ -1334,7 +1400,10 @@ function PreviewSummary({
       step: 4,
       label: t('preview.amenitiesRow'),
       value: chosen.length
-        ? chosen.slice(0, 4).map((c) => names.get(c) ?? c).join(', ') +
+        ? chosen
+            .slice(0, 4)
+            .map((c) => names.get(c) ?? c)
+            .join(', ') +
           (chosen.length > 4 ? ` ${t('preview.amenitiesMore', { count: chosen.length - 4 })}` : '')
         : dash,
     },
@@ -1361,10 +1430,7 @@ function PreviewSummary({
         <div className="pv__media">
           {cover ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={`/media/${cover.storageKey}`}
-              alt={draft.title || t('preview.noTitle')}
-            />
+            <img src={`/media/${cover.storageKey}`} alt={draft.title || t('preview.noTitle')} />
           ) : (
             <span className="pv__nophoto">
               <Icon name="image" size={22} />
@@ -1380,7 +1446,9 @@ function PreviewSummary({
               {price ? (draft.priceUnit === 'MONTH' ? t('preview.perMonth') : t('preview.perNight')) : ''}
             </span>
           </p>
-          <p className="pv__place">{draft.district ? `${draft.city} · ${draft.district}` : draft.city || dash}</p>
+          <p className="pv__place">
+            {draft.district ? `${draft.city} · ${draft.district}` : draft.city || dash}
+          </p>
         </div>
       </article>
 

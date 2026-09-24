@@ -68,7 +68,10 @@ export function NotificationList({ items }: { items: readonly InboxItem[] }) {
     if (hours < 24) return t('hoursAgo', { count: hours });
     const days = Math.round(hours / 24);
     if (days < 30) return t('daysAgo', { count: days });
-    return new Date(iso).toLocaleDateString(DATE_LOCALE[locale as AppLocale], { day: 'numeric', month: 'long' });
+    return new Date(iso).toLocaleDateString(DATE_LOCALE[locale as AppLocale], {
+      day: 'numeric',
+      month: 'long',
+    });
   }
 
   async function markAll(): Promise<void> {
@@ -144,6 +147,11 @@ export function NotificationList({ items }: { items: readonly InboxItem[] }) {
         .nl__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); min-height: 2.25rem; }
         .nl__list { list-style: none; padding: 0; margin: 0; border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; background: var(--surface); }
         .nl__item + .nl__item { border-top: 1px solid var(--border); }
+        /* On .nl__item itself (not just --unread) so the transition is
+           still in effect on the frame the class is REMOVED — the only
+           direction this ever actually runs, since read state only ever
+           goes unread -> read. */
+        .nl__item { transition: background-color 180ms ease, opacity 180ms ease; }
         .nl__item--unread { background: var(--primary-soft); }
 
         /* A row is a link or a button, and both must look and behave the same:
@@ -157,7 +165,10 @@ export function NotificationList({ items }: { items: readonly InboxItem[] }) {
         }
         .nl__row:hover { background: var(--surface-sunken); }
 
-        .nl__dot { flex: 0 0 auto; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--primary); }
+        .nl__dot {
+          flex: 0 0 auto; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--primary);
+          transition: background-color 180ms ease, opacity 180ms ease;
+        }
         .nl__dot--read { background: transparent; }
 
         .nl__body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; flex: 1 1 auto; }

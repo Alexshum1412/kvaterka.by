@@ -23,6 +23,7 @@
     "formPropertyLabel": "Якой аб'явы гэта тычыцца (неабавязкова)",
     "formPropertyNone": "Не тычыцца канкрэтнай аб'явы",
     "formPropertyEmpty": "У вас пакуль няма сваіх аб'яў",
+    "formPropertyUntitled": "Чарнавік без назвы",
     "formSummaryLabel": "Апішыце сітуацыю",
     "formSummaryPlaceholder": "Што здарылася, калі і што вы ўжо спрабавалі зрабіць",
     "formSummaryHint": "Мінімум 10 сімвалаў.",

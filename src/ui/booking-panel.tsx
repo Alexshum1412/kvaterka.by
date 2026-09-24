@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation.ts';
 import type { AppLocale } from '@/i18n/routing.ts';
@@ -60,12 +60,44 @@ export function BookingPanel({
   const [confirming, setConfirming] = useState<'REQUEST' | 'INSTANT' | null>(null);
   const [message, setMessage] = useState('');
 
+  // Crossfade between the action buttons and the confirmation step (see
+  // PanelStyles' `.bp__pane` rules). Both panes stay mounted so the exiting
+  // one can fade out instead of vanishing the instant `confirming` flips;
+  // `exitingView` clears itself once the 120ms exit transition finishes.
+  const activeView: 'actions' | 'confirm' = confirming === null ? 'actions' : 'confirm';
+  const previousView = useRef<'actions' | 'confirm'>(activeView);
+  const [exitingView, setExitingView] = useState<'actions' | 'confirm' | null>(null);
+  // The confirm pane keeps showing the mode it was last showing while it
+  // fades out, instead of snapping its copy to "request" mid-exit.
+  const [lastMode, setLastMode] = useState<'REQUEST' | 'INSTANT'>('REQUEST');
+
+  useEffect(() => {
+    if (confirming) setLastMode(confirming);
+  }, [confirming]);
+
+  useEffect(() => {
+    if (previousView.current === activeView) return;
+    const leaving = previousView.current;
+    previousView.current = activeView;
+    setExitingView(leaving);
+    const timer = setTimeout(() => setExitingView((current) => (current === leaving ? null : current)), 120);
+    return () => clearTimeout(timer);
+  }, [activeView]);
+
+  function paneClass(view: 'actions' | 'confirm', base: string): string {
+    if (activeView === view) return `${base} bp__pane bp__pane--active`;
+    if (exitingView === view) return `${base} bp__pane bp__pane--exiting`;
+    return `${base} bp__pane`;
+  }
+
   const t = useTranslations('ListingDetail');
   const locale = useLocale() as AppLocale;
 
   const instantAvailable = bookingMode === 'INSTANT' || bookingMode === 'INSTANT_AND_REQUEST';
   const nights =
-    from && to ? Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) : 0;
+    from && to
+      ? Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
+      : 0;
 
   const durationValid = nights >= minNights && nights <= maxNights;
 
@@ -141,7 +173,9 @@ export function BookingPanel({
       <div className="bp__head">
         <p className="bp__price">
           <strong className="numeric">{basePriceFormatted}</strong>
-          <span className="bp__unit">{priceUnit === 'MONTH' ? t('priceUnit.perMonth') : t('priceUnit.perNight')}</span>
+          <span className="bp__unit">
+            {priceUnit === 'MONTH' ? t('priceUnit.perMonth') : t('priceUnit.perNight')}
+          </span>
         </p>
         <p className="bp__term">
           <Icon name="calendar" size={14} />
@@ -211,9 +245,7 @@ export function BookingPanel({
 
         {quote && (
           <div className="bp__quote">
-            <p className="bp__quoteHead">
-              {t('booking.quoteHead', { nights: quote.nights })}
-            </p>
+            <p className="bp__quoteHead">{t('booking.quoteHead', { nights: quote.nights })}</p>
 
             {quote.lines
               .filter((l) => l.code !== 'DEPOSIT')
@@ -230,18 +262,15 @@ export function BookingPanel({
             <div className="bp__total">
               <span className="bp__totalLabel">{t('booking.totalLabel')}</span>
               <strong className="numeric bp__totalValue">
-                {quote.lines.find((l) => l.code === 'RENT') ? formatTotal(quote.totalExpectedMinor) : '—'} {currencySymbol()}
+                {quote.lines.find((l) => l.code === 'RENT') ? formatTotal(quote.totalExpectedMinor) : '—'}{' '}
+                {currencySymbol()}
               </strong>
             </div>
 
             {quote.depositMinor !== '0' && (
-              <p className="hint">
-                {t('booking.depositNote', { amount: formatTotal(quote.depositMinor) })}
-              </p>
+              <p className="hint">{t('booking.depositNote', { amount: formatTotal(quote.depositMinor) })}</p>
             )}
-            {quote.hasVariableCosts && (
-              <p className="hint">{t('booking.variableCostsNote')}</p>
-            )}
+            {quote.hasVariableCosts && <p className="hint">{t('booking.variableCostsNote')}</p>}
           </div>
         )}
       </div>
@@ -252,8 +281,8 @@ export function BookingPanel({
         </p>
       )}
 
-      {confirming === null ? (
-        <div className="bp__actions">
+      <div className="bp__swap">
+        <div className={paneClass('actions', 'bp__actions')} inert={activeView !== 'actions'}>
           {instantAvailable && (
             <button
               type="button"
@@ -273,10 +302,10 @@ export function BookingPanel({
             {t('booking.requestButton')}
           </button>
         </div>
-      ) : (
-        <div className="bp__confirm">
+
+        <div className={paneClass('confirm', 'bp__confirm')} inert={activeView !== 'confirm'}>
           <p className="bp__confirmLead">
-            {confirming === 'INSTANT' ? t('booking.confirmLeadInstant') : t('booking.confirmLeadRequest')}
+            {lastMode === 'INSTANT' ? t('booking.confirmLeadInstant') : t('booking.confirmLeadRequest')}
           </p>
 
           <label className="field">
@@ -289,9 +318,7 @@ export function BookingPanel({
               onChange={(e) => setMessage(e.target.value)}
               placeholder={t('booking.messagePlaceholder')}
             />
-            <span className="hint">
-              {t('booking.messageHint')}
-            </span>
+            <span className="hint">{t('booking.messageHint')}</span>
           </label>
 
           <div className="bp__confirmActions">
@@ -307,21 +334,19 @@ export function BookingPanel({
               type="button"
               className="btn btn-primary"
               disabled={submitting}
-              onClick={() => submit(confirming === 'INSTANT')}
+              onClick={() => submit(lastMode === 'INSTANT')}
             >
               {submitting
                 ? t('booking.confirmButtonSubmitting')
-                : confirming === 'INSTANT'
+                : lastMode === 'INSTANT'
                   ? t('booking.confirmButtonInstant')
                   : t('booking.confirmButtonRequest')}
             </button>
           </div>
         </div>
-      )}
+      </div>
 
-      <p className="hint">
-        {t('booking.footerNote')}
-      </p>
+      <p className="hint">{t('booking.footerNote')}</p>
 
       <PanelStyles />
     </div>
@@ -393,10 +418,42 @@ function PanelStyles() {
       .bp__totalLabel { font-size: var(--text-sm); font-weight: 600; }
       .bp__totalValue { font-size: var(--text-lg); font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
 
+      .bp__swap { display: grid; }
+      .bp__pane {
+        grid-area: 1 / 1;
+        min-width: 0;
+        opacity: 0;
+        transform: translateY(6px);
+        pointer-events: none;
+        transition: opacity 200ms cubic-bezier(0.23, 1, 0.32, 1), transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+        transition-delay: 40ms;
+      }
+      .bp__pane--active { opacity: 1; transform: none; pointer-events: auto; }
+      .bp__pane--exiting {
+        opacity: 0;
+        transform: translateY(-6px);
+        transition: opacity 120ms ease-out, transform 120ms ease-out;
+        transition-delay: 0ms;
+      }
+
       .bp__actions { display: flex; flex-direction: column; gap: var(--space-2); }
 
-      .bp--done { text-align: left; }
-      .bp__doneMark { color: var(--success); display: flex; }
+      .bp--done {
+        text-align: left;
+        transition: opacity 300ms cubic-bezier(0.23, 1, 0.32, 1), transform 300ms cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      @starting-style {
+        .bp--done { opacity: 0; transform: scale(0.97); }
+      }
+      .bp__doneMark {
+        color: var(--success);
+        display: flex;
+        transition: transform 150ms ease-out;
+        transition-delay: 80ms;
+      }
+      @starting-style {
+        .bp--done .bp__doneMark { transform: scale(0.8); }
+      }
       .bp__doneTitle { font-size: var(--text-lg); }
       .bp__doneText { font-size: var(--text-sm); color: var(--text-secondary); }
     `}</style>

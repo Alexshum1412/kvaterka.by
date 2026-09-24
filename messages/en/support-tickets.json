@@ -23,6 +23,7 @@
     "formPropertyLabel": "Which listing this is about (optional)",
     "formPropertyNone": "Not about a specific listing",
     "formPropertyEmpty": "You don't have any listings yet",
+    "formPropertyUntitled": "Untitled draft",
     "formSummaryLabel": "Describe the situation",
     "formSummaryPlaceholder": "What happened, when, and what you've already tried",
     "formSummaryHint": "At least 10 characters.",

@@ -8,6 +8,22 @@ import { Icon } from '@/ui/icons.tsx';
 import { TICKET_CATEGORIES, type TicketCategory } from '@/server/domain/support-ticket.ts';
 
 /**
+ * FNV-1a, hex. Not a security hash — an ASCII-safe fingerprint of the text so
+ * an idempotency key can depend on what was typed without putting what was
+ * typed (almost always Cyrillic on this site) into a header: `fetch` throws
+ * "String contains non ISO-8859-1 code point" if a header value isn't
+ * Latin-1, which silently broke every submission before this existed.
+ */
+function asciiDigest(input: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < input.length; i += 1) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+/**
  * The general "contact support" form (DEC-073).
  *
  * Same shape as `VerificationRequestForm`: a plain POST, an idempotency key
@@ -21,11 +37,7 @@ import { TICKET_CATEGORIES, type TicketCategory } from '@/server/domain/support-
  * because a ticket has somewhere to go: its own chat, where the first
  * message is the summary just typed here.
  */
-export function TicketForm({
-  properties,
-}: {
-  properties: readonly { id: string; title: string }[];
-}) {
+export function TicketForm({ properties }: { properties: readonly { id: string; title: string }[] }) {
   const router = useRouter();
   const t = useTranslations('SupportTickets');
   const [category, setCategory] = useState<TicketCategory | ''>('');
@@ -50,7 +62,9 @@ export function TicketForm({
           ...(propertyId ? { propertyId } : {}),
           summary: summary.trim(),
         },
-        { idempotencyKey: `ticket-create:${category}:${propertyId || 'none'}:${summary.trim().slice(0, 64)}` },
+        {
+          idempotencyKey: `ticket-create:${category}:${propertyId || 'none'}:${asciiDigest(summary.trim())}`,
+        },
       );
       setSuccess(result);
     } catch (e) {
@@ -104,7 +118,7 @@ export function TicketForm({
           <option value="">{t('formPropertyNone')}</option>
           {properties.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.title}
+              {p.title.trim() || t('formPropertyUntitled')}
             </option>
           ))}
         </select>
