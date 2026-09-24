@@ -125,8 +125,15 @@ describe('the full happy path', () => {
     // 3. Tenant checks in.
     expect((await service.checkIn(booking.id, tenant)).status).toBe('CHECKED_IN');
 
-    // 4. Stay ends.
+    // 4. Stay ends. The stay dates above are fixed calendar literals (kept
+    // fixed so the fee/night-count assertions below stay simple), so the
+    // 7-day completion deadline they imply drifts into the past as real time
+    // moves on past it - pinned forward explicitly so "still waiting" below
+    // tests the intended mid-window state instead of the post-deadline one.
     expect((await service.openCompletionWindow(booking.id)).status).toBe('COMPLETION_PENDING');
+    await db.query(`UPDATE booking SET completion_deadline_at = now() + interval '1 day' WHERE id=$1`, [
+      booking.id,
+    ]);
 
     // 5. Both sides confirm the rental happened.
     const first = await service.confirmCompletion(booking.id, tenant, 'TOOK_PLACE');
@@ -207,6 +214,10 @@ describe('the service fee can never be charged twice', () => {
     await service.acceptRequest(b.id, landlord);
     await service.checkIn(b.id, tenant);
     await service.openCompletionWindow(b.id);
+    // Same drift as the happy-path test above: pin the deadline forward so
+    // these "still within the window" cases don't silently start exercising
+    // the post-deadline rules once real time passes the fixed stay dates.
+    await db.query(`UPDATE booking SET completion_deadline_at = now() + interval '1 day' WHERE id=$1`, [b.id]);
     return b.id;
   }
 
@@ -273,6 +284,13 @@ describe('fee-evasion resistance', () => {
     await service.openCompletionWindow(b.id);
     if (deadlineInPast) {
       await db.query(`UPDATE booking SET completion_deadline_at = now() - interval '1 day' WHERE id=$1`, [b.id]);
+    } else {
+      // Otherwise `openCompletionWindow` derives the deadline from the fixed
+      // stay-date literals above, which - as real time passes them - drifts
+      // into the past on its own and silently flips these "deadline still
+      // open" cases onto the post-deadline rules. Pin it forward explicitly,
+      // mirroring the `deadlineInPast` branch above.
+      await db.query(`UPDATE booking SET completion_deadline_at = now() + interval '1 day' WHERE id=$1`, [b.id]);
     }
     return b.id;
   }
