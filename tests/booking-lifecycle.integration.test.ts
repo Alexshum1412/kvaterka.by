@@ -85,7 +85,10 @@ const ledgerBalance = async (userId: string): Promise<bigint> => {
 };
 
 const countRows = async (table: string, where: string, params: unknown[]): Promise<number> => {
-  const { rows } = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM ${table} WHERE ${where}`, params);
+  const { rows } = await db.query<{ c: string }>(
+    `SELECT count(*)::text AS c FROM ${table} WHERE ${where}`,
+    params,
+  );
   return Number(rows[0]!.c);
 };
 
@@ -151,9 +154,9 @@ describe('the full happy path', () => {
     );
     expect(fee.rows).toHaveLength(1);
     expect(toDecimalString(fromStorage(fee.rows[0]!.fee_minor))).toBe('29.50');
-    expect(verifyStoredFee(BigInt(fee.rows[0]!.base_minor), fee.rows[0]!.bps, BigInt(fee.rows[0]!.fee_minor))).toBe(
-      true,
-    );
+    expect(
+      verifyStoredFee(BigInt(fee.rows[0]!.base_minor), fee.rows[0]!.bps, BigInt(fee.rows[0]!.fee_minor)),
+    ).toBe(true);
 
     // 7. The landlord's balance is now a debt of exactly that fee.
     expect(await ledgerBalance(landlord)).toBe(-2950n);
@@ -217,7 +220,9 @@ describe('the service fee can never be charged twice', () => {
     // Same drift as the happy-path test above: pin the deadline forward so
     // these "still within the window" cases don't silently start exercising
     // the post-deadline rules once real time passes the fixed stay dates.
-    await db.query(`UPDATE booking SET completion_deadline_at = now() + interval '1 day' WHERE id=$1`, [b.id]);
+    await db.query(`UPDATE booking SET completion_deadline_at = now() + interval '1 day' WHERE id=$1`, [
+      b.id,
+    ]);
     return b.id;
   }
 
@@ -228,7 +233,9 @@ describe('the service fee can never be charged twice', () => {
     await service.confirmCompletion(id, tenant, 'TOOK_PLACE');
 
     expect(await countRows('service_fee', 'booking_id=$1', [id])).toBe(0); // landlord has not answered
-    const events = await countRows('booking_event', `booking_id=$1 AND event_type='CONFIRM_COMPLETION'`, [id]);
+    const events = await countRows('booking_event', `booking_id=$1 AND event_type='CONFIRM_COMPLETION'`, [
+      id,
+    ]);
     expect(events).toBe(1); // the repeats were no-ops
   });
 
@@ -283,14 +290,18 @@ describe('fee-evasion resistance', () => {
     await service.acceptRequest(b.id, landlord);
     await service.openCompletionWindow(b.id);
     if (deadlineInPast) {
-      await db.query(`UPDATE booking SET completion_deadline_at = now() - interval '1 day' WHERE id=$1`, [b.id]);
+      await db.query(`UPDATE booking SET completion_deadline_at = now() - interval '1 day' WHERE id=$1`, [
+        b.id,
+      ]);
     } else {
       // Otherwise `openCompletionWindow` derives the deadline from the fixed
       // stay-date literals above, which - as real time passes them - drifts
       // into the past on its own and silently flips these "deadline still
       // open" cases onto the post-deadline rules. Pin it forward explicitly,
       // mirroring the `deadlineInPast` branch above.
-      await db.query(`UPDATE booking SET completion_deadline_at = now() + interval '1 day' WHERE id=$1`, [b.id]);
+      await db.query(`UPDATE booking SET completion_deadline_at = now() + interval '1 day' WHERE id=$1`, [
+        b.id,
+      ]);
     }
     return b.id;
   }
@@ -316,7 +327,9 @@ describe('fee-evasion resistance', () => {
     const { rows } = await db.query<{ status: string }>('SELECT status FROM booking WHERE id=$1', [id]);
     expect(rows[0]!.status).toBe('NOT_TAKEN_PLACE');
     expect(await ledgerBalance(landlord)).toBe(0n);
-    expect(await countRows('fraud_signal', `booking_id=$1 AND kind='UNILATERAL_LANDLORD_DENIAL'`, [id])).toBe(1);
+    expect(await countRows('fraud_signal', `booking_id=$1 AND kind='UNILATERAL_LANDLORD_DENIAL'`, [id])).toBe(
+      1,
+    );
   });
 
   it('escalates a contradiction to a dispute and charges nobody', async () => {
@@ -338,7 +351,9 @@ describe('fee-evasion resistance', () => {
     await service.acceptRequest(b.id, landlord);
     await service.checkIn(b.id, tenant);
     await service.openCompletionWindow(b.id);
-    await db.query(`UPDATE booking SET completion_deadline_at = now() - interval '1 day' WHERE id=$1`, [b.id]);
+    await db.query(`UPDATE booking SET completion_deadline_at = now() - interval '1 day' WHERE id=$1`, [
+      b.id,
+    ]);
 
     await service.resolveExpiredCompletion(b.id);
     const { rows } = await db.query<{ status: string }>('SELECT status FROM booking WHERE id=$1', [b.id]);
@@ -360,7 +375,12 @@ describe('fee-evasion resistance', () => {
 
 describe('competing bookings', () => {
   it('lets several tenants request the same dates', async () => {
-    await service.requestBooking({ propertyId: property, tenantId: tenant, from: '2026-09-01', to: '2026-09-08' });
+    await service.requestBooking({
+      propertyId: property,
+      tenantId: tenant,
+      from: '2026-09-01',
+      to: '2026-09-08',
+    });
     const second = await service.requestBooking({
       propertyId: property,
       tenantId: otherTenant,
@@ -728,7 +748,12 @@ describe('auto-declining competing requests is a transition, not a fabrication',
 
     await service.acceptRequest(mine.id, landlord);
 
-    const { rows } = await db.query<{ actor: string; actor_user_id: string; from_status: string; to_status: string }>(
+    const { rows } = await db.query<{
+      actor: string;
+      actor_user_id: string;
+      from_status: string;
+      to_status: string;
+    }>(
       `SELECT actor, actor_user_id, from_status, to_status
          FROM booking_event WHERE booking_id=$1 AND event_type='DECLINE_REQUEST'`,
       [theirs.id],
@@ -753,20 +778,27 @@ describe('auto-declining competing requests is a transition, not a fabrication',
     // The property this is really about: every recorded event must be a
     // transition the machine would have allowed.
     const mine = await service.requestBooking({
-      propertyId: property, tenantId: tenant, from: '2026-09-01', to: '2026-09-08',
+      propertyId: property,
+      tenantId: tenant,
+      from: '2026-09-01',
+      to: '2026-09-08',
     });
     await service.requestBooking({
-      propertyId: property, tenantId: otherTenant, from: '2026-09-03', to: '2026-09-10',
+      propertyId: property,
+      tenantId: otherTenant,
+      from: '2026-09-03',
+      to: '2026-09-10',
     });
     await service.acceptRequest(mine.id, landlord);
 
-    const { rows } = await db.query<{ from_status: string; event_type: string; actor: string; to_status: string }>(
-      `SELECT from_status, event_type, actor, to_status FROM booking_event WHERE from_status IS NOT NULL`,
-    );
+    const { rows } = await db.query<{
+      from_status: string;
+      event_type: string;
+      actor: string;
+      to_status: string;
+    }>(`SELECT from_status, event_type, actor, to_status FROM booking_event WHERE from_status IS NOT NULL`);
     for (const e of rows) {
-      expect(() =>
-        applyEvent(e.from_status as never, e.event_type as never, e.actor as never),
-      ).not.toThrow();
+      expect(() => applyEvent(e.from_status as never, e.event_type as never, e.actor as never)).not.toThrow();
     }
   });
 });

@@ -329,6 +329,109 @@ describe('the challenge', () => {
 });
 
 /* ================================================================== *
+ * Who may call confirm and challenge at all
+ * ================================================================== */
+
+describe('confirm and challenge are scoped to the caller alone', () => {
+  /* Neither route reads a client-supplied target id — both are called with
+     only `caller.userId`/`caller.sessionId`, resolved from the bearer token
+     itself. `auth: 'required'` is what closes the door on a caller with no
+     token at all; nothing in the authorization matrix in
+     authorization.integration.test.ts exercises this pair, because that
+     matrix only walks routes that declare a `permission`, and these
+     deliberately declare none (see the file header in two-factor.ts). */
+  it('refuses an entirely unauthenticated caller on confirm', async () => {
+    const res = await api.post('/me/2fa/confirm', { code: '123456' });
+    expect(res.status).toBe(401);
+  });
+
+  it('refuses an entirely unauthenticated caller on challenge', async () => {
+    const res = await api.post('/me/2fa/challenge', { code: '123456' });
+    expect(res.status).toBe(401);
+  });
+
+  /* The concrete break attempt: account A starts an enrolment; account B — an
+     entirely unrelated account, with its own valid session — tries to finish
+     it. `confirmTotpEnrolment` reads `user_totp` with `WHERE user_id=$1`
+     using B's OWN userId, never anything B could supply, so B's attempt looks
+     up B's own (nonexistent) pending row and never so much as reads A's. The
+     secure outcome is exactly the "nothing pending" conflict any unenrolled
+     caller gets — not a peek at A's secret, and not a chance to disturb it. */
+  it("a different account's confirm attempt cannot touch someone else's pending enrolment", async () => {
+    const a = await passwordOnlyStaff('ADMIN');
+    const begin = await api.post('/me/2fa/enrol', { password: DEMO_PASSWORD }, { token: a.token });
+    const secretA = begin.body.secret as string;
+
+    const b = await api.signUp(); // unrelated account, own session, never enrolled
+
+    const bAttempt = await api.post(
+      '/me/2fa/confirm',
+      { code: totpCodeFor(secretA, totpStep(new Date())) },
+      { token: b.token },
+    );
+    expect(bAttempt.status).toBe(409);
+
+    // A's pending enrolment is untouched: they can still finish it themselves.
+    const aConfirm = await api.post(
+      '/me/2fa/confirm',
+      { code: totpCodeFor(secretA, totpStep(new Date())) },
+      { token: a.token },
+    );
+    expect(aConfirm.status).toBe(200);
+    expect((aConfirm.body.recoveryCodes as string[]).length).toBe(10);
+  });
+
+  /* Same idea for the challenge: `answerChallenge` also reads `user_totp` and
+     `two_factor_recovery_code` keyed by the CALLER's own userId. B holds a
+     genuinely correct code for A's authenticator — not a guess — and it still
+     buys nothing, because it is checked against B's own (absent) secret, and
+     the session it could promote is B's own, never A's. */
+  it("a different account's correct code for someone else cannot answer its own challenge, or move that account's session", async () => {
+    const a = await passwordOnlyStaff('ADMIN');
+    const { secret: secretA } = await enrol(a.token);
+    await db.query(`UPDATE user_session SET auth_level='PASSWORD' WHERE user_id=$1`, [a.userId]);
+
+    const b = await passwordOnlyStaff('SUPPORT'); // unrelated, own session, never enrolled
+
+    const res = await api.post(
+      '/me/2fa/challenge',
+      { code: totpCodeFor(secretA, totpStep(new Date())) },
+      { token: b.token },
+    );
+    expect(res.status).toBe(422);
+
+    // A's own session is untouched: still withheld, still at PASSWORD.
+    const aSession = await auth.resolveSession(a.token);
+    expect(aSession!.authLevel).toBe('PASSWORD');
+    expect(aSession!.roles).not.toContain('ADMIN');
+
+    // A can still answer their own challenge afterward.
+    const later = new Date(Date.now() + TOTP_STEP_SECONDS * 2000);
+    const aRes = await api.post(
+      '/me/2fa/challenge',
+      { code: totpCodeFor(secretA, totpStep(later)) },
+      { token: a.token, now: later },
+    );
+    expect(aRes.status).toBe(200);
+  });
+
+  it("a different account cannot spend someone else's recovery code", async () => {
+    const a = await passwordOnlyStaff('ADMIN');
+    const { recoveryCodes } = await enrol(a.token);
+    await db.query(`UPDATE user_session SET auth_level='PASSWORD' WHERE user_id=$1`, [a.userId]);
+
+    const b = await passwordOnlyStaff('SUPPORT');
+
+    const res = await api.post('/me/2fa/challenge', { code: recoveryCodes[0]! }, { token: b.token });
+    expect(res.status).toBe(422);
+
+    // Unspent: A can still use it themselves.
+    const aRes = await api.post('/me/2fa/challenge', { code: recoveryCodes[0]! }, { token: a.token });
+    expect(aRes.status).toBe(200);
+  });
+});
+
+/* ================================================================== *
  * Recovery codes
  * ================================================================== */
 

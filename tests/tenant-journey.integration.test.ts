@@ -366,6 +366,54 @@ describe('overlap and competition', () => {
   });
 });
 
+describe('cancellation', () => {
+  async function confirmedBooking(overrides: Record<string, unknown> = {}) {
+    const { landlord, listingId } = await published(overrides);
+    const tenant = await api.signUp();
+    const booking = await request(tenant.token, listingId);
+    const accepted = await api.post(`/bookings/${booking.body.id}/accept`, {}, { token: landlord.token });
+    expect(accepted.status).toBe(200);
+    return { landlord, tenant, listingId, bookingId: booking.body.id as string };
+  }
+
+  it('lets the tenant cancel their own confirmed booking', async () => {
+    const { tenant, bookingId } = await confirmedBooking();
+
+    const res = await api.post(`/bookings/${bookingId}/cancel`, { reason: 'Планы изменились' }, {
+      token: tenant.token,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('CANCELLED_BY_TENANT');
+  });
+
+  it('lets the landlord cancel a confirmed booking', async () => {
+    const { landlord, bookingId } = await confirmedBooking();
+
+    const res = await api.post(`/bookings/${bookingId}/cancel`, { reason: 'Объект временно недоступен' }, {
+      token: landlord.token,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('CANCELLED_BY_LANDLORD');
+  });
+
+  it('does NOT let a stranger cancel someone else’s booking', async () => {
+    const { bookingId } = await confirmedBooking();
+    const stranger = await api.signUp();
+
+    // The stranger is not the tenant, so the route falls into the
+    // cancelByLandlord branch by default — it must not slip through there
+    // just because the caller also happens not to be the real landlord.
+    const res = await api.post(`/bookings/${bookingId}/cancel`, { reason: 'Не моё бронирование' }, {
+      token: stranger.token,
+    });
+    // Neither party → 404, same as every other read/mutation path here.
+    expect(res.status).toBe(404);
+
+    const { rows } = await db.query<{ status: string }>(`SELECT status FROM booking WHERE id=$1`, [bookingId]);
+    expect(rows[0]!.status).toBe('CONFIRMED');
+  });
+});
+
 describe('booking privacy', () => {
   it('shows a booking to its two participants and to nobody else', async () => {
     const { landlord, listingId } = await published();

@@ -207,6 +207,61 @@ describe('authentication', () => {
     expect(known.status).toBe(unknown.status);
     expect(JSON.stringify(known.body)).toBe(JSON.stringify(unknown.body));
   });
+
+  it('resets a password end-to-end over HTTP and refuses to let the token be reused', async () => {
+    const user = await api.signUp();
+
+    const requested = await api.post('/auth/password-reset/request', { identifier: user.email });
+    expect(requested.status).toBe(200);
+
+    // The route never returns the token (it would defeat the whole point of
+    // emailing it) — it is delivered as a notification payload instead, the
+    // same place the real product reads it from to build the email link.
+    const { rows } = await db.query<{ payload: { token: string } }>(
+      `SELECT payload FROM notification
+        WHERE user_id=$1 AND category='SECURITY' AND payload->>'kind'='PASSWORD_RESET'
+        ORDER BY created_at DESC LIMIT 1`,
+      [user.userId],
+    );
+    const token = rows[0]?.payload.token;
+    expect(token).toBeTruthy();
+
+    const confirmed = await api.post('/auth/password-reset/confirm', {
+      token,
+      password: 'novy-parol-praz-http',
+    });
+    expect(confirmed.status).toBe(200);
+    expect(confirmed.body).toEqual({ ok: true });
+
+    // The new password actually works…
+    const loginNew = await api.post('/auth/login', { identifier: user.email, password: 'novy-parol-praz-http' });
+    expect(loginNew.status).toBe(200);
+    // …and the old one no longer does.
+    const loginOld = await api.post('/auth/login', {
+      identifier: user.email,
+      password: 'karotkaja-vulica-2026',
+    });
+    expect(loginOld.status).toBe(401);
+
+    // Reusing the same token through the real route — not just the service —
+    // must be refused: single-use is the entire point of a reset token.
+    const reused = await api.post('/auth/password-reset/confirm', {
+      token,
+      password: 'jashche-adzin-parol',
+    });
+    expect(reused.status).toBe(401);
+    expect(reused.errorCode).toBe('UNAUTHENTICATED');
+  });
+});
+
+/* ================================================================== */
+
+describe('phone verification', () => {
+  it('rejects an anonymous call to begin phone verification', async () => {
+    const res = await api.post('/verification/phone/begin');
+    expect(res.status).toBe(401);
+    expect(res.errorCode).toBe('UNAUTHENTICATED');
+  });
 });
 
 /* ================================================================== */
