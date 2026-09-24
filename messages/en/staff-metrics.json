@@ -30,6 +30,7 @@
     },
     "trend": {
       "totalLabel": "Total",
+      "dayLabel": "Day",
       "tooltip": "{date}: {count}"
     },
     "statusUser": {

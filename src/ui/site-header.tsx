@@ -283,7 +283,7 @@ export async function SiteHeader() {
           padding: 0 0.2rem;
           border-radius: 999px;
           background: var(--primary);
-          color: #fff;
+          color: var(--text-on-primary);
           font-size: 0.65rem;
           font-weight: 700;
           line-height: 1.05rem;

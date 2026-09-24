@@ -223,8 +223,7 @@ export default async function AccountPage() {
         .acc__debt { display: flex; align-items: flex-start; gap: 0.45rem; margin-top: var(--space-3); padding: var(--space-3); background: var(--warning-soft); border-radius: var(--radius-sm); font-size: var(--text-xs); line-height: 1.55; }
         .acc__debt > svg { flex: 0 0 auto; margin-top: 0.15rem; color: var(--warning); }
 
-        .acc__danger { border-left: 3px solid var(--error); }
-        .acc__blockers { border-left: 3px solid var(--warning); }
+        .acc__blockers { background: var(--warning-soft); }
         .acc__blockers ul { display: grid; gap: var(--space-2); margin: 0; padding-left: 1.1rem; font-size: var(--text-sm); line-height: 1.55; }
         .acc__actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3); }
         .acc__error { display: flex; align-items: center; gap: 0.4rem; font-size: var(--text-sm); color: var(--error); margin-top: var(--space-2); }

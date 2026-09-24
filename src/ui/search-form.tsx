@@ -434,7 +434,9 @@ export function SearchForm({
           cursor: pointer;
           transition: border-color 140ms ease, color 140ms ease;
         }
-        .sf__trigger:hover { border-color: var(--text-tertiary); }
+        @media (hover: hover) and (pointer: fine) {
+          .sf__trigger:hover { border-color: var(--text-tertiary); }
+        }
         .sf__trigger[data-empty='true'] { color: var(--text-tertiary); font-weight: 400; }
         .sf__trigger svg { color: var(--text-secondary); transition: transform 160ms ease; }
         .sf__trigger[aria-expanded='true'] svg { transform: rotate(180deg); }
@@ -455,6 +457,12 @@ export function SearchForm({
           background: var(--surface);
           border-radius: var(--radius-md);
           box-shadow: var(--shadow-overlay);
+          transform-origin: top;
+          transition: opacity 200ms cubic-bezier(0.23, 1, 0.32, 1),
+            transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+        }
+        @starting-style {
+          .sf__tray:not([hidden]) { opacity: 0; transform: scale(0.96); }
         }
         .sf__lengths { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 

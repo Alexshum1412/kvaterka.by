@@ -344,7 +344,7 @@ export default async function RetentionPage() {
         .ret__holdMain { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; min-width: 0; }
         .ret__holdReason { font-size: var(--text-sm); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
         .ret__list li { font-size: var(--text-sm); }
-        .ret__stuck { border-left: 3px solid var(--warning); }
+        .ret__stuck { background: var(--warning-soft); }
 
         /* A wide table must scroll inside its own box, never scroll the page. */
         .ret__tableWrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }

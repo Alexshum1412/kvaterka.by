@@ -343,9 +343,6 @@ export default async function DashboardPage() {
         .dash-att__row:hover { background: var(--surface-sunken); }
         /* The card clips its corners, so the ring is drawn inside it. */
         .dash-att__row:focus-visible { outline-offset: -3px; }
-        .dash-att__row--urgent { border-left-color: var(--error); }
-        .dash-att__row--action { border-left-color: var(--warning); }
-        .dash-att__row--info { border-left-color: var(--primary); }
         .dash-att__row--urgent .dash-att__icon { color: var(--error); }
         .dash-att__row--action .dash-att__icon { color: var(--warning); }
         .dash-att__row--info .dash-att__icon { color: var(--primary); }

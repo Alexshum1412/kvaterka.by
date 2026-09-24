@@ -201,7 +201,7 @@ export function FeatureFlagRow({
           transition: transform 160ms ease;
         }
         .ffr__switch input:checked + .ffr__slider { background: var(--primary); border-color: var(--primary); }
-        .ffr__switch input:checked + .ffr__slider::before { transform: translateX(1.25rem); background: #fff; }
+        .ffr__switch input:checked + .ffr__slider::before { transform: translateX(1.25rem); background: var(--text-on-primary); }
         .ffr__switch input:disabled + .ffr__slider { opacity: 0.5; }
         .ffr__switch input:focus-visible + .ffr__slider { outline: 2px solid var(--primary); outline-offset: 2px; }
 

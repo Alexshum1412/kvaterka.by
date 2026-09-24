@@ -104,7 +104,8 @@
       "makeCover": "Make cover photo",
       "removeAria": "Remove photo",
       "needOne": "You need at least one photo before you can submit the listing for review.",
-      "count": "{count, plural, one {# photo} other {# photos}}."
+      "count": "{count, plural, one {# photo} other {# photos}}.",
+      "photoAlt": "Photo {index} of {count}"
     },
 
     "step3": {

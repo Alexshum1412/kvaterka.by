@@ -656,7 +656,9 @@ export function SearchFilters({
           font: inherit; font-size: var(--text-xs); font-weight: 600;
           cursor: pointer;
         }
-        .fl__chip:hover { background: var(--primary-soft-hover); }
+        @media (hover: hover) and (pointer: fine) {
+          .fl__chip:hover { background: var(--primary-soft-hover); }
+        }
         .fl__end { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
         .fl__sort .select { min-height: 2.5rem; font-size: var(--text-sm); border-color: var(--border-strong); }
 
@@ -667,6 +669,12 @@ export function SearchFilters({
           box-shadow: var(--shadow-raised);
           display: grid;
           gap: var(--space-5);
+          transform-origin: top;
+          transition: opacity 220ms cubic-bezier(0.23, 1, 0.32, 1),
+            transform 220ms cubic-bezier(0.23, 1, 0.32, 1);
+        }
+        @starting-style {
+          .fl__panel { opacity: 0; transform: scale(0.96); }
         }
         .fl__grid {
           display: grid;

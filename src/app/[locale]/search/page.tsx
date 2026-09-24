@@ -4,7 +4,7 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { SearchForm } from '@/ui/search-form.tsx';
 import { SearchFilters, type AmenityOption } from '@/ui/search-filters.tsx';
 import { ListingCard, type ListingCardData } from '@/ui/listing-card.tsx';
-import { MapPanel } from '@/ui/map-panel.tsx';
+import { SearchMobileView } from '@/ui/search-mobile-view.tsx';
 import { CardSkeleton, EmptyState, ErrorState, formatNightsLocalized } from '@/ui/primitives.tsx';
 import { Icon } from '@/ui/icons.tsx';
 import { ready, readyServices } from '@/server/runtime.ts';
@@ -196,7 +196,18 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       )}
 
       {result.items.length > 0 && (
-        <div className="srch__layout">
+        <SearchMobileView
+          mapAriaLabel={t('mapAria')}
+          markers={result.items.map((i) => ({
+            id: i.id,
+            latitude: i.location.latitude,
+            longitude: i.location.longitude,
+            precision: i.location.precision,
+            priceMinor: i.stayTotalMinor ?? i.basePriceMinor,
+            priceUnit: i.priceUnit,
+            title: i.title,
+          }))}
+        >
           <div className="srch__results">
             {result.items.map((item) => (
               <ListingCard
@@ -207,21 +218,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               />
             ))}
           </div>
-
-          <aside className="srch__map" id="map" aria-label={t('mapAria')}>
-            <MapPanel
-              markers={result.items.map((i) => ({
-                id: i.id,
-                latitude: i.location.latitude,
-                longitude: i.location.longitude,
-                precision: i.location.precision,
-                priceMinor: i.stayTotalMinor ?? i.basePriceMinor,
-                priceUnit: i.priceUnit,
-                title: i.title,
-              }))}
-            />
-          </aside>
-        </div>
+        </SearchMobileView>
       )}
 
       <style>{`
@@ -232,7 +229,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           font-size: var(--text-sm); color: var(--text-secondary);
         }
         .srch__crumbLink { display: inline-flex; align-items: center; gap: 0.3rem; min-height: 1.5rem; }
-        .srch__crumbLink:hover { color: var(--primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .srch__crumbLink:hover { color: var(--primary); }
+        }
         .srch__crumbSep { color: var(--text-tertiary); }
         .srch__crumbCurrent { color: var(--text-primary); font-weight: 500; }
 
@@ -245,32 +244,6 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         .srch__duration { font-size: var(--text-sm); color: var(--text-secondary); }
         .srch__summary { font-size: var(--text-sm); color: var(--text-secondary); }
 
-        .srch__layout { display: grid; gap: var(--space-5); }
-        .srch__results {
-          display: grid;
-          gap: var(--space-5) var(--space-4);
-          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        }
-        @media (max-width: 560px) {
-          /* On a phone this becomes a photo feed, which is what browsing
-             housing actually is. */
-          .srch__results { grid-template-columns: 1fr; gap: var(--space-6); }
-        }
-
-        /* Listings come FIRST on a phone. The map is reachable from the
-           filter bar rather than sitting on top of the inventory. */
-        .srch__map { order: 1; min-height: 20rem; scroll-margin-top: 5rem; }
-        @media (min-width: 1024px) {
-          .srch__layout { grid-template-columns: minmax(0, 1fr) 21rem; align-items: start; }
-          .srch__map {
-            order: 0;
-            position: sticky;
-            top: calc(var(--header-height) + 0.75rem);
-            /* dvh, not vh: iOS Safari changes the viewport as the toolbar
-               collapses and vh makes the panel jump. */
-            height: calc(100dvh - var(--header-height) - 1.5rem);
-          }
-        }
       `}</style>
     </div>
   );

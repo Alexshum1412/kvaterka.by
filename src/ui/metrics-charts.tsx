@@ -205,6 +205,7 @@ export function MetricsCharts({ initialData, initialDays }: { initialData: Analy
           <TrendPanel
             title={t('sections.signupsTrend')}
             totalLabel={t('trend.totalLabel')}
+            dayLabel={t('trend.dayLabel')}
             series={signups}
             numberFmt={numberFmt}
             axisFmt={axisFmt}
@@ -214,6 +215,7 @@ export function MetricsCharts({ initialData, initialDays }: { initialData: Analy
           <TrendPanel
             title={t('sections.bookingsTrend')}
             totalLabel={t('trend.totalLabel')}
+            dayLabel={t('trend.dayLabel')}
             series={bookingsDaily}
             numberFmt={numberFmt}
             axisFmt={axisFmt}
@@ -324,6 +326,7 @@ function BarPanel({ title, rows, numberFmt }: { title: string; rows: BarRow[]; n
 function TrendPanel({
   title,
   totalLabel,
+  dayLabel,
   series,
   numberFmt,
   axisFmt,
@@ -332,6 +335,7 @@ function TrendPanel({
 }: {
   title: string;
   totalLabel: string;
+  dayLabel: string;
   series: DayPoint[];
   numberFmt: Intl.NumberFormat;
   axisFmt: Intl.DateTimeFormat;
@@ -373,6 +377,27 @@ function TrendPanel({
         <span>{axisFmt.format(new Date(series[0]!.day))}</span>
         <span>{axisFmt.format(new Date(series[series.length - 1]!.day))}</span>
       </div>
+      {/* The SVG above is role="img" — a single flattened picture for
+          assistive tech, so its per-bar <title> tooltips are not reachable.
+          This table carries the same data in a form a keyboard/screen-reader
+          user can actually read. */}
+      <table className="sr-only">
+        <caption>{title}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{dayLabel}</th>
+            <th scope="col">{totalLabel}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {series.map((s) => (
+            <tr key={s.day}>
+              <td>{axisFmt.format(new Date(s.day))}</td>
+              <td>{tooltip(s)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </section>
   );
 }

@@ -18,6 +18,11 @@
     "errorDetail": "{failure} Change the parameters and try again.",
     "emptyTitle": "No results found",
     "emptyDescription": "Try changing the district or rental duration — or remove some filters.",
-    "mapAria": "Results map"
+    "mapAria": "Results map",
+    "mobileView": {
+      "ariaLabel": "Switch view",
+      "listTab": "List",
+      "mapTab": "Map"
+    }
   }
 }

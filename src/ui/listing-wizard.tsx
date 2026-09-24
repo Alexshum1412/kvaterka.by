@@ -616,10 +616,14 @@ export function ListingWizard({
 
             {photos.length > 0 && (
               <ul className="wz__photos">
-                {photos.map((p) => (
+                {photos.map((p, index) => (
                   <li key={p.id} className="wz__photo">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/media/${p.storageKey}`} alt="" loading="lazy" />
+                    <img
+                      src={`/media/${p.storageKey}`}
+                      alt={t('step2.photoAlt', { index: index + 1, count: photos.length })}
+                      loading="lazy"
+                    />
                     {p.isCover && <span className="wz__cover">{t('step2.cover')}</span>}
                     <div className="wz__photoActions">
                       {!p.isCover && (
@@ -1357,7 +1361,10 @@ function PreviewSummary({
         <div className="pv__media">
           {cover ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={`/media/${cover.storageKey}`} alt="" />
+            <img
+              src={`/media/${cover.storageKey}`}
+              alt={draft.title || t('preview.noTitle')}
+            />
           ) : (
             <span className="pv__nophoto">
               <Icon name="image" size={22} />

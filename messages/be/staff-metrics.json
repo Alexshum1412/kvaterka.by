@@ -30,6 +30,7 @@
     },
     "trend": {
       "totalLabel": "Разам",
+      "dayLabel": "Дзень",
       "tooltip": "{date}: {count}"
     },
     "statusUser": {

@@ -67,6 +67,10 @@ export async function generateViewport(): Promise<Viewport> {
     // who needs to magnify text, and it saves nothing.
     maximumScale: 5,
     themeColor: theme === 'dark' ? '#0c1424' : '#f7f9fc',
+    // Without this, env(safe-area-inset-*) resolves to 0px and the fixed
+    // booking dock / wizard nav bar that already code for the iPhone home
+    // indicator stop actually clearing it.
+    viewportFit: 'cover',
   };
 }
 

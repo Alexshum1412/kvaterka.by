@@ -72,7 +72,7 @@ export default async function SecurityPage() {
         .tfa__h2 { font-size: var(--text-base); font-weight: 600; margin-bottom: var(--space-3); }
         .tfa__muted { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; margin-bottom: var(--space-4); }
 
-        .tfa__withheld { display: flex; align-items: flex-start; gap: var(--space-3); border-left: 3px solid var(--warning); }
+        .tfa__withheld { display: flex; align-items: flex-start; gap: var(--space-3); background: var(--warning-soft); }
         .tfa__withheld > svg { color: var(--warning); flex: 0 0 auto; margin-top: 0.15rem; }
         .tfa__withheld h2 { font-size: var(--text-base); font-weight: 600; }
         .tfa__withheld p { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.55; margin-top: 0.25rem; }

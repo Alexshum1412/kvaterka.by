@@ -134,6 +134,13 @@ export function FavouriteButton({
           box-shadow: var(--shadow-subtle);
           transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
         }
+        .fav svg { transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1); }
+        .fav[data-saved='true'] svg { animation: fav-pop 180ms cubic-bezier(0.23, 1, 0.32, 1); }
+        @keyframes fav-pop {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.15); }
+          100% { transform: scale(1); }
+        }
         /* The circle stays 40px so it does not crowd the photograph; the
            pseudo-element takes the hit area out to the full 44px. */
         .fav::before {
