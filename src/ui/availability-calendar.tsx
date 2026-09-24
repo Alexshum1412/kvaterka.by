@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { api, ApiError } from '@/lib/api-client.ts';
 import { Icon } from '@/ui/icons.tsx';
 import type { AppLocale } from '@/i18n/routing.ts';
+import { nightsBetween } from '@/server/domain/pricing.ts';
 
 /**
  * Availability.
@@ -213,8 +214,14 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
     [...byDate.entries()].some(
       ([date, day]) => date >= selection.from && date <= selection.to && Boolean(day.blockId),
     );
+  // selection.{from,to} are calendar cells (inclusive on both ends), not a
+  // check-in/check-out pair, and can be a single day — nightsBetween() only
+  // counts a half-open [from, to) span and rejects from === to, so that case
+  // is handled directly rather than passed through.
   const selectedNights = selection
-    ? Math.round((Date.parse(selection.to) - Date.parse(selection.from)) / 86_400_000) + 1
+    ? selection.from === selection.to
+      ? 1
+      : nightsBetween(selection.from, selection.to) + 1
     : 0;
 
   /* Leading blanks so the 1st lands under the right weekday. */

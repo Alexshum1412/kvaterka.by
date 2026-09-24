@@ -54,6 +54,7 @@ const PATHS = {
   chevronDown: ['m6 9.5 6 6 6-6'],
   chevronRight: ['m9.5 6 6 6-6 6'],
   close: ['M6 6l12 12M18 6 6 18'],
+  menu: ['M4 6.5h16', 'M4 12h16', 'M4 17.5h16'],
   map: ['m9 4-5.5 2.2v13.6L9 17.6l6 2.2 5.5-2.2V4L15 6.2Z', 'M9 4v13.6M15 6.2v13.6'],
   list: ['M4 6.5h16M4 12h16M4 17.5h16'],
   plus: ['M12 5v14M5 12h14'],

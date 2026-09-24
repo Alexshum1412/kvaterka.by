@@ -19,6 +19,8 @@
     "signIn": "Sign in",
     "logOut": "Log out",
     "themeToggleAria": "Toggle color theme",
-    "languageAria": "Interface language"
+    "languageAria": "Interface language",
+    "menuAria": "Menu",
+    "closeMenuAria": "Close menu"
   }
 }

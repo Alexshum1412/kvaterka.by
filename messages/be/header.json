@@ -19,6 +19,8 @@
     "signIn": "Увайсці",
     "logOut": "Выйсці",
     "themeToggleAria": "Пераключыць тэму афармлення",
-    "languageAria": "Мова інтэрфейсу"
+    "languageAria": "Мова інтэрфейсу",
+    "menuAria": "Меню",
+    "closeMenuAria": "Закрыць меню"
   }
 }

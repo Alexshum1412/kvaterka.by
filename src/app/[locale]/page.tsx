@@ -94,7 +94,11 @@ export default async function HomePage() {
 
           <nav className="scroll-x home-cities" aria-label={t('citiesAria')}>
             {CITIES.map((city) => (
-              <Link key={city.key} href={`/search?city=${encodeURIComponent(city.value)}`} className="chip chip-sm">
+              <Link
+                key={city.key}
+                href={`/search?city=${encodeURIComponent(city.value)}`}
+                className="chip chip-sm"
+              >
                 {t(`cities.${city.key}`)}
               </Link>
             ))}
@@ -115,8 +119,8 @@ export default async function HomePage() {
 
         {featured.length > 0 ? (
           <div className="home-grid">
-            {featured.map((listing) => (
-              <ListingCard key={listing.id} listing={listing} />
+            {featured.map((listing, index) => (
+              <ListingCard key={listing.id} listing={listing} eager={index < 4} />
             ))}
           </div>
         ) : (

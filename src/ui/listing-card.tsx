@@ -54,6 +54,7 @@ export async function ListingCard({
   listing,
   nights,
   initialFavourite,
+  eager,
 }: {
   listing: ListingCardData;
   nights?: number;
@@ -62,6 +63,14 @@ export async function ListingCard({
    * caller's shortlist does not make every card ask again.
    */
   initialFavourite?: boolean;
+  /**
+   * Set by the caller for cards it knows render above the fold (typically
+   * the first ~4 in a grid) so the cover photo — usually the page's LCP
+   * element — isn't deprioritised behind a lazy load. Defaults to lazy,
+   * matching listing/[id]/page.tsx's own `index === 0` pattern for its
+   * gallery.
+   */
+  eager?: boolean;
 }) {
   const locale = (await getLocale()) as AppLocale;
   const t = await getTranslations('Listing');
@@ -83,7 +92,8 @@ export async function ListingCard({
   const basics = [
     listing.rooms !== null && t('roomsCount', { count: listing.rooms }),
     listing.areaSqm && t('card.areaSqm', { value: Math.round(Number(listing.areaSqm)) }),
-    listing.floor !== null && listing.totalFloors !== null &&
+    listing.floor !== null &&
+      listing.totalFloors !== null &&
       t('card.floorOf', { floor: listing.floor, total: listing.totalFloors }),
   ]
     .filter(Boolean)
@@ -103,7 +113,7 @@ export async function ListingCard({
           <img
             src={`/media/${cover.storageKey}`}
             alt={`${propertyTypeLabel(listing.propertyType, locale)} — ${listing.title}`}
-            loading="lazy"
+            loading={eager ? 'eager' : 'lazy'}
             decoding="async"
             width={640}
             height={427}
@@ -135,9 +145,7 @@ export async function ListingCard({
             {tBoost('pinnedBadge')}
           </span>
         )}
-        {listing.isBoosted && (
-          <span className="badge badge-primary lc__boostBadge">{tBoost('badge')}</span>
-        )}
+        {listing.isBoosted && <span className="badge badge-primary lc__boostBadge">{tBoost('badge')}</span>}
         <h3 className="lc__title clamp-2">
           <Link href={`/listing/${listing.id}`} className="lc__link">
             {listing.title}
@@ -155,10 +163,14 @@ export async function ListingCard({
           ) : (
             <>
               <span className="lc__amount numeric">{priceLabel(listing.basePriceMinor)}</span>
-              <span className="lc__per">{listing.priceUnit === 'MONTH' ? t('card.perMonth') : t('card.perNight')}</span>
+              <span className="lc__per">
+                {listing.priceUnit === 'MONTH' ? t('card.perMonth') : t('card.perNight')}
+              </span>
               {listing.minNights > 1 && (
                 <span className="lc__min">
-                  {t('card.fromDuration', { duration: formatNightsGenitiveLocalized(listing.minNights, locale) })}
+                  {t('card.fromDuration', {
+                    duration: formatNightsGenitiveLocalized(listing.minNights, locale),
+                  })}
                 </span>
               )}
             </>

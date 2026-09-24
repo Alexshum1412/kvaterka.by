@@ -7,6 +7,17 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 
+  // `next dev`'s own route indicator — never part of a build a visitor
+  // sees — renders fixed over the bottom-left corner of every page. On
+  // this layout that is never empty ground: it sits on the price in the
+  // listing page's sticky booking bar, and on the "Список" tab in the
+  // search page's bottom dock (`search-mobile-view.tsx`'s `.smv__dock`).
+  // Every corner here carries a real control at some width (the header
+  // fills both top corners, the two docks fill both bottom ones), so
+  // there is no position that does not eventually sit on something —
+  // off is the only placement that never covers a tap target or a price.
+  devIndicators: false,
+
   // The server bundle must not try to bundle native/wasm database drivers.
   serverExternalPackages: ['pg', '@node-rs/argon2', '@electric-sql/pglite'],
 

@@ -983,7 +983,7 @@ export function ListingWizard({
            data-dir (see the direction state and go() above). */
         .wz__section {
           display: grid; gap: var(--space-4);
-          transition: opacity 200ms ease-out, transform 200ms ease-out;
+          transition: opacity 200ms cubic-bezier(0.23, 1, 0.32, 1), transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
         }
         @starting-style {
           .wz__body[data-dir='forward'] .wz__section { opacity: 0; transform: translateX(8px); }
@@ -1094,6 +1094,20 @@ export function ListingWizard({
         @media (max-width: 480px) {
           .wz__exit { display: none; }
           .wz__pair { grid-template-columns: 1fr; }
+        }
+
+        /* A landscape phone (e.g. 812×375) has so little vertical room that
+           the sticky progress header plus the fixed action bar can eat most
+           of the viewport between them, leaving barely enough to see a card
+           without it passing under the header mid-scroll. Both shrink here —
+           trimmed padding, and the step name drops out (it already repeats
+           the step's own heading below), since the progressbar's own aria
+           label still carries "step X of Y" to a screen reader with nothing
+           visible needed to say it twice. */
+        @media (max-height: 500px) {
+          .wz__top { padding-block: var(--space-2); }
+          .wz__stepLabel { display: none; }
+          .wz__nav { padding-block: var(--space-2); }
         }
       `}</style>
     </div>

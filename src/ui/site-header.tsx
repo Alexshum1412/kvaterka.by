@@ -4,6 +4,7 @@ import { Link } from '@/i18n/navigation.ts';
 import { CornflowerMark } from './brand.tsx';
 import { Icon } from './icons.tsx';
 import { LogoutButton } from './logout-button.tsx';
+import { MobileNavMenu } from './mobile-nav-menu.tsx';
 import { ThemeToggle } from './theme-toggle.tsx';
 import { LanguageSwitcher } from './language-switcher.tsx';
 import { currentUser } from '@/server/session.ts';
@@ -49,84 +50,90 @@ export async function SiteHeader() {
           </span>
         </Link>
 
-        <nav className="sh__nav" aria-label={t('mainNavAria')}>
-          <Link href="/search" className="sh__link">
-            {t('findHousing')}
-          </Link>
-          {user ? (
-            <>
-              <Link href="/trips" className="sh__link">
-                {t('myTrips')}
-              </Link>
-              <Link href="/dashboard" className="sh__link">
-                {t('myListings')}
-              </Link>
-              <Link href="/favorites" className="sh__link">
-                {t('favorites')}
-              </Link>
-              <Link href="/dashboard/chat" className="sh__link">
-                {t('messages')}
-              </Link>
-              {/* Staff only, and one entry rather than one per console. An
-                  ordinary account gets a 404 from the page itself, so this
-                  link is the only thing that reveals the console exists — and
-                  only to someone holding a permission that opens it.
-
-                  `case.view` lands on the operations overview; a moderator
-                  without it still reaches their own queue. */}
-              {can(user.roles, 'case.view') ? (
-                <Link href="/staff" className="sh__link sh__link--staff">
-                  {t('operations')}
+        <MobileNavMenu openLabel={t('menuAria')} closeLabel={t('closeMenuAria')}>
+          <nav id="sh-mobile-nav" className="sh__nav" aria-label={t('mainNavAria')}>
+            <Link href="/search" className="sh__link">
+              {t('findHousing')}
+            </Link>
+            {user ? (
+              <>
+                <Link href="/trips" className="sh__link">
+                  {t('myTrips')}
                 </Link>
-              ) : can(user.roles, 'listing.moderate') ? (
-                <Link href="/moderation" className="sh__link sh__link--staff">
-                  {t('moderation')}
+                <Link href="/dashboard" className="sh__link">
+                  {t('myListings')}
                 </Link>
-              ) : (
-                /* VERIFIER holds neither `case.view` nor `listing.moderate`, so
-                   before this they had no way into the console at all — the one
-                   role whose entire job is a staff screen could not reach one. */
-                can(user.roles, 'verification.review') && (
-                  <Link href="/staff/verification" className="sh__link sh__link--staff">
-                    {t('verification')}
+                <Link href="/favorites" className="sh__link">
+                  {t('favorites')}
+                </Link>
+                <Link href="/dashboard/chat" className="sh__link">
+                  {t('messages')}
+                </Link>
+                {/* Staff only, and one entry rather than one per console. An
+                    ordinary account gets a 404 from the page itself, so this
+                    link is the only thing that reveals the console exists — and
+                    only to someone holding a permission that opens it.
+  
+                    `case.view` lands on the operations overview; a moderator
+                    without it still reaches their own queue. */}
+                {can(user.roles, 'case.view') ? (
+                  <Link href="/staff" className="sh__link sh__link--staff">
+                    {t('operations')}
                   </Link>
-                )
-              )}
-
-              {/* The way back in.
-                  Since roles are withheld until a second factor is satisfied,
-                  every one of the links above disappears on a fresh staff
-                  login — `can()` answers false for all of them — and every
-                  staff page answers 404. That is the enforcement working, and
-                  it left the person with no visible route to the one page that
-                  resolves it: they saw an ordinary tenant's site and had to
-                  already know the address /staff/security.
-                  This is the only staff link driven by roles that are ABSENT,
-                  which is why it sits outside the chain above. */}
-              {user.withheldRoles.length > 0 && (
-                <Link href="/staff/security" className="sh__link sh__link--staff">
-                  {t('confirmSignIn')}
+                ) : can(user.roles, 'listing.moderate') ? (
+                  <Link href="/moderation" className="sh__link sh__link--staff">
+                    {t('moderation')}
+                  </Link>
+                ) : (
+                  /* VERIFIER holds neither `case.view` nor `listing.moderate`, so
+                     before this they had no way into the console at all — the one
+                     role whose entire job is a staff screen could not reach one. */
+                  can(user.roles, 'verification.review') && (
+                    <Link href="/staff/verification" className="sh__link sh__link--staff">
+                      {t('verification')}
+                    </Link>
+                  )
+                )}
+  
+                {/* The way back in.
+                    Since roles are withheld until a second factor is satisfied,
+                    every one of the links above disappears on a fresh staff
+                    login — `can()` answers false for all of them — and every
+                    staff page answers 404. That is the enforcement working, and
+                    it left the person with no visible route to the one page that
+                    resolves it: they saw an ordinary tenant's site and had to
+                    already know the address /staff/security.
+                    This is the only staff link driven by roles that are ABSENT,
+                    which is why it sits outside the chain above. */}
+                {user.withheldRoles.length > 0 && (
+                  <Link href="/staff/security" className="sh__link sh__link--staff">
+                    {t('confirmSignIn')}
+                  </Link>
+                )}
+              </>
+            ) : (
+              <>
+                <Link href="/dashboard/listings/new" className="sh__link">
+                  {t('listYourPlace')}
                 </Link>
-              )}
-            </>
-          ) : (
-            <>
-              <Link href="/dashboard/listings/new" className="sh__link">
-                {t('listYourPlace')}
-              </Link>
-              {/* Signed out this leads to sign-in, which is the honest answer:
-                  a shortlist has to belong to somebody. */}
-              <Link href="/favorites" className="sh__link">
-                {t('favorites')}
-              </Link>
-            </>
-          )}
-        </nav>
+                {/* Signed out this leads to sign-in, which is the honest answer:
+                    a shortlist has to belong to somebody. */}
+                <Link href="/favorites" className="sh__link">
+                  {t('favorites')}
+                </Link>
+              </>
+            )}
+          </nav>
+        </MobileNavMenu>
 
         <div className="sh__end">
-          <Link href="/search" className="sh__icon-link" aria-label={t('searchAria')}>
-            <Icon name="search" size={20} />
-          </Link>
+          {/* No standalone search icon here any more: below 900px it was
+              this row's one way to search, which is exactly what made room
+              for the hamburger above tight at the narrowest phones (the
+              icon and the avatar chip started colliding at 375px). It is
+              not a lost destination — "Найти жильё" is the menu's first
+              item now — so trimming it here restores the same icon count,
+              and the same width, this row already had. */}
 
           {/* Both controls live here — visible on every page, above the
               fold, rather than in the footer where a real language switch

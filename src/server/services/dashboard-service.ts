@@ -104,22 +104,61 @@ export class DashboardService {
         [userId],
       ),
       this.db.query<Record<string, any>>(
-        `SELECT p.id, p.title, p.city, p.district, p.status, p.rejection_reason,
+        /* Rewritten from six correlated subqueries per row (fine for a
+           handful of listings, but re-run in full for every one of a
+           COMPANY account's properties on every dashboard load) into one
+           aggregate pass per metric, scoped once to this owner's property
+           set and LEFT JOINed on — same output shape, but the review/photo/
+           booking tables are each scanned once total instead of once per
+           property. COALESCE only where the original correlated COUNT(*)
+           always returned 0 rather than NULL; rating/cover_photo stay
+           nullable, matching AVG()/LIMIT 1's own NULL-on-no-match behaviour. */
+        `WITH my_properties AS (
+           SELECT id, title, city, district, status, rejection_reason,
+                  base_price_minor, price_unit, calendar_updated_at, created_at
+             FROM property
+            WHERE owner_id=$1 AND deleted_at IS NULL
+         ),
+         photo_agg AS (
+           SELECT property_id, count(*)::int AS photo_count
+             FROM property_photo
+            WHERE property_id IN (SELECT id FROM my_properties)
+            GROUP BY property_id
+         ),
+         cover_agg AS (
+           SELECT DISTINCT ON (property_id) property_id, storage_key AS cover_photo
+             FROM property_photo
+            WHERE property_id IN (SELECT id FROM my_properties)
+            ORDER BY property_id, is_cover DESC, sort_order
+         ),
+         review_agg AS (
+           SELECT property_id, round(avg(overall)::numeric,2) AS rating, count(*)::int AS review_count
+             FROM review
+            WHERE property_id IN (SELECT id FROM my_properties) AND status='PUBLISHED'
+            GROUP BY property_id
+         ),
+         booking_agg AS (
+           SELECT property_id,
+                  count(*) FILTER (WHERE status='REQUESTED')::int AS pending_requests,
+                  count(*) FILTER (WHERE status IN ('CONFIRMED','CHECKED_IN'))::int AS upcoming_bookings
+             FROM booking
+            WHERE property_id IN (SELECT id FROM my_properties)
+            GROUP BY property_id
+         )
+         SELECT p.id, p.title, p.city, p.district, p.status, p.rejection_reason,
                 p.base_price_minor::text AS base_price_minor, p.price_unit,
                 p.calendar_updated_at,
-                (SELECT count(*)::int FROM property_photo ph WHERE ph.property_id=p.id) AS photo_count,
-                (SELECT storage_key FROM property_photo ph
-                  WHERE ph.property_id=p.id ORDER BY is_cover DESC, sort_order LIMIT 1) AS cover_photo,
-                (SELECT round(avg(r.overall)::numeric,2) FROM review r
-                  WHERE r.property_id=p.id AND r.status='PUBLISHED') AS rating,
-                (SELECT count(*)::int FROM review r
-                  WHERE r.property_id=p.id AND r.status='PUBLISHED') AS review_count,
-                (SELECT count(*)::int FROM booking b
-                  WHERE b.property_id=p.id AND b.status='REQUESTED') AS pending_requests,
-                (SELECT count(*)::int FROM booking b
-                  WHERE b.property_id=p.id AND b.status IN ('CONFIRMED','CHECKED_IN')) AS upcoming_bookings
-           FROM property p
-          WHERE p.owner_id=$1 AND p.deleted_at IS NULL
+                COALESCE(ph.photo_count, 0) AS photo_count,
+                c.cover_photo,
+                r.rating,
+                COALESCE(r.review_count, 0) AS review_count,
+                COALESCE(bk.pending_requests, 0) AS pending_requests,
+                COALESCE(bk.upcoming_bookings, 0) AS upcoming_bookings
+           FROM my_properties p
+           LEFT JOIN photo_agg ph ON ph.property_id = p.id
+           LEFT JOIN cover_agg c ON c.property_id = p.id
+           LEFT JOIN review_agg r ON r.property_id = p.id
+           LEFT JOIN booking_agg bk ON bk.property_id = p.id
           ORDER BY
             CASE p.status WHEN 'PUBLISHED' THEN 0 WHEN 'PENDING_MODERATION' THEN 1
                           WHEN 'REJECTED' THEN 2 WHEN 'DRAFT' THEN 3 ELSE 4 END,
@@ -286,9 +325,10 @@ function buildAttention(
     items.push({
       kind: 'OUTSTANDING_DEBT',
       title: 'Задолженность по сервисному сбору',
-      detail: overdue > 0
-        ? 'Срок оплаты прошёл. Новые объявления и подтверждение новых бронирований временно недоступны.'
-        : 'Сбор начислен после завершённой аренды. Активные бронирования не затронуты.',
+      detail:
+        overdue > 0
+          ? 'Срок оплаты прошёл. Новые объявления и подтверждение новых бронирований временно недоступны.'
+          : 'Сбор начислен после завершённой аренды. Активные бронирования не затронуты.',
       href: '/dashboard/finance',
       severity: overdue > 0 ? 'URGENT' : 'INFO',
     });

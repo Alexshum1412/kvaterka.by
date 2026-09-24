@@ -42,9 +42,12 @@ const EVENT_KEYS = [
 
 function stamp(value: string | null, locale: string): string {
   if (!value) return '—';
-  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(
-    new Date(value),
-  );
+  return new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
 }
 
 /**
@@ -61,7 +64,9 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   if (!user) redirect({ href: signInUrl(`/staff/tickets/${id}`), locale });
   if (!can(user!.roles, 'case.view')) notFound();
 
-  const EVENT_LABEL: Record<string, string> = Object.fromEntries(EVENT_KEYS.map((key) => [key, t(`event_${key}`)]));
+  const EVENT_LABEL: Record<string, string> = Object.fromEntries(
+    EVENT_KEYS.map((key) => [key, t(`event_${key}`)]),
+  );
 
   const services = await readyServices();
   const staff = {
@@ -139,27 +144,29 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
             )}
           </section>
 
-          <section className="tkd__section">
-            <h2 className="tkd__h2">{t('sectionHistory')}</h2>
-            <ol className="tkd__timeline">
-              {timeline.map((e, index) => (
-                <li key={index} className={e.internal ? 'tkd__event is-internal' : 'tkd__event'}>
-                  <span className="tkd__eventDot" aria-hidden="true" />
-                  <span className="tkd__eventBody">
-                    <span className="tkd__eventTop">
-                      <strong>{EVENT_LABEL[e.type] ?? e.type}</strong>
-                      {e.internal && <span className="tkd__internal">{t('internalOnlyBadge')}</span>}
+          {timeline.length > 0 && (
+            <section className="tkd__section">
+              <h2 className="tkd__h2">{t('sectionHistory')}</h2>
+              <ol className="tkd__timeline">
+                {timeline.map((e, index) => (
+                  <li key={index} className={e.internal ? 'tkd__event is-internal' : 'tkd__event'}>
+                    <span className="tkd__eventDot" aria-hidden="true" />
+                    <span className="tkd__eventBody">
+                      <span className="tkd__eventTop">
+                        <strong>{EVENT_LABEL[e.type] ?? e.type}</strong>
+                        {e.internal && <span className="tkd__internal">{t('internalOnlyBadge')}</span>}
+                      </span>
+                      {e.note && <span className="tkd__eventNote">{e.note}</span>}
+                      <span className="tkd__eventWhen">
+                        {stamp(e.at, locale)}
+                        {e.actorName ? ` · ${e.actorName}` : ''}
+                      </span>
                     </span>
-                    {e.note && <span className="tkd__eventNote">{e.note}</span>}
-                    <span className="tkd__eventWhen">
-                      {stamp(e.at, locale)}
-                      {e.actorName ? ` · ${e.actorName}` : ''}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </section>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
         </div>
 
         <aside className="tkd__aside">

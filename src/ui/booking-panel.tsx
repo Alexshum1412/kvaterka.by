@@ -8,6 +8,7 @@ import { api } from '@/lib/api-client.ts';
 import { Icon } from './icons.tsx';
 import { formatNightsGenitiveLocalized } from './primitives.tsx';
 import { currencySymbol } from '@/server/domain/money.ts';
+import { nightsBetween, PricingError } from '@/server/domain/pricing.ts';
 
 interface QuoteLine {
   code: string;
@@ -94,10 +95,19 @@ export function BookingPanel({
   const locale = useLocale() as AppLocale;
 
   const instantAvailable = bookingMode === 'INSTANT' || bookingMode === 'INSTANT_AND_REQUEST';
-  const nights =
-    from && to
-      ? Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
-      : 0;
+  // A date picker readily produces a reversed or same-day range mid-edit;
+  // that is invalid input for pricing.ts's nightsBetween(), not a bug here,
+  // so it is folded into 0 the same way the checks below already treat any
+  // non-positive night count.
+  const nights = (() => {
+    if (!from || !to) return 0;
+    try {
+      return nightsBetween(from, to);
+    } catch (e) {
+      if (e instanceof PricingError) return 0;
+      throw e;
+    }
+  })();
 
   const durationValid = nights >= minNights && nights <= maxNights;
 

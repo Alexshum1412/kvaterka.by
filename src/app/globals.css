@@ -301,6 +301,28 @@ img { max-width: 100%; }
   }
   .media-zoom img { transition-duration: 0.01ms !important; }
   .media-zoom:hover img, a:hover > .media-zoom img { transform: none !important; }
+
+  /* Same decorative-only posture, extended to every animated rule added
+     2026-09-24 (DEC-080/081) — none of these communicate anything a
+     screen reader or the DOM's own final state doesn't already carry, so
+     near-zero duration is correct, not a compromise: content still
+     reaches the right end state, it just gets there without the motion. */
+  .bp__pane,
+  .bp--done,
+  .bp__doneMark,
+  .wz__section,
+  .ct__msg--enter,
+  .sf__tray,
+  .fl__panel,
+  .fav[data-saved='true'] svg {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    transform: none !important;
+  }
+  .wz__details::details-content,
+  .faq-item::details-content {
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .numeric { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }

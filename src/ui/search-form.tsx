@@ -7,6 +7,7 @@ import { useRouter } from '@/i18n/navigation.ts';
 import type { AppLocale } from '@/i18n/routing.ts';
 import { Icon } from '@/ui/icons.tsx';
 import { cx, formatNightsLocalized } from '@/ui/primitives.tsx';
+import { addDays, nightsBetween as datesBetween, PricingError } from '@/server/domain/pricing.ts';
 
 /**
  * The primary entry point of the whole product.
@@ -43,26 +44,30 @@ function modeFor(nights: number): DurationMode {
   return 'LONG';
 }
 
-const DAY_MS = 86_400_000;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-// Dates are handled as UTC midnights: a local-time parse shifts a calendar day
-// across a timezone boundary and turns "30 nights" into 29.
-function dayValue(iso: string): number | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
-  const t = Date.parse(`${iso}T00:00:00Z`);
-  return Number.isFinite(t) ? t : null;
-}
-
+// The form calls these with whatever the visitor has typed so far — often
+// empty or half-entered — so unlike pricing.ts's own callers, a bad date here
+// is routine input, not a bug: these wrappers turn pricing.ts's thrown
+// PricingError into the `null` this file already renders around, instead of
+// re-deriving the UTC epoch-day math a bad parse would otherwise need.
 function addNights(iso: string, nights: number): string | null {
-  const t = dayValue(iso);
-  return t === null ? null : new Date(t + nights * DAY_MS).toISOString().slice(0, 10);
+  if (!ISO_DATE.test(iso)) return null;
+  try {
+    return addDays(iso, nights);
+  } catch {
+    return null;
+  }
 }
 
 function nightsBetween(from: string, to: string): number | null {
-  const a = dayValue(from);
-  const b = dayValue(to);
-  if (a === null || b === null) return null;
-  return Math.round((b - a) / DAY_MS);
+  if (!ISO_DATE.test(from) || !ISO_DATE.test(to)) return null;
+  try {
+    return datesBetween(from, to);
+  } catch (e) {
+    if (e instanceof PricingError) return null;
+    throw e;
+  }
 }
 
 /** The year is only spelled out when the stay crosses into another one. */

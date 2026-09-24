@@ -14,7 +14,7 @@
  *      which checks entitlement first.
  */
 
-import { quote, type PricingRule } from '../domain/pricing.ts';
+import { nightsBetween, quote, type PricingRule } from '../domain/pricing.ts';
 import {
   boundsAreReasonable,
   normalizeBounds,
@@ -727,10 +727,4 @@ export class SearchService {
     );
     return Number(rows[0]!.c) > 0;
   }
-}
-
-function nightsBetween(from: string, to: string): number {
-  return Math.round(
-    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000,
-  );
 }

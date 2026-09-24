@@ -11,6 +11,7 @@
 
 import { uuidv7 } from '../../lib/id.ts';
 import { isBookedNightViolation, isOverlapViolation, type Db } from '../db/sql.ts';
+import { addDays, nightsBetween, PricingError } from '../domain/pricing.ts';
 import { DomainError, forbidden, invalid, notFound } from './errors.ts';
 import { writeAudit } from './audit.ts';
 
@@ -240,17 +241,24 @@ export class AvailabilityService {
 
 /* ------------------------------------------------------------------ */
 
+/**
+ * Night count between two ISO dates, using the canonical epoch-day math from
+ * pricing.ts — with this service's own messages on invalid input instead of
+ * PricingError's. nightsBetween() rejects both an unparseable date and a
+ * zero/negative range with the same exception type, so a reversed or
+ * same-day range (the common case: a landlord picks a bad end date) is told
+ * apart from genuinely malformed input by the same `to <= from` check this
+ * file already uses for calendar-day comparisons — nights-worth of
+ * arithmetic all happens inside nightsBetween(), never re-derived here.
+ */
 function daysBetween(from: string, to: string): number {
-  const a = Date.parse(`${from}T00:00:00Z`);
-  const b = Date.parse(`${to}T00:00:00Z`);
-  if (Number.isNaN(a) || Number.isNaN(b)) throw invalid('Некорректные даты');
-  return Math.round((b - a) / 86_400_000);
-}
-
-function addDays(from: string, days: number): string {
-  const d = new Date(`${from}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
+  try {
+    return nightsBetween(from, to);
+  } catch (e) {
+    if (!(e instanceof PricingError)) throw e;
+    if (to <= from) throw invalid('Некорректный период');
+    throw invalid('Некорректные даты');
+  }
 }
 
 /** Half-open [from, to): the checkout day is not occupied. */

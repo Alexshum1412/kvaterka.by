@@ -19,6 +19,8 @@
     "signIn": "Войти",
     "logOut": "Выйти",
     "themeToggleAria": "Переключить тему оформления",
-    "languageAria": "Язык интерфейса"
+    "languageAria": "Язык интерфейса",
+    "menuAria": "Меню",
+    "closeMenuAria": "Закрыть меню"
   }
 }

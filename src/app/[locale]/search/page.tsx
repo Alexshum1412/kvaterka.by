@@ -9,6 +9,7 @@ import { CardSkeleton, EmptyState, ErrorState, formatNightsLocalized } from '@/u
 import { Icon } from '@/ui/icons.tsx';
 import { ready, readyServices } from '@/server/runtime.ts';
 import { currentUser } from '@/server/session.ts';
+import { nightsBetween, PricingError } from '@/server/domain/pricing.ts';
 import type { AppLocale } from '@/i18n/routing.ts';
 
 export const dynamic = 'force-dynamic';
@@ -39,6 +40,19 @@ const num = (v: string | string[] | undefined): number | undefined => {
   const n = s === undefined ? NaN : Number(s);
   return Number.isFinite(n) ? n : undefined;
 };
+
+// `from`/`to` here are raw, unvalidated query-string values — a malformed or
+// reversed pair is a routine URL, not a bug, so nightsBetween()'s
+// PricingError is turned into `undefined` (the header line's own "no
+// duration to show" state) rather than left to crash the page.
+function safeNights(from: string, to: string): number | undefined {
+  try {
+    return nightsBetween(from, to);
+  } catch (e) {
+    if (e instanceof PricingError) return undefined;
+    throw e;
+  }
+}
 
 /** "12 июля – 19 июля", for the one-line summary in the header band. */
 function formatDateRange(from: string, to: string, locale: AppLocale): string | undefined {
@@ -85,8 +99,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       negotiable: str(params.negotiable) === 'true' ? true : undefined,
       ownerKind: str(params.ownerKind) as 'PRIVATE' | 'COMPANY' | undefined,
       sort:
-        (str(params.sort) as 'RELEVANCE' | 'PRICE_ASC' | 'PRICE_DESC' | 'RATING' | 'NEWEST') ??
-        'RELEVANCE',
+        (str(params.sort) as 'RELEVANCE' | 'PRICE_ASC' | 'PRICE_DESC' | 'RATING' | 'NEWEST') ?? 'RELEVANCE',
       limit: 24,
     });
   } catch (error) {
@@ -104,14 +117,15 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   // One query for the whole page rather than one per card.
   const viewer = await currentUser();
   const saved = viewer
-    ? await services.favorites.savedAmong(viewer.userId, result.items.map((i) => i.id))
+    ? await services.favorites.savedAmong(
+        viewer.userId,
+        result.items.map((i) => i.id),
+      )
     : new Set<string>();
 
   const nights =
     params.from && params.to && typeof params.from === 'string' && typeof params.to === 'string'
-      ? Math.round(
-          (Date.parse(`${params.to}T00:00:00Z`) - Date.parse(`${params.from}T00:00:00Z`)) / 86_400_000,
-        )
+      ? safeNights(params.from, params.to)
       : undefined;
 
   const city = str(params.city);
@@ -137,7 +151,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     .join(' · ');
 
   return (
-    <div className="container srch">
+    <div className="container container-wide srch">
       <nav className="srch__crumbs" aria-label={t('breadcrumbsAria')}>
         <Link href="/" className="srch__crumbLink">
           <Icon name="home" size={14} />
@@ -173,7 +187,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             )}
           </h1>
           {nights !== undefined && nights > 0 && (
-            <span className="srch__duration">{t('forDuration', { duration: formatNightsLocalized(nights, locale) })}</span>
+            <span className="srch__duration">
+              {t('forDuration', { duration: formatNightsLocalized(nights, locale) })}
+            </span>
           )}
         </div>
         {summaryLine && <p className="srch__summary">{summaryLine}</p>}
@@ -181,18 +197,10 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
       <SearchFilters amenities={amenityRows.rows} applied={appliedQuery} />
 
-      {failure && (
-        <ErrorState
-          title={t('errorTitle')}
-          detail={t('errorDetail', { failure })}
-        />
-      )}
+      {failure && <ErrorState title={t('errorTitle')} detail={t('errorDetail', { failure })} />}
 
       {!failure && result.items.length === 0 && (
-        <EmptyState
-          title={t('emptyTitle')}
-          description={t('emptyDescription')}
-        />
+        <EmptyState title={t('emptyTitle')} description={t('emptyDescription')} />
       )}
 
       {result.items.length > 0 && (
@@ -209,12 +217,13 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           }))}
         >
           <div className="srch__results">
-            {result.items.map((item) => (
+            {result.items.map((item, index) => (
               <ListingCard
                 key={item.id}
                 listing={item as unknown as ListingCardData}
                 nights={nights}
                 initialFavourite={viewer ? saved.has(item.id) : undefined}
+                eager={index < 4}
               />
             ))}
           </div>

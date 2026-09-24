@@ -109,7 +109,7 @@ export function nightsBetween(from: string, to: string): number {
 }
 
 /** ISO date of `from` plus n days, in UTC. */
-function addDays(from: string, days: number): string {
+export function addDays(from: string, days: number): string {
   const d = new Date(`${from}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);

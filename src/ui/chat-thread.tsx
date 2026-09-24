@@ -187,7 +187,7 @@ export function ChatThread({
         /* Only a freshly-appended message gets this class, so it fires
            once on that one real mount — never on the initial thread load,
            and never replays for messages already in the list. */
-        .ct__msg--enter { transition: opacity 180ms ease-out, transform 180ms ease-out; }
+        .ct__msg--enter { transition: opacity 180ms cubic-bezier(0.23, 1, 0.32, 1), transform 180ms cubic-bezier(0.23, 1, 0.32, 1); }
         @starting-style {
           .ct__msg--enter { opacity: 0; transform: translateY(6px); }
         }

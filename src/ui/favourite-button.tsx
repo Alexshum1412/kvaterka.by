@@ -135,6 +135,12 @@ export function FavouriteButton({
           transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
         }
         .fav svg { transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1); }
+        /* ponytail: keyframes restart from scale(1) on every trigger, so a
+           double-click inside 180ms visibly jumps instead of continuing
+           from the mid-flight scale. Upgrade path is a WAAPI .animate()
+           call reading the current computed transform as its start frame;
+           not worth the ref-forwarding complexity for a decorative
+           micro-bounce that only a sub-180ms double-click can even see. */
         .fav[data-saved='true'] svg { animation: fav-pop 180ms cubic-bezier(0.23, 1, 0.32, 1); }
         @keyframes fav-pop {
           0% { transform: scale(1); }
@@ -149,7 +155,9 @@ export function FavouriteButton({
           inset: -0.125rem;
           border-radius: inherit;
         }
-        .fav:hover { background: var(--surface); transform: scale(1.06); }
+        @media (hover: hover) and (pointer: fine) {
+          .fav:hover { background: var(--surface); transform: scale(1.06); }
+        }
         .fav:active { transform: scale(0.96); }
         .fav[data-saved='true'] { color: var(--primary); background: var(--surface); }
       `}</style>
