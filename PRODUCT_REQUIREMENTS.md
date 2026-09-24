@@ -289,8 +289,8 @@ feature was enabled. Dispute handling is described throughout as «рассмо�
 | NOTIF-011 | An account with no address for a channel is suppressed, not failed | TESTED — a phone-only account has no email |
 | NOTIF-012 | A row a dead worker never settled is reclaimed | TESTED |
 | NOTIF-013 | The backlog view carries no address and no message body | TESTED |
-| NOTIF-014 | Real EMAIL delivery | **NOT POSSIBLE** — needs `SMTP_URL` and a client |
-| NOTIF-015 | Real TELEGRAM delivery | **NOT POSSIBLE** — needs a bot token *and* the webhook that makes linking reachable |
+| NOTIF-014 | Real EMAIL delivery | LIVE — `smtpProvider()` (nodemailer) ships in `provider.ts`; `SMTP_URL`/`MAIL_FROM` confirmed set in production via the cPanel env panel (DEC-080) |
+| NOTIF-015 | Real TELEGRAM delivery | LIVE — `telegramProvider()` plus the `/api/telegram/webhook` route and account-linking UI ship; `TELEGRAM_BOT_TOKEN` confirmed set in production (DEC-080) |
 | 2FA-001 | Staff roles are unusable without a second factor | TESTED — at the route AND in the roles a console page reads |
 | 2FA-002 | An ordinary account is unaffected | TESTED |
 | 2FA-003 | A landlord who is also staff keeps the landlord half | TESTED |

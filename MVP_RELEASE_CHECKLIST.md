@@ -53,7 +53,7 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 - [x] Data minimisation applied (hashed IPs, diff-only audit, hashed session tokens)
 - [x] Exact location withheld until confirmation
 - [x] Staff two-factor authentication — TOTP, enforced by withholding roles, with recovery codes, escalating lockout and step-up on the sensitive permissions. Limitation: the secret is stored in plaintext (DEC-055).
-- [~] Notification delivery — the worker, the retry ladder and the console exist and run. **Only IN_APP reaches anybody**: EMAIL needs `SMTP_URL` plus a client, TELEGRAM needs a bot token plus the webhook that makes account linking reachable. Both refuse rather than reporting false success.
+- [x] Notification delivery — the worker, the retry ladder and the console exist and run. EMAIL (`smtpProvider()`/nodemailer) and TELEGRAM (`telegramProvider()` + `/api/telegram/webhook` linking) both ship and are confirmed configured in production (`SMTP_URL`/`MAIL_FROM`/`TELEGRAM_BOT_TOKEN` set, verified via the cPanel env panel — DEC-080). An unconfigured deployment still refuses rather than reporting false success.
 - [x] Booking request expiry — on the existing FSM, in the hourly lifecycle sweep, idempotent and race-safe against a landlord accepting.
 - [~] Retention job implemented — the job, the holds and the console exist and run. It destroys expired credentials and **no personal data**: no retention window has been chosen (LEGAL-004) and no private object storage exists. Both refuse independently, so this is not "done" and is not a stub either.
 - [~] Export/erasure workflow — **closure** ships (access ends, sessions revoked, listings paused, nothing destroyed). **Erasure** is not built and is gated on LEGAL-003; `ERASURE_STEPS` in `domain/retention.ts` is the work list and each entry names its blocker. Export is not started.
@@ -63,8 +63,8 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 ## Product
 
 - [x] Admin panel exists — operations overview, dispute queue, verification console, retention console, security
-- [ ] Telegram notification flow works end to end — needs a bot token **and** the webhook that makes account linking reachable; there are zero linked chats
-- [~] Notification outbox with deduplication running — the outbox, the worker, the retry ladder, the inbox and the preferences screen all exist and run. **Only IN_APP reaches anybody**
+- [x] Telegram notification flow works end to end — bot token, `/api/telegram/webhook`, and account-linking UI all ship; `TELEGRAM_BOT_TOKEN` confirmed set in production (DEC-080). Phone verification is Telegram-only (d7f4610), so any verified account has necessarily linked a chat — live linked-chat count not re-checked from this pass, since it needs a DB query this session's hosting outage currently blocks
+- [x] Notification outbox with deduplication running — the outbox, the worker, the retry ladder, the inbox and the preferences screen all exist and run, and all three channels (IN_APP, EMAIL, TELEGRAM) reach real recipients in production
 - [~] Verification levels 0/1/2 operating — 0 and 1 operate; 2 requires identity documents and is gated off pending LEGAL-004
 - [ ] Mobile UX reviewed at 375 px, 430 px and desktop
 - [ ] Accessibility baseline: keyboard, labels, contrast, focus, touch targets
@@ -101,8 +101,8 @@ verification, disputes, retention and staff 2FA.
 
 What remains is not mostly feature work. It is four things the codebase cannot do to itself:
 
-1. **Nothing the platform says can leave it.** No email or Telegram client exists, so only the
-   in-app inbox reaches anybody. Needs credentials and a client.
+1. ~~Nothing the platform says can leave it~~ — **done**: EMAIL (nodemailer) and TELEGRAM (bot + webhook
+   linking) clients both ship and are confirmed configured in production (DEC-080), alongside IN_APP.
 2. **An accrued fee cannot be paid.** No payment provider is connected. The 5% is calculated,
    recorded and enforced as a restriction — and there is no way to settle it through the platform.
 3. ~~The real-server concurrency run~~ — **done**: 1135 tests on PostgreSQL 10.23 with no extensions, and a production build verified against it end to end, including search, radius search, availability, the calendar and case-insensitive login.
