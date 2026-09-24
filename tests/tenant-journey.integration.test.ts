@@ -73,9 +73,13 @@ async function published(overrides: Record<string, unknown> = {}) {
 
   const moderator = await api.signUp();
   await api.grantRole(moderator.userId, 'MODERATOR');
-  await api.post(`/admin/moderation/listings/${listingId}`, { decision: 'PUBLISHED' }, {
-    token: moderator.token,
-  });
+  await api.post(
+    `/admin/moderation/listings/${listingId}`,
+    { decision: 'PUBLISHED' },
+    {
+      token: moderator.token,
+    },
+  );
 
   return { landlord, listingId };
 }
@@ -90,10 +94,14 @@ async function request(
   body: Record<string, unknown> = {},
   opts: Record<string, unknown> = {},
 ) {
-  return api.post('/bookings', { propertyId: listingId, from: FROM, to: TO, guests: 2, ...body }, {
-    token,
-    ...opts,
-  });
+  return api.post(
+    '/bookings',
+    { propertyId: listingId, from: FROM, to: TO, guests: 2, ...body },
+    {
+      token,
+      ...opts,
+    },
+  );
 }
 
 /* ================================================================== */
@@ -116,7 +124,10 @@ describe('search feeds the journey', () => {
     for (const q of queries) {
       const res = await api.get(`/search?${q}`);
       expect(res.status, q).toBe(200);
-      expect(res.body.items.map((i: any) => i.id), q).toContain(listingId);
+      expect(
+        res.body.items.map((i: any) => i.id),
+        q,
+      ).toContain(listingId);
     }
   });
 
@@ -293,6 +304,45 @@ describe('landlord decision', () => {
     expect([403, 404]).toContain(res.status);
   });
 
+  it('does NOT let the tenant decline their own request', async () => {
+    const { listingId } = await published();
+    const tenant = await api.signUp();
+    const booking = await request(tenant.token, listingId);
+
+    const res = await api.post(
+      `/bookings/${booking.body.id}/decline`,
+      { reason: 'Хочу отказаться сам' },
+      { token: tenant.token },
+    );
+    // Right participant, wrong role → 403.
+    expect(res.status).toBe(403);
+
+    const { rows } = await db.query<{ status: string }>(`SELECT status FROM booking WHERE id=$1`, [
+      booking.body.id,
+    ]);
+    expect(rows[0]!.status).toBe('REQUESTED');
+  });
+
+  it('does NOT let a stranger decline someone else’s request', async () => {
+    const { listingId } = await published();
+    const tenant = await api.signUp();
+    const stranger = await api.signUp();
+    const booking = await request(tenant.token, listingId);
+
+    const res = await api.post(
+      `/bookings/${booking.body.id}/decline`,
+      { reason: 'Не моё бронирование' },
+      { token: stranger.token },
+    );
+    // Neither party → 404, same as every other read/mutation path here.
+    expect(res.status).toBe(404);
+
+    const { rows } = await db.query<{ status: string }>(`SELECT status FROM booking WHERE id=$1`, [
+      booking.body.id,
+    ]);
+    expect(rows[0]!.status).toBe('REQUESTED');
+  });
+
   it('lets the tenant withdraw before a decision', async () => {
     const { listingId } = await published();
     const tenant = await api.signUp();
@@ -356,9 +406,13 @@ describe('overlap and competition', () => {
 
     const first = await request(alice.token, listingId);
     await api.post(`/bookings/${first.body.id}/accept`, {}, { token: landlord.token });
-    await api.post(`/bookings/${first.body.id}/cancel`, { reason: 'Планы изменились' }, {
-      token: alice.token,
-    });
+    await api.post(
+      `/bookings/${first.body.id}/cancel`,
+      { reason: 'Планы изменились' },
+      {
+        token: alice.token,
+      },
+    );
 
     const second = await request(bob.token, listingId);
     const accepted = await api.post(`/bookings/${second.body.id}/accept`, {}, { token: landlord.token });
@@ -379,9 +433,13 @@ describe('cancellation', () => {
   it('lets the tenant cancel their own confirmed booking', async () => {
     const { tenant, bookingId } = await confirmedBooking();
 
-    const res = await api.post(`/bookings/${bookingId}/cancel`, { reason: 'Планы изменились' }, {
-      token: tenant.token,
-    });
+    const res = await api.post(
+      `/bookings/${bookingId}/cancel`,
+      { reason: 'Планы изменились' },
+      {
+        token: tenant.token,
+      },
+    );
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('CANCELLED_BY_TENANT');
   });
@@ -389,9 +447,13 @@ describe('cancellation', () => {
   it('lets the landlord cancel a confirmed booking', async () => {
     const { landlord, bookingId } = await confirmedBooking();
 
-    const res = await api.post(`/bookings/${bookingId}/cancel`, { reason: 'Объект временно недоступен' }, {
-      token: landlord.token,
-    });
+    const res = await api.post(
+      `/bookings/${bookingId}/cancel`,
+      { reason: 'Объект временно недоступен' },
+      {
+        token: landlord.token,
+      },
+    );
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('CANCELLED_BY_LANDLORD');
   });
@@ -403,14 +465,70 @@ describe('cancellation', () => {
     // The stranger is not the tenant, so the route falls into the
     // cancelByLandlord branch by default — it must not slip through there
     // just because the caller also happens not to be the real landlord.
-    const res = await api.post(`/bookings/${bookingId}/cancel`, { reason: 'Не моё бронирование' }, {
-      token: stranger.token,
-    });
+    const res = await api.post(
+      `/bookings/${bookingId}/cancel`,
+      { reason: 'Не моё бронирование' },
+      {
+        token: stranger.token,
+      },
+    );
     // Neither party → 404, same as every other read/mutation path here.
     expect(res.status).toBe(404);
 
-    const { rows } = await db.query<{ status: string }>(`SELECT status FROM booking WHERE id=$1`, [bookingId]);
+    const { rows } = await db.query<{ status: string }>(`SELECT status FROM booking WHERE id=$1`, [
+      bookingId,
+    ]);
     expect(rows[0]!.status).toBe('CONFIRMED');
+  });
+});
+
+describe('check-in', () => {
+  async function confirmedBooking() {
+    const { landlord, listingId } = await published();
+    const tenant = await api.signUp();
+    const booking = await request(tenant.token, listingId);
+    const accepted = await api.post(`/bookings/${booking.body.id}/accept`, {}, { token: landlord.token });
+    expect(accepted.status).toBe(200);
+    return { landlord, tenant, bookingId: booking.body.id as string };
+  }
+
+  it('lets the tenant check in on a confirmed booking', async () => {
+    const { tenant, bookingId } = await confirmedBooking();
+
+    const res = await api.post(`/bookings/${bookingId}/check-in`, {}, { token: tenant.token });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('CHECKED_IN');
+  });
+
+  it('does NOT let the landlord check in on the tenant’s behalf', async () => {
+    const { landlord, bookingId } = await confirmedBooking();
+
+    const res = await api.post(`/bookings/${bookingId}/check-in`, {}, { token: landlord.token });
+    // Right participant, wrong role → 403.
+    expect(res.status).toBe(403);
+
+    const { rows } = await db.query<{ status: string; checked_in_at: string | null }>(
+      `SELECT status, checked_in_at FROM booking WHERE id=$1`,
+      [bookingId],
+    );
+    expect(rows[0]!.status).toBe('CONFIRMED');
+    expect(rows[0]!.checked_in_at).toBeNull();
+  });
+
+  it('does NOT let a stranger check in on someone else’s booking', async () => {
+    const { bookingId } = await confirmedBooking();
+    const stranger = await api.signUp();
+
+    const res = await api.post(`/bookings/${bookingId}/check-in`, {}, { token: stranger.token });
+    // Neither party → 404, same as every other read/mutation path here.
+    expect(res.status).toBe(404);
+
+    const { rows } = await db.query<{ status: string; checked_in_at: string | null }>(
+      `SELECT status, checked_in_at FROM booking WHERE id=$1`,
+      [bookingId],
+    );
+    expect(rows[0]!.status).toBe('CONFIRMED');
+    expect(rows[0]!.checked_in_at).toBeNull();
   });
 });
 
@@ -471,11 +589,17 @@ describe('chat isolation', () => {
     expect(opened.status).toBe(201);
     const conversationId = opened.body.id as string;
 
-    await api.post(`/chat/conversations/${conversationId}/messages`, { text: 'Здравствуйте! Даты свободны?' }, {
-      token: tenant.token,
-    });
+    await api.post(
+      `/chat/conversations/${conversationId}/messages`,
+      { text: 'Здравствуйте! Даты свободны?' },
+      {
+        token: tenant.token,
+      },
+    );
 
-    expect((await api.get(`/chat/conversations/${conversationId}/messages`, { token: landlord.token })).status).toBe(200);
+    expect(
+      (await api.get(`/chat/conversations/${conversationId}/messages`, { token: landlord.token })).status,
+    ).toBe(200);
     const outsider = await api.get(`/chat/conversations/${conversationId}/messages`, {
       token: stranger.token,
     });
@@ -525,9 +649,13 @@ describe('chat isolation', () => {
     const opened = await api.post('/chat/conversations', { propertyId: listingId }, { token: tenant.token });
 
     const legitimate = 'Квартира 42, 5 этаж, заезд в 12:00, площадь 50 м²';
-    await api.post(`/chat/conversations/${opened.body.id}/messages`, { text: legitimate }, {
-      token: tenant.token,
-    });
+    await api.post(
+      `/chat/conversations/${opened.body.id}/messages`,
+      { text: legitimate },
+      {
+        token: tenant.token,
+      },
+    );
 
     const messages = await api.get(`/chat/conversations/${opened.body.id}/messages`, {
       token: tenant.token,

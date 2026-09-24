@@ -23,19 +23,9 @@ import { writeAudit } from './audit.ts';
 
 /** timestamptz arrives as a Date; every interface here promises a string. */
 const iso = (value: unknown): string => new Date(value as string).toISOString();
-import {
-  MODERATION_REASON_CODES,
-  reasonSentence,
-  type ModerationReasonCode,
-} from '../domain/moderation.ts';
+import { MODERATION_REASON_CODES, reasonSentence, type ModerationReasonCode } from '../domain/moderation.ts';
 
-export type ListingStatus =
-  | 'DRAFT'
-  | 'PENDING_MODERATION'
-  | 'PUBLISHED'
-  | 'PAUSED'
-  | 'REJECTED'
-  | 'ARCHIVED';
+export type ListingStatus = 'DRAFT' | 'PENDING_MODERATION' | 'PUBLISHED' | 'PAUSED' | 'REJECTED' | 'ARCHIVED';
 
 /** Who may move a listing where. The owner cannot approve their own listing. */
 const OWNER_TRANSITIONS: Partial<Record<ListingStatus, readonly ListingStatus[]>> = {
@@ -67,8 +57,6 @@ export interface ModerationReview {
   readonly createdAt: string;
   readonly moderatorName: string | null;
 }
-
-
 
 /**
  * Everything except the property type is optional, because the wizard
@@ -302,10 +290,9 @@ export class ListingService {
 
       // A landlord role is granted on first listing rather than at signup, so
       // a browsing account carries no listing permissions it does not need.
-      await tx.query(
-        `INSERT INTO user_role (user_id, role) VALUES ($1,'LANDLORD') ON CONFLICT DO NOTHING`,
-        [ownerId],
-      );
+      await tx.query(`INSERT INTO user_role (user_id, role) VALUES ($1,'LANDLORD') ON CONFLICT DO NOTHING`, [
+        ownerId,
+      ]);
 
       await writeAudit(tx, {
         actorUserId: ownerId,
@@ -576,7 +563,11 @@ export class ListingService {
                 submitted_at = CASE WHEN $2 = 'PUBLISHED' THEN NULL ELSE submitted_at END,
                 published_at = CASE WHEN $2 = 'PUBLISHED' THEN COALESCE(published_at, now()) ELSE published_at END
           WHERE id = $1`,
-        [propertyId, decision, decision === 'REJECTED' ? (reason?.trim() || reasonSentence(effectiveCodes)) : null],
+        [
+          propertyId,
+          decision,
+          decision === 'REJECTED' ? reason?.trim() || reasonSentence(effectiveCodes) : null,
+        ],
       );
 
       // The decision as a domain record, kept forever. A resubmission adds
@@ -585,15 +576,7 @@ export class ListingService {
         `INSERT INTO listing_moderation_review
            (id, property_id, moderator_id, decision, reason_codes, comment, from_status)
          VALUES ($1,$2,$3,$4,$5::text[],$6,$7)`,
-        [
-          uuidv7(),
-          propertyId,
-          moderatorId,
-          decision,
-          effectiveCodes,
-          reason?.trim() || null,
-          current.status,
-        ],
+        [uuidv7(), propertyId, moderatorId, decision, effectiveCodes, reason?.trim() || null, current.status],
       );
 
       await writeAudit(tx, {
@@ -832,7 +815,14 @@ export class ListingService {
   async addPhoto(
     propertyId: string,
     ownerId: string,
-    photo: { storageKey: string; width?: number; height?: number; byteSize?: number; caption?: string; contentHash?: Buffer },
+    photo: {
+      storageKey: string;
+      width?: number;
+      height?: number;
+      byteSize?: number;
+      caption?: string;
+      contentHash?: Buffer;
+    },
   ): Promise<{ id: string }> {
     /* The key must live in this listing's own namespace.
      *
@@ -1042,7 +1032,8 @@ function assertDurations(minNights?: number | null, maxNights?: number | null): 
   const min = minNights ?? 1;
   const max = maxNights ?? 365;
   if (min < 1) throw invalid('Минимальный срок — от 1 ночи', { field: 'minNights' });
-  if (max < min) throw invalid('Максимальный срок должен быть не меньше минимального', { field: 'maxNights' });
+  if (max < min)
+    throw invalid('Максимальный срок должен быть не меньше минимального', { field: 'maxNights' });
   if (max > 365 * 5) throw invalid('Максимальный срок слишком большой', { field: 'maxNights' });
 }
 

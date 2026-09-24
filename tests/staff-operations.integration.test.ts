@@ -124,6 +124,11 @@ describe('console access', () => {
         (await api.post(`/admin/disputes/${caseId}/notes`, { note: 'x y' }, { token })).status,
         who,
       ).toBe(403);
+      expect(
+        (await api.post(`/admin/disputes/${caseId}/assign`, { assigneeId: null }, { token })).status,
+        who,
+      ).toBe(403);
+      expect((await api.get('/admin/disputes/staff', { token })).status, who).toBe(403);
     }
   });
 
@@ -538,6 +543,57 @@ describe('assignment', () => {
     const queue = await api.get('/admin/disputes?status=ACTIVE&assigned=ME', { token: support.token });
     expect(queue.body.items).toHaveLength(1);
     expect(queue.body.items[0].id).toBe(mine.caseId);
+  });
+
+  it('needs case.handle, not merely holding a staff role, to assign a case', async () => {
+    const { caseId } = await disputed();
+    const admin = await staffWith('ADMIN');
+    // VERIFIER is staff, and holds real permissions elsewhere (document.read,
+    // verification.decide) — but none of them is case.handle.
+    const verifier = await staffWith('VERIFIER');
+
+    const res = await api.post(
+      `/admin/disputes/${caseId}/assign`,
+      { assigneeId: admin.userId },
+      { token: verifier.token },
+    );
+    expect(res.status).toBe(403);
+
+    const { rows } = await db.query<{ assigned_to: string | null }>(
+      `SELECT assigned_to FROM dispute_case WHERE id=$1`,
+      [caseId],
+    );
+    expect(rows[0]!.assigned_to).toBeNull();
+  });
+});
+
+/* ================================================================== *
+ * Who a case may be handed to
+ * ================================================================== */
+
+describe('assignable staff', () => {
+  it('lists only the roles that work cases', async () => {
+    const admin = await staffWith('ADMIN');
+    const support = await staffWith('SUPPORT');
+    const moderator = await staffWith('MODERATOR');
+    const verifier = await staffWith('VERIFIER'); // does not work cases
+    const finance = await staffWith('FINANCE'); // does not work cases
+
+    const res = await api.get('/admin/disputes/staff', { token: support.token });
+    expect(res.status).toBe(200);
+
+    const listed = res.body as { id: string; displayName: string; roles: string[] }[];
+    const ids = listed.map((s) => s.id);
+    expect(ids).toEqual(expect.arrayContaining([admin.userId, support.userId, moderator.userId]));
+    expect(ids).not.toContain(verifier.userId);
+    expect(ids).not.toContain(finance.userId);
+  });
+
+  it('needs case.handle, not merely holding a staff role', async () => {
+    // VERIFIER holds no case permission at all.
+    const verifier = await staffWith('VERIFIER');
+    const res = await api.get('/admin/disputes/staff', { token: verifier.token });
+    expect(res.status).toBe(403);
   });
 });
 

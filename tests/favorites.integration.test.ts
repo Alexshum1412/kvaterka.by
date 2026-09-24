@@ -81,6 +81,12 @@ describe('favourites', () => {
     expect(res.status).toBe(401);
   });
 
+  it('requires a session to remove', async () => {
+    const listingId = await publishedListing();
+    const res = await api.delete(`/favorites/${listingId}`);
+    expect(res.status).toBe(401);
+  });
+
   it('saves and lists a published listing', async () => {
     const listingId = await publishedListing();
     const tenant = await api.signUp();

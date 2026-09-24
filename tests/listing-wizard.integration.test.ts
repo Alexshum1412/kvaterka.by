@@ -13,15 +13,18 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '@/server/db/testing.ts';
 import { ApiTestClient } from './support/api-client.ts';
 import { ListingService } from '@/server/services/listing-service.ts';
+import { BookingService } from '@/server/services/booking-service.ts';
 
 let db: TestDb;
 let api: ApiTestClient;
 let listings: ListingService;
+let bookings: BookingService;
 
 beforeAll(async () => {
   db = await createTestDb();
   api = new ApiTestClient(db);
   listings = new ListingService(db);
+  bookings = new BookingService(db);
 }, 120_000);
 
 afterAll(async () => {
@@ -120,6 +123,19 @@ describe('draft creation', () => {
     const res = await api.patch(`/listings/${id}`, { latitude: 53.9 }, { token: landlord.token });
     expect(res.status).toBe(422);
   });
+
+  it('never lists a second landlord’s listings under /listings/mine', async () => {
+    const alice = await api.signUp();
+    const bob = await api.signUp();
+    const aliceListing = await startDraft(alice.token);
+    await startDraft(bob.token);
+    await startDraft(bob.token);
+
+    const mine = await api.get('/listings/mine', { token: bob.token });
+    expect(mine.status).toBe(200);
+    expect(mine.body).toHaveLength(2);
+    expect(mine.body.every((l: any) => l.id !== aliceListing)).toBe(true);
+  });
 });
 
 describe('submission requirements', () => {
@@ -216,7 +232,11 @@ describe('duration', () => {
     const landlord = await api.signUp();
     const id = await startDraft(landlord.token);
 
-    const res = await api.patch(`/listings/${id}`, { minNights: 30, maxNights: 7 }, { token: landlord.token });
+    const res = await api.patch(
+      `/listings/${id}`,
+      { minNights: 30, maxNights: 7 },
+      { token: landlord.token },
+    );
     expect(res.status).toBe(422);
   });
 
@@ -224,7 +244,11 @@ describe('duration', () => {
     const landlord = await api.signUp();
     const id = await startDraft(landlord.token);
 
-    const res = await api.patch(`/listings/${id}`, { minNights: 180, maxNights: 1095 }, { token: landlord.token });
+    const res = await api.patch(
+      `/listings/${id}`,
+      { minNights: 180, maxNights: 1095 },
+      { token: landlord.token },
+    );
     expect(res.status).toBe(200);
     const check = await api.get(`/listings/${id}/edit`, { token: landlord.token });
     expect(check.body.minNights).toBe(180);
@@ -378,6 +402,64 @@ describe('one landlord cannot touch another’s listing', () => {
     expect([403, 404]).toContain(res.status);
   });
 
+  it('cannot remove a block from a stranger’s calendar', async () => {
+    const alice = await api.signUp();
+    const bob = await api.signUp();
+    const id = await startDraft(alice.token);
+    await fillOut(alice.token, id);
+
+    const blocked = await api.post(
+      `/listings/${id}/availability/block`,
+      { from: '2027-04-01', to: '2027-04-05' },
+      { token: alice.token },
+    );
+    expect(blocked.status).toBe(201);
+
+    const res = await api.delete(`/availability/blocks/${blocked.body.id}`, { token: bob.token });
+    expect([403, 404]).toContain(res.status);
+
+    // Untouched: the block still holds those dates.
+    const calendar = await api.get(`/listings/${id}/availability?from=2027-04-01&to=2027-04-10`, {
+      token: alice.token,
+    });
+    expect(calendar.body.days.find((d: any) => d.date === '2027-04-02').status).toBe('BLOCKED');
+  });
+
+  it('cannot confirm a stranger’s calendar is up to date', async () => {
+    const alice = await api.signUp();
+    const bob = await api.signUp();
+    const id = await startDraft(alice.token);
+
+    await db.query(`UPDATE property SET calendar_updated_at = now() - interval '30 days' WHERE id=$1`, [id]);
+
+    const res = await api.post(`/listings/${id}/availability/confirm`, {}, { token: bob.token });
+    expect([403, 404]).toContain(res.status);
+
+    // Untouched: alice's calendar is still stale, not refreshed by a stranger.
+    const row = await db.query<{ calendar_updated_at: string }>(
+      `SELECT calendar_updated_at FROM property WHERE id=$1`,
+      [id],
+    );
+    const ageDays = (Date.now() - Date.parse(row.rows[0]!.calendar_updated_at)) / 86_400_000;
+    expect(ageDays).toBeGreaterThan(29);
+  });
+
+  it('cannot set the cover photo on a stranger’s listing', async () => {
+    const alice = await api.signUp();
+    const bob = await api.signUp();
+    const id = await startDraft(alice.token);
+    const first = await api.attachPhoto(id);
+    const second = await api.attachPhoto(id, 'b.jpg');
+
+    const res = await api.post(`/listings/${id}/photos/${second}/cover`, {}, { token: bob.token });
+    expect([403, 404]).toContain(res.status);
+
+    // Untouched: the first photo attached is still the cover.
+    const check = await api.get(`/listings/${id}/edit`, { token: alice.token });
+    expect(check.body.photos.find((p: any) => p.id === first).isCover).toBe(true);
+    expect(check.body.photos.find((p: any) => p.id === second).isCover).toBe(false);
+  });
+
   it('requires a session at all', async () => {
     const alice = await api.signUp();
     const id = await startDraft(alice.token);
@@ -401,20 +483,108 @@ describe('availability', () => {
     );
     expect(blocked.status).toBe(201);
 
-    const calendar = await api.get(
-      `/listings/${id}/availability?from=2027-03-01&to=2027-03-31`,
-      { token: landlord.token },
-    );
+    const calendar = await api.get(`/listings/${id}/availability?from=2027-03-01&to=2027-03-31`, {
+      token: landlord.token,
+    });
     const march12 = calendar.body.days.find((d: any) => d.date === '2027-03-12');
     expect(march12.status).toBe('BLOCKED');
 
     await api.delete(`/availability/blocks/${blocked.body.id}`, { token: landlord.token });
 
-    const after = await api.get(
-      `/listings/${id}/availability?from=2027-03-01&to=2027-03-31`,
+    const after = await api.get(`/listings/${id}/availability?from=2027-03-01&to=2027-03-31`, {
+      token: landlord.token,
+    });
+    expect(after.body.days.find((d: any) => d.date === '2027-03-12').status).toBe('AVAILABLE');
+  });
+
+  it('lets the owner confirm their calendar is up to date, refreshing its freshness', async () => {
+    const landlord = await api.signUp();
+    const id = await startDraft(landlord.token);
+    await fillOut(landlord.token, id);
+
+    await db.query(`UPDATE property SET calendar_updated_at = now() - interval '30 days' WHERE id=$1`, [id]);
+
+    const res = await api.post(`/listings/${id}/availability/confirm`, {}, { token: landlord.token });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    const row = await db.query<{ calendar_updated_at: string }>(
+      `SELECT calendar_updated_at FROM property WHERE id=$1`,
+      [id],
+    );
+    const ageDays = (Date.now() - Date.parse(row.rows[0]!.calendar_updated_at)) / 86_400_000;
+    expect(ageDays).toBeLessThan(1);
+  });
+});
+
+describe('calendar visibility', () => {
+  it('hides an unpublished listing’s calendar from a non-owner (404, not "forbidden")', async () => {
+    const alice = await api.signUp();
+    const bob = await api.signUp();
+    const id = await startDraft(alice.token);
+
+    const res = await api.get(`/listings/${id}/availability?from=2027-05-01&to=2027-05-05`, {
+      token: bob.token,
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('hides an unpublished listing’s calendar from an unauthenticated caller too', async () => {
+    const alice = await api.signUp();
+    const id = await startDraft(alice.token);
+
+    const res = await api.get(`/listings/${id}/availability?from=2027-05-01&to=2027-05-05`);
+    expect(res.status).toBe(404);
+  });
+
+  it('still lets the owner see their own unpublished listing’s calendar', async () => {
+    const alice = await api.signUp();
+    const id = await startDraft(alice.token);
+
+    const res = await api.get(`/listings/${id}/availability?from=2027-05-01&to=2027-05-05`, {
+      token: alice.token,
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('silently ignores includePending from a non-owner but honours it for the owner', async () => {
+    const { landlord, id } = await publishedListing();
+    const bob = await api.signUp();
+    const tenant = await api.signUp();
+
+    const booking = await bookings.requestBooking({
+      propertyId: id,
+      tenantId: tenant.userId,
+      from: '2027-06-10',
+      to: '2027-06-12',
+      guests: 1,
+    });
+    expect(booking.status).toBe('REQUESTED');
+
+    // A stranger asking for includePending=true gets the ordinary public
+    // calendar back — the pending request is not honoured, and the request
+    // is not refused either; it is simply not theirs to see.
+    const asStranger = await api.get(
+      `/listings/${id}/availability?from=2027-06-01&to=2027-06-20&includePending=true`,
+      { token: bob.token },
+    );
+    expect(asStranger.status).toBe(200);
+    expect(asStranger.body.days.find((d: any) => d.date === '2027-06-10').status).toBe('AVAILABLE');
+
+    // The owner, asking the same question, sees the pending request.
+    const asOwner = await api.get(
+      `/listings/${id}/availability?from=2027-06-01&to=2027-06-20&includePending=true`,
       { token: landlord.token },
     );
-    expect(after.body.days.find((d: any) => d.date === '2027-03-12').status).toBe('AVAILABLE');
+    expect(asOwner.status).toBe(200);
+    expect(asOwner.body.days.find((d: any) => d.date === '2027-06-10').status).toBe('PENDING');
+
+    // And without includePending, even the owner sees an ordinary calendar.
+    const ownerWithoutFlag = await api.get(
+      `/listings/${id}/availability?from=2027-06-01&to=2027-06-20`,
+      { token: landlord.token },
+    );
+    expect(ownerWithoutFlag.body.days.find((d: any) => d.date === '2027-06-10').status).toBe('AVAILABLE');
   });
 });
 
@@ -427,7 +597,11 @@ describe('changing a listing’s status', () => {
     expect((await api.get('/listings/mine', { token: landlord.token })).body[0].status).toBe('PAUSED');
 
     // Pausing was the owner's own decision, so resuming needs no review.
-    const resumed = await api.post(`/listings/${id}/status`, { status: 'PUBLISHED' }, { token: landlord.token });
+    const resumed = await api.post(
+      `/listings/${id}/status`,
+      { status: 'PUBLISHED' },
+      { token: landlord.token },
+    );
     expect(resumed.status).toBe(200);
     expect((await api.get('/listings/mine', { token: landlord.token })).body[0].status).toBe('PUBLISHED');
   });
@@ -552,11 +726,7 @@ describe('pricing rules', () => {
     const bob = await api.signUp();
     const id = await startDraft(alice.token);
 
-    const res = await api.put(
-      `/listings/${id}/pricing-rules`,
-      { rules: [rule] },
-      { token: bob.token },
-    );
+    const res = await api.put(`/listings/${id}/pricing-rules`, { rules: [rule] }, { token: bob.token });
     expect([403, 404]).toContain(res.status);
 
     const stored = await db.query(`SELECT count(*)::int AS c FROM pricing_rule WHERE property_id=$1`, [id]);

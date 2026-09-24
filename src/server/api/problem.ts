@@ -120,12 +120,7 @@ export function toProblem(
           correlationId,
         );
       case 'INSUFFICIENT_EVIDENCE':
-        return problem(
-          'CONFLICT',
-          409,
-          'Недостаточно материалов для подтверждения уровня',
-          correlationId,
-        );
+        return problem('CONFLICT', 409, 'Недостаточно материалов для подтверждения уровня', correlationId);
       default:
         return problem('ILLEGAL_TRANSITION', 409, 'Это действие сейчас недоступно', correlationId);
     }

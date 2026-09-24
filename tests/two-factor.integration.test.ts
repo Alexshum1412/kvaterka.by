@@ -118,7 +118,9 @@ describe('a staff role is withheld until the second factor is satisfied', () => 
   it('leaves the enrolment route reachable while roles are withheld', async () => {
     const admin = await passwordOnlyStaff('ADMIN');
     expect((await api.get('/me/2fa', { token: admin.token })).status).toBe(200);
-    expect((await api.post('/me/2fa/enrol', { password: DEMO_PASSWORD }, { token: admin.token })).status).toBe(200);
+    expect(
+      (await api.post('/me/2fa/enrol', { password: DEMO_PASSWORD }, { token: admin.token })).status,
+    ).toBe(200);
   });
 
   it('reports what is required and what is withheld', async () => {
@@ -204,7 +206,9 @@ describe('enrolment', () => {
   it('refuses to enrol twice', async () => {
     const admin = await passwordOnlyStaff();
     await enrol(admin.token);
-    expect((await api.post('/me/2fa/enrol', { password: DEMO_PASSWORD }, { token: admin.token })).status).toBe(409);
+    expect(
+      (await api.post('/me/2fa/enrol', { password: DEMO_PASSWORD }, { token: admin.token })).status,
+    ).toBe(409);
   });
 
   it('never returns the secret again after confirmation', async () => {
@@ -241,7 +245,11 @@ describe('the challenge', () => {
   it('accepts a valid code', async () => {
     const admin = await passwordOnlyStaff();
     const { secret } = await enrol(admin.token);
-    await api.post('/me/2fa/disable', { code: totpCodeFor(secret, totpStep(new Date())) }, { token: admin.token });
+    await api.post(
+      '/me/2fa/disable',
+      { code: totpCodeFor(secret, totpStep(new Date())) },
+      { token: admin.token },
+    );
     // Re-enrol and drop back to PASSWORD to exercise the challenge path.
     const fresh = await enrol(admin.token);
     await db.query(`UPDATE user_session SET auth_level='PASSWORD' WHERE user_id=$1`, [admin.userId]);
@@ -302,9 +310,17 @@ describe('the challenge', () => {
        the per-ACCOUNT lockout, which follows the account wherever it is
        attacked from — the property that makes distributed guessing useless. */
     for (let i = 0; i < 5; i += 1) {
-      await api.post('/me/2fa/challenge', { code: '000000' }, { token: admin.token, ip: `203.0.113.${i + 1}` });
+      await api.post(
+        '/me/2fa/challenge',
+        { code: '000000' },
+        { token: admin.token, ip: `203.0.113.${i + 1}` },
+      );
     }
-    const res = await api.post('/me/2fa/challenge', { code: '000000' }, { token: admin.token, ip: '203.0.113.99' });
+    const res = await api.post(
+      '/me/2fa/challenge',
+      { code: '000000' },
+      { token: admin.token, ip: '203.0.113.99' },
+    );
     expect(res.status).toBe(429);
 
     const { rows } = await db.query<{ failed_attempts: number }>(
@@ -342,6 +358,11 @@ describe('confirm and challenge are scoped to the caller alone', () => {
      deliberately declare none (see the file header in two-factor.ts). */
   it('refuses an entirely unauthenticated caller on confirm', async () => {
     const res = await api.post('/me/2fa/confirm', { code: '123456' });
+    expect(res.status).toBe(401);
+  });
+
+  it('refuses an entirely unauthenticated caller on GET /me/2fa', async () => {
+    const res = await api.get('/me/2fa');
     expect(res.status).toBe(401);
   });
 

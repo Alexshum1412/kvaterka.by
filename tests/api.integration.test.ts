@@ -13,6 +13,9 @@ import { looksLikeLeak } from '@/server/api/problem.ts';
 import { generateOpenApi } from '@/server/api/openapi.ts';
 import { allRoutes } from '@/server/api/routes/index.ts';
 import { Router } from '@/server/api/router.ts';
+import { AuthService } from '@/server/auth/auth-service.ts';
+
+const GOOD_PASSWORD = 'karotkaja-vulica-2026';
 
 let db: TestDb;
 let api: ApiTestClient;
@@ -62,7 +65,10 @@ const LISTING = {
 };
 
 /** Create a published listing owned by a fresh landlord. */
-async function publishedListing(): Promise<{ landlord: { token: string; userId: string }; listingId: string }> {
+async function publishedListing(): Promise<{
+  landlord: { token: string; userId: string };
+  listingId: string;
+}> {
   const landlord = await api.signUp();
   const created = await api.post('/listings', LISTING, { token: landlord.token });
   expect(created.status).toBe(201);
@@ -159,7 +165,10 @@ describe('authentication', () => {
 
   it('sets an HttpOnly, SameSite session cookie', async () => {
     const user = await api.signUp();
-    const login = await api.post('/auth/login', { identifier: user.email, password: 'karotkaja-vulica-2026' });
+    const login = await api.post('/auth/login', {
+      identifier: user.email,
+      password: 'karotkaja-vulica-2026',
+    });
     const cookie = login.headers!['set-cookie']!;
     expect(cookie).toContain('HttpOnly');
     expect(cookie).toContain('SameSite=Lax');
@@ -234,7 +243,10 @@ describe('authentication', () => {
     expect(confirmed.body).toEqual({ ok: true });
 
     // The new password actually works…
-    const loginNew = await api.post('/auth/login', { identifier: user.email, password: 'novy-parol-praz-http' });
+    const loginNew = await api.post('/auth/login', {
+      identifier: user.email,
+      password: 'novy-parol-praz-http',
+    });
     expect(loginNew.status).toBe(200);
     // …and the old one no longer does.
     const loginOld = await api.post('/auth/login', {
@@ -251,6 +263,181 @@ describe('authentication', () => {
     });
     expect(reused.status).toBe(401);
     expect(reused.errorCode).toBe('UNAUTHENTICATED');
+  });
+});
+
+/* ================================================================== */
+
+describe('registration confirmation over HTTP', () => {
+  /**
+   * `ApiTestClient.signUp()` deliberately drives `AuthService` directly for
+   * BOTH registration calls — see its own doc comment — precisely because an
+   * HTTP-issued code is never recoverable by a client (never in the response,
+   * stored hashed). That escape hatch is reused here for exactly one call,
+   * `beginRegistration`, just to seed a pending row and learn its real code;
+   * every assertion below then goes through the real `POST
+   * /auth/register/confirm` route, which every existing wrong-code test
+   * bypasses by calling `AuthService.confirmRegistration` directly instead.
+   */
+  const beginPending = (over: { email: string; displayName: string }) =>
+    new AuthService(db).beginRegistration({ ...over, password: GOOD_PASSWORD });
+
+  it('confirms over HTTP with the real code and signs the account in', async () => {
+    const email = `confirm-http-${Date.now()}@example.by`;
+    const { identifier, code } = await beginPending({ email, displayName: 'HTTP Подтверждение' });
+
+    const res = await api.post('/auth/register/confirm', { identifier, code });
+    expect(res.status).toBe(200);
+    expect(res.body.user.emailVerified).toBe(true);
+    expect(res.body.user.roles).toContain('TENANT');
+
+    const cookie = res.headers!['set-cookie']!;
+    expect(cookie).toContain('HttpOnly');
+    const token = /kv_session=([^;]+)/.exec(cookie)![1]!;
+    expect((await api.get('/auth/me', { token: decodeURIComponent(token) })).status).toBe(200);
+  });
+
+  it('rejects a wrong code over HTTP without creating the account or setting a cookie', async () => {
+    const email = `confirm-http-wrong-${Date.now()}@example.by`;
+    const { identifier } = await beginPending({ email, displayName: 'Скептык HTTP' });
+
+    const res = await api.post('/auth/register/confirm', { identifier, code: '000000' });
+    expect(res.status).toBe(401);
+    expect(res.errorCode).toBe('UNAUTHENTICATED');
+    expect(res.headers?.['set-cookie']).toBeUndefined();
+
+    const { rows } = await db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM app_user WHERE lower(email)=lower($1)`,
+      [email],
+    );
+    expect(rows[0]!.c).toBe('0');
+  });
+
+  it('gives the same answer over HTTP whether or not a registration is pending (resend)', async () => {
+    const email = `resend-http-${Date.now()}@example.by`;
+    await beginPending({ email, displayName: 'Другая спроба HTTP' });
+
+    const known = await api.post('/auth/register/resend', { identifier: email });
+    const unknown = await api.post('/auth/register/resend', { identifier: 'nobody-pending-http@example.by' });
+    expect(known.status).toBe(unknown.status);
+    expect(JSON.stringify(known.body)).toBe(JSON.stringify(unknown.body));
+  });
+});
+
+/* ================================================================== */
+
+describe('session management', () => {
+  it('POST /auth/logout without a session is rejected outright, not a silent no-op', async () => {
+    const res = await api.post('/auth/logout', {});
+    expect(res.status).toBe(401);
+    expect(res.errorCode).toBe('UNAUTHENTICATED');
+  });
+
+  it('POST /auth/logout with a forged token is rejected the same way', async () => {
+    const res = await api.post('/auth/logout', {}, { token: 'totally-made-up-token' });
+    expect(res.status).toBe(401);
+    expect(res.errorCode).toBe('UNAUTHENTICATED');
+  });
+
+  it('POST /auth/refresh without a session returns 401', async () => {
+    const res = await api.post('/auth/refresh', {});
+    expect(res.status).toBe(401);
+    expect(res.errorCode).toBe('UNAUTHENTICATED');
+  });
+
+  it('POST /auth/refresh with a forged token returns 401', async () => {
+    const res = await api.post('/auth/refresh', {}, { token: 'totally-made-up-token' });
+    expect(res.status).toBe(401);
+    expect(res.errorCode).toBe('UNAUTHENTICATED');
+  });
+
+  /**
+   * Both routes carry a defensive `if (!token) return ok({ ok: false }, 401)`
+   * (refresh) / no-op (logout) for a caller that is authenticated but
+   * presents no session token — unreachable through an ordinary request,
+   * since `auth: 'required'` already refuses anyone the router could not
+   * resolve a caller OR a machine for. The one principal that reaches the
+   * handler that way is a scheduler: a valid job token with no session
+   * cookie at all. Exercised directly so that line is provably live code,
+   * not dead defensiveness nobody ever runs.
+   */
+  it('a scheduler with a job token but no session gets the defensive fallback, not a crash', async () => {
+    const scheduler = { jobToken: 'z'.repeat(32), headers: { 'x-job-token': 'z'.repeat(32) } };
+
+    const refreshed = await api.post('/auth/refresh', {}, scheduler);
+    expect(refreshed.status).toBe(401);
+    expect(refreshed.body).toEqual({ ok: false });
+
+    const loggedOut = await api.post('/auth/logout', {}, scheduler);
+    expect(loggedOut.status).toBe(200);
+    expect(loggedOut.body).toEqual({ ok: true });
+  });
+
+  describe('GET /auth/sessions', () => {
+    it('rejects an anonymous call', async () => {
+      const res = await api.get('/auth/sessions');
+      expect(res.status).toBe(401);
+      expect(res.errorCode).toBe('UNAUTHENTICATED');
+    });
+
+    it('lists the caller’s own session and never leaks a token', async () => {
+      const user = await api.signUp();
+
+      const res = await api.get('/auth/sessions', { token: user.token });
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0]).toMatchObject({ id: expect.any(String) });
+      expect(JSON.stringify(res.body)).not.toMatch(/token/i);
+    });
+
+    it('grows with the caller’s own sessions and never counts another user’s', async () => {
+      const user = await api.signUp();
+      await api.post('/auth/login', { identifier: user.email, password: GOOD_PASSWORD });
+      const stranger = await api.signUp();
+
+      const mine = await api.get('/auth/sessions', { token: user.token });
+      expect(mine.body).toHaveLength(2);
+
+      const theirs = await api.get('/auth/sessions', { token: stranger.token });
+      expect(theirs.body).toHaveLength(1);
+    });
+  });
+
+  describe('DELETE /auth/sessions', () => {
+    it('rejects an anonymous call', async () => {
+      const res = await api.delete('/auth/sessions');
+      expect(res.status).toBe(401);
+      expect(res.errorCode).toBe('UNAUTHENTICATED');
+    });
+
+    it('revokes every other session but keeps the caller signed in', async () => {
+      const user = await api.signUp();
+      await api.post('/auth/login', { identifier: user.email, password: GOOD_PASSWORD });
+      await api.post('/auth/login', { identifier: user.email, password: GOOD_PASSWORD });
+
+      const res = await api.delete('/auth/sessions', { token: user.token });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ revoked: 2 });
+
+      // The caller's own session — the one this very request authenticated
+      // with — must survive its own "revoke everyone else" call.
+      expect((await api.get('/auth/me', { token: user.token })).status).toBe(200);
+      const remaining = await api.get('/auth/sessions', { token: user.token });
+      expect(remaining.body).toHaveLength(1);
+    });
+
+    it('never touches another user’s sessions', async () => {
+      const user = await api.signUp();
+      const other = await api.signUp();
+      await api.post('/auth/login', { identifier: other.email, password: GOOD_PASSWORD });
+
+      const res = await api.delete('/auth/sessions', { token: user.token });
+      expect(res.body).toEqual({ revoked: 0 });
+
+      const theirs = await api.get('/auth/sessions', { token: other.token });
+      expect(theirs.body).toHaveLength(2);
+    });
   });
 });
 
@@ -277,6 +464,24 @@ describe('validation', () => {
     expect(fields).toContain('displayName');
   });
 
+  it('rejects a login with a missing password field', async () => {
+    const res = await api.post('/auth/login', { identifier: 'someone@example.by' });
+    expect(res.status).toBe(422);
+    expect(res.errorCode).toBe('VALIDATION_FAILED');
+  });
+
+  it('rejects a login with an empty body', async () => {
+    const res = await api.post('/auth/login', {});
+    expect(res.status).toBe(422);
+    expect(res.errorCode).toBe('VALIDATION_FAILED');
+  });
+
+  it('rejects a password-reset request with no identifier', async () => {
+    const res = await api.post('/auth/password-reset/request', {});
+    expect(res.status).toBe(422);
+    expect(res.errorCode).toBe('VALIDATION_FAILED');
+  });
+
   it('rejects an unparseable coordinate', async () => {
     const user = await api.signUp();
     const res = await api.post('/listings', { ...LISTING, latitude: 999 }, { token: user.token });
@@ -285,7 +490,11 @@ describe('validation', () => {
 
   it('rejects a listing outside Belarus', async () => {
     const user = await api.signUp();
-    const res = await api.post('/listings', { ...LISTING, latitude: 48.85, longitude: 2.35 }, { token: user.token });
+    const res = await api.post(
+      '/listings',
+      { ...LISTING, latitude: 48.85, longitude: 2.35 },
+      { token: user.token },
+    );
     expect(res.status).toBe(422);
     expect(res.body.error.message).toMatch(/Беларуси/);
   });
@@ -298,7 +507,11 @@ describe('validation', () => {
 
   it('rejects a duration range that is inside out', async () => {
     const user = await api.signUp();
-    const res = await api.post('/listings', { ...LISTING, minNights: 30, maxNights: 5 }, { token: user.token });
+    const res = await api.post(
+      '/listings',
+      { ...LISTING, minNights: 30, maxNights: 5 },
+      { token: user.token },
+    );
     expect(res.status).toBe(422);
   });
 
@@ -375,8 +588,13 @@ describe('listing lifecycle over HTTP', () => {
     const moderator = await api.signUp();
     await api.grantRole(moderator.userId, 'MODERATOR');
     expect(
-      (await api.post(`/admin/moderation/listings/${id}`, { decision: 'PUBLISHED' }, { token: moderator.token }))
-        .status,
+      (
+        await api.post(
+          `/admin/moderation/listings/${id}`,
+          { decision: 'PUBLISHED' },
+          { token: moderator.token },
+        )
+      ).status,
     ).toBe(200);
 
     const listing = await api.get(`/listings/${id}`);
@@ -403,9 +621,13 @@ describe('listing lifecycle over HTTP', () => {
   it('does not let one landlord edit another’s listing', async () => {
     const { listingId } = await publishedListing();
     const stranger = await api.signUp();
-    const res = await api.patch(`/listings/${listingId}`, { title: 'Захвачено чужое объявление' }, {
-      token: stranger.token,
-    });
+    const res = await api.patch(
+      `/listings/${listingId}`,
+      { title: 'Захвачено чужое объявление' },
+      {
+        token: stranger.token,
+      },
+    );
     expect(res.status).toBe(403);
   });
 
@@ -725,7 +947,11 @@ describe('rate limiting', () => {
   it('tells the client when it may retry', async () => {
     let limited: any = null;
     for (let i = 0; i < 15 && !limited; i += 1) {
-      const res = await api.post('/auth/login', { identifier: 'c@example.by', password: 'x' }, { ip: '203.0.113.5' });
+      const res = await api.post(
+        '/auth/login',
+        { identifier: 'c@example.by', password: 'x' },
+        { ip: '203.0.113.5' },
+      );
       if (res.status === 429) limited = res;
     }
     expect(limited).not.toBeNull();

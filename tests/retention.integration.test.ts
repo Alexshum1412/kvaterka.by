@@ -641,6 +641,36 @@ describe('expired credential sweep', () => {
  * ================================================================== */
 
 describe('account closure', () => {
+  /* Ownership on both routes is structural — they act on `caller!.userId` and
+     take no target parameter — so the only guard standing between an
+     unauthenticated caller and either one is `auth: 'required'` itself. The
+     401 assertions elsewhere in this file check that OTHER routes reject the
+     session AFTER closing; these two check that each route refuses BEFORE
+     acting, on a request that never had a valid session to begin with. */
+  it('refuses to close the account without a valid session', async () => {
+    const anonymous = await api.post('/me/account/close', { confirm: 'ЗАКРЫТЬ' });
+    expect(anonymous.status).toBe(401);
+    expect(anonymous.errorCode).toBe('UNAUTHENTICATED');
+
+    const forged = await api.post(
+      '/me/account/close',
+      { confirm: 'ЗАКРЫТЬ' },
+      { token: 'totally-made-up-token' },
+    );
+    expect(forged.status).toBe(401);
+    expect(forged.errorCode).toBe('UNAUTHENTICATED');
+  });
+
+  it('refuses to read closure status without a valid session', async () => {
+    const anonymous = await api.get('/me/account/closure');
+    expect(anonymous.status).toBe(401);
+    expect(anonymous.errorCode).toBe('UNAUTHENTICATED');
+
+    const forged = await api.get('/me/account/closure', { token: 'totally-made-up-token' });
+    expect(forged.status).toBe(401);
+    expect(forged.errorCode).toBe('UNAUTHENTICATED');
+  });
+
   it('tells the person what it will and will not do before they do it', async () => {
     const user = await api.signUp();
     const res = await api.get('/me/account/closure', { token: user.token });
