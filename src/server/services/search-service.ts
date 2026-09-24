@@ -597,7 +597,8 @@ export class SearchService {
       [propertyId],
     );
 
-    const exactLocationAllowed = isOwner || (viewerId ? await this.hasConfirmedBooking(propertyId, viewerId) : false);
+    const exactLocationAllowed =
+      isOwner || (viewerId ? await this.hasConfirmedBooking(propertyId, viewerId) : false);
 
     return {
       id: row.id,

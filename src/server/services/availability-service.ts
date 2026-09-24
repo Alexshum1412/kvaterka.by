@@ -103,7 +103,11 @@ export class AvailabilityService {
 
     for (const b of blocks.rows) {
       const status: DayStatus =
-        b.reason === 'MAINTENANCE' ? 'MAINTENANCE' : b.reason === 'PERSONAL_USE' ? 'OWNER_BLOCKED' : 'BLOCKED';
+        b.reason === 'MAINTENANCE'
+          ? 'MAINTENANCE'
+          : b.reason === 'PERSONAL_USE'
+            ? 'OWNER_BLOCKED'
+            : 'BLOCKED';
       for (const date of eachDate(b.block_from, b.block_to)) {
         if (byDate.has(date)) byDate.set(date, { date, status, blockId: b.id });
       }
@@ -112,7 +116,8 @@ export class AvailabilityService {
     // Bookings are applied last: a booked night outranks a block, because that
     // is the state a landlord most needs to see accurately.
     for (const b of bookings.rows) {
-      const status: DayStatus = b.status === 'REQUESTED' || b.status === 'OFFER_PENDING' ? 'PENDING' : 'BOOKED';
+      const status: DayStatus =
+        b.status === 'REQUESTED' || b.status === 'OFFER_PENDING' ? 'PENDING' : 'BOOKED';
       for (const date of eachDate(b.stay_from, b.stay_to)) {
         if (byDate.has(date)) byDate.set(date, { date, status, bookingId: b.id });
       }

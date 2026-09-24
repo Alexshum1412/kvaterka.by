@@ -192,12 +192,22 @@ export function quote(from: string, to: string, input: PricingInput): Quote {
     lines.push({ code: 'CLEANING', label: 'Уборка (обязательно)', amount: cleaning, variable: false });
   }
   if (utilitiesFixed.amountMinor > 0n) {
-    lines.push({ code: 'UTILITIES', label: 'Коммунальные (фиксированно)', amount: utilitiesFixed, variable: false });
+    lines.push({
+      code: 'UTILITIES',
+      label: 'Коммунальные (фиксированно)',
+      amount: utilitiesFixed,
+      variable: false,
+    });
   }
   if (utilitiesMode === 'VARIABLE_METERED') {
     // Deliberately zero-valued: the tenant is told this exists and that it
     // cannot be quoted, rather than being surprised by it at check-out.
-    lines.push({ code: 'UTILITIES_METERED', label: 'Коммунальные по счётчику', amount: zero(), variable: true });
+    lines.push({
+      code: 'UTILITIES_METERED',
+      label: 'Коммунальные по счётчику',
+      amount: zero(),
+      variable: true,
+    });
   }
   if (deposit.amountMinor > 0n) {
     lines.push({ code: 'DEPOSIT', label: 'Залог (возвратный)', amount: deposit, variable: false });

@@ -37,7 +37,11 @@ interface CalendarView {
   freshness: 'FRESH' | 'AGEING' | 'STALE';
 }
 
-const LEGEND_META: { status: DayStatus; labelKey: 'available' | 'booked' | 'pending' | 'blocked'; icon: 'check' | 'clock' | 'close' | 'alert' }[] = [
+const LEGEND_META: {
+  status: DayStatus;
+  labelKey: 'available' | 'booked' | 'pending' | 'blocked';
+  icon: 'check' | 'clock' | 'close' | 'alert';
+}[] = [
   { status: 'AVAILABLE', labelKey: 'available', icon: 'check' },
   { status: 'BOOKED', labelKey: 'booked', icon: 'close' },
   { status: 'PENDING', labelKey: 'pending', icon: 'clock' },
@@ -161,8 +165,10 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
    * long range. Accepts either order; `selection` already sorts from/to. */
   function pickManual(which: 'from' | 'to', value: string) {
     if (value === '') {
-      if (which === 'from') { setAnchor(null); setHover(null); }
-      else setHover(null);
+      if (which === 'from') {
+        setAnchor(null);
+        setHover(null);
+      } else setHover(null);
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
@@ -329,7 +335,11 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
                 aria-label={
                   isPast
                     ? t('dayAriaLabelPast', { day: i + 1, month: monthsGenitive[month.getUTCMonth()] ?? '' })
-                    : t('dayAriaLabel', { day: i + 1, month: monthsGenitive[month.getUTCMonth()] ?? '', status: statusWord[status] })
+                    : t('dayAriaLabel', {
+                        day: i + 1,
+                        month: monthsGenitive[month.getUTCMonth()] ?? '',
+                        status: statusWord[status],
+                      })
                 }
                 onClick={() => pick(date)}
               >
@@ -366,11 +376,21 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
               {t('cancel')}
             </button>
             {selectionHasBlocks ? (
-              <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void apply('unblock')}>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={busy}
+                onClick={() => void apply('unblock')}
+              >
                 {busy ? t('opening') : t('openDates')}
               </button>
             ) : (
-              <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void apply('block')}>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={busy}
+                onClick={() => void apply('block')}
+              >
                 {busy ? t('closing') : t('closeDates')}
               </button>
             )}
@@ -384,11 +404,7 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
         </p>
       )}
 
-      {view && (
-        <p className="hint">
-          {t('footerHint', { min: view.minNights, max: view.maxNights })}
-        </p>
-      )}
+      {view && <p className="hint">{t('footerHint', { min: view.minNights, max: view.maxNights })}</p>}
 
       <style>{`
         .cal { display: grid; gap: var(--space-4); }

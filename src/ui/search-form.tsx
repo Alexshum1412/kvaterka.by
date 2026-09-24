@@ -95,13 +95,7 @@ export interface SearchFormInitial {
   guests?: string;
 }
 
-export function SearchForm({
-  compact = false,
-  initial,
-}: {
-  compact?: boolean;
-  initial?: SearchFormInitial;
-}) {
+export function SearchForm({ compact = false, initial }: { compact?: boolean; initial?: SearchFormInitial }) {
   const t = useTranslations('Listing');
   const locale = useLocale() as AppLocale;
   const router = useRouter();
@@ -118,8 +112,7 @@ export function SearchForm({
   const querySpan = queryFrom && queryTo ? nightsBetween(queryFrom, queryTo) : null;
   // A range that happens to be exactly one of our lengths is shown as that
   // length, so the compact module reads back what the results page is showing.
-  const queryPreset =
-    querySpan !== null && PRESETS.some((p) => p.nights === querySpan) ? querySpan : null;
+  const queryPreset = querySpan !== null && PRESETS.some((p) => p.nights === querySpan) ? querySpan : null;
   const queryCustom = Boolean((queryFrom || queryTo) && queryPreset === null);
 
   const [city, setCity] = useState(params.get('city') ?? '');
@@ -193,7 +186,11 @@ export function SearchForm({
     if (span !== null && span > 0) note = formatNightsLocalized(span, locale);
   } else if (preset && from) {
     const end = addNights(from, preset.nights);
-    if (end) note = t('form.untilDate', { date: shortDate(end, from), duration: formatNightsLocalized(preset.nights, locale) });
+    if (end)
+      note = t('form.untilDate', {
+        date: shortDate(end, from),
+        duration: formatNightsLocalized(preset.nights, locale),
+      });
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {

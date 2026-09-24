@@ -94,7 +94,7 @@ export async function SiteHeader() {
                     </Link>
                   )
                 )}
-  
+
                 {/* The way back in.
                     Since roles are withheld until a second factor is satisfied,
                     every one of the links above disappears on a fresh staff
@@ -148,7 +148,9 @@ export async function SiteHeader() {
             <Link
               href="/notifications"
               className="sh__icon-link sh__bell"
-              aria-label={unread === 0 ? t('notificationsAria') : t('notificationsUnreadAria', { count: unread })}
+              aria-label={
+                unread === 0 ? t('notificationsAria') : t('notificationsUnreadAria', { count: unread })
+              }
             >
               <Icon name="bell" size={20} />
               {/* A count, not a bare dot: "you have things waiting" and "you
@@ -166,7 +168,11 @@ export async function SiteHeader() {
           {user && <LogoutButton label={t('logOut')} />}
 
           {user ? (
-            <Link href="/dashboard" className="sh__me" aria-label={t('myAccountAria', { name: user.displayName })}>
+            <Link
+              href="/dashboard"
+              className="sh__me"
+              aria-label={t('myAccountAria', { name: user.displayName })}
+            >
               <span className="sh__monogram" aria-hidden="true">
                 {user.avatarStorageKey ? (
                   // eslint-disable-next-line @next/next/no-img-element
