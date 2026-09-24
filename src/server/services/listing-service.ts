@@ -781,6 +781,10 @@ export class ListingService {
       assertOwnerTransition(current.status, next);
 
       // Resuming a listing that a moderator paused must go back through review.
+      if (current.status === 'PAUSED' && next === 'PUBLISHED') {
+        await this.assertPausedByOwnerNotModerator(tx, propertyId);
+      }
+
       await tx.query(`UPDATE property SET status=$2 WHERE id=$1`, [propertyId, next]);
       await writeAudit(tx, {
         actorUserId: ownerId,
@@ -791,6 +795,36 @@ export class ListingService {
         changes: { status: { from: current.status, to: next } },
       });
     });
+  }
+
+  /**
+   * PAUSED does not say who paused it. `OWNER_TRANSITIONS` lets an owner move
+   * PAUSED → PUBLISHED on their own say-so, which is correct when the owner
+   * (or the staleness job) is the one who paused it, and a moderation bypass
+   * when a moderator did — `assertOwnerTransition` sees only the status, not
+   * who put it there, so without this check a landlord could use this exact
+   * route to self-publish right back over a moderator's pause.
+   *
+   * The two causes are told apart by whichever one most recently wrote a
+   * status-changing audit row for this property: `moderate()` always logs
+   * `listing.moderate`, this method always logs `listing.<status>`. If the
+   * most recent one is a moderator's decision, resuming has to go back
+   * through moderation instead of straight to PUBLISHED.
+   */
+  private async assertPausedByOwnerNotModerator(tx: Sql, propertyId: string): Promise<void> {
+    const { rows } = await tx.query<{ action: string }>(
+      `SELECT action FROM audit_log
+        WHERE target_type = 'property' AND target_id = $1
+          AND action IN ('listing.paused', 'listing.published', 'listing.archived', 'listing.draft', 'listing.moderate')
+        ORDER BY occurred_at DESC LIMIT 1`,
+      [propertyId],
+    );
+    if (rows[0]?.action === 'listing.moderate') {
+      throw new DomainError(
+        'CONFLICT',
+        'Объявление приостановлено модератором — чтобы опубликовать его снова, отправьте его на повторную модерацию',
+      );
+    }
   }
 
   /* ---------------------------------------------------------------- */

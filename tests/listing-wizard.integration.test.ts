@@ -257,6 +257,27 @@ describe('photos', () => {
   });
 });
 
+/** A landlord's listing that has cleared moderation and gone live. */
+async function publishedListing() {
+  const landlord = await api.signUp();
+  const id = await startDraft(landlord.token);
+  await fillOut(landlord.token, id);
+  await api.attachPhoto(id);
+  const submitted = await api.post(`/listings/${id}/submit`, {}, { token: landlord.token });
+  expect(submitted.status).toBe(200);
+
+  const moderator = await api.signUp();
+  await api.grantRole(moderator.userId, 'MODERATOR');
+  const decision = await api.post(
+    `/admin/moderation/listings/${id}`,
+    { decision: 'PUBLISHED' },
+    { token: moderator.token },
+  );
+  expect(decision.status).toBe(200);
+
+  return { landlord, id, moderator };
+}
+
 /* ================================================================== *
  * The cases that matter if they regress
  * ================================================================== */
@@ -394,5 +415,159 @@ describe('availability', () => {
       { token: landlord.token },
     );
     expect(after.body.days.find((d: any) => d.date === '2027-03-12').status).toBe('AVAILABLE');
+  });
+});
+
+describe('changing a listing’s status', () => {
+  it('lets the owner pause and resume their own published listing', async () => {
+    const { landlord, id } = await publishedListing();
+
+    const paused = await api.post(`/listings/${id}/status`, { status: 'PAUSED' }, { token: landlord.token });
+    expect(paused.status).toBe(200);
+    expect((await api.get('/listings/mine', { token: landlord.token })).body[0].status).toBe('PAUSED');
+
+    // Pausing was the owner's own decision, so resuming needs no review.
+    const resumed = await api.post(`/listings/${id}/status`, { status: 'PUBLISHED' }, { token: landlord.token });
+    expect(resumed.status).toBe(200);
+    expect((await api.get('/listings/mine', { token: landlord.token })).body[0].status).toBe('PUBLISHED');
+  });
+
+  it('refuses a stranger changing another landlord’s listing status', async () => {
+    const { id } = await publishedListing();
+    const bob = await api.signUp();
+
+    const res = await api.post(`/listings/${id}/status`, { status: 'PAUSED' }, { token: bob.token });
+    expect([403, 404]).toContain(res.status);
+
+    // Untouched: still live, exactly as alice left it.
+    expect((await api.get(`/listings/${id}`)).status).toBe(200);
+  });
+
+  it('requires a session', async () => {
+    const { id } = await publishedListing();
+    const res = await api.post(`/listings/${id}/status`, { status: 'PAUSED' });
+    expect(res.status).toBe(401);
+  });
+
+  it('refuses a landlord publishing a draft straight through this route, bypassing moderation', async () => {
+    const landlord = await api.signUp();
+    const id = await startDraft(landlord.token);
+
+    const res = await api.post(`/listings/${id}/status`, { status: 'PUBLISHED' }, { token: landlord.token });
+    expect(res.status).toBe(409);
+    expect((await api.get(`/listings/${id}/edit`, { token: landlord.token })).body.status).toBe('DRAFT');
+  });
+
+  it('refuses a landlord publishing a pending submission straight through this route, bypassing moderation', async () => {
+    const landlord = await api.signUp();
+    const id = await startDraft(landlord.token);
+    await fillOut(landlord.token, id);
+    await api.attachPhoto(id);
+    const submitted = await api.post(`/listings/${id}/submit`, {}, { token: landlord.token });
+    expect(submitted.status).toBe(200);
+
+    const res = await api.post(`/listings/${id}/status`, { status: 'PUBLISHED' }, { token: landlord.token });
+    expect(res.status).toBe(409);
+    expect((await api.get(`/listings/${id}/edit`, { token: landlord.token })).body.status).toBe(
+      'PENDING_MODERATION',
+    );
+  });
+
+  /**
+   * PAUSED is shared by two very different causes: a landlord hiding their
+   * own listing, and a moderator pausing a live one over a problem. Both land
+   * on the same status column, so this is the case that actually matters —
+   * without a check that tells the two apart, a landlord could use their own
+   * status route to silently republish right back over a moderator's call.
+   */
+  it('refuses a landlord self-publishing straight back over a moderator’s pause', async () => {
+    const { landlord, id, moderator } = await publishedListing();
+
+    const pausedByModerator = await api.post(
+      `/admin/moderation/listings/${id}`,
+      { decision: 'PAUSED', reasonCodes: ['SUSPICIOUS_INFORMATION'] },
+      { token: moderator.token },
+    );
+    expect(pausedByModerator.status).toBe(200);
+
+    const res = await api.post(`/listings/${id}/status`, { status: 'PUBLISHED' }, { token: landlord.token });
+    expect(res.status).toBe(409);
+
+    // Still hidden — the moderator's pause held.
+    expect((await api.get(`/listings/${id}`)).status).toBe(404);
+    expect((await api.get(`/listings/${id}/edit`, { token: landlord.token })).body.status).toBe('PAUSED');
+  });
+});
+
+describe('pricing rules', () => {
+  const rule = {
+    kind: 'LENGTH_OF_STAY' as const,
+    minNights: 7,
+    maxNights: 29,
+    priceMinor: '8000',
+    priceUnit: 'NIGHT' as const,
+  };
+
+  it('lets the owner set and then fully replace their pricing rules', async () => {
+    const landlord = await api.signUp();
+    const id = await startDraft(landlord.token);
+
+    const res = await api.put(
+      `/listings/${id}/pricing-rules`,
+      {
+        rules: [
+          rule,
+          {
+            kind: 'SEASONAL',
+            seasonFrom: '2027-06-01',
+            seasonTo: '2027-09-01',
+            priceMinor: '12000',
+            priceUnit: 'NIGHT',
+          },
+        ],
+      },
+      { token: landlord.token },
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(2);
+
+    const stored = await db.query(`SELECT kind FROM pricing_rule WHERE property_id=$1`, [id]);
+    expect(stored.rows).toHaveLength(2);
+
+    // A second call replaces the set outright rather than appending to it.
+    const replaced = await api.put(
+      `/listings/${id}/pricing-rules`,
+      { rules: [rule] },
+      { token: landlord.token },
+    );
+    expect(replaced.status).toBe(200);
+    expect(replaced.body.count).toBe(1);
+
+    const after = await db.query(`SELECT kind FROM pricing_rule WHERE property_id=$1`, [id]);
+    expect(after.rows).toHaveLength(1);
+  });
+
+  it('refuses a stranger replacing another landlord’s pricing rules', async () => {
+    const alice = await api.signUp();
+    const bob = await api.signUp();
+    const id = await startDraft(alice.token);
+
+    const res = await api.put(
+      `/listings/${id}/pricing-rules`,
+      { rules: [rule] },
+      { token: bob.token },
+    );
+    expect([403, 404]).toContain(res.status);
+
+    const stored = await db.query(`SELECT count(*)::int AS c FROM pricing_rule WHERE property_id=$1`, [id]);
+    expect(stored.rows[0]!.c).toBe(0);
+  });
+
+  it('requires a session', async () => {
+    const landlord = await api.signUp();
+    const id = await startDraft(landlord.token);
+
+    const res = await api.put(`/listings/${id}/pricing-rules`, { rules: [rule] });
+    expect(res.status).toBe(401);
   });
 });
