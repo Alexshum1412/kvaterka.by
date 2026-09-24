@@ -311,6 +311,7 @@ export async function SiteHeader() {
           display: inline-flex;
           align-items: center;
           gap: 0.5rem;
+          flex-shrink: 0;
           min-width: 0;
           min-height: 2.75rem;
           padding-inline: 0.25rem;
