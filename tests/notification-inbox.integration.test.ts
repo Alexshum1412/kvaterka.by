@@ -105,6 +105,46 @@ describe('what the settings screen says matches what the system does', () => {
     }
   });
 
+  it('serves the same preferences over HTTP that the service computes, including the mandatory-on floor', async () => {
+    const user = await api.signUp();
+    await api.put(
+      '/notifications/preferences',
+      { category: 'REVIEW_REQUEST', channel: 'EMAIL', enabled: false },
+      { token: user.token },
+    );
+
+    const res = await api.get('/notifications/preferences', { token: user.token });
+    expect(res.status).toBe(200);
+
+    const expected = await notifications.getPreferences(user.userId);
+    expect(res.body).toEqual(expected);
+    expect(res.body.REVIEW_REQUEST.EMAIL).toBe(false);
+    for (const category of MANDATORY_IN_APP) {
+      expect(res.body[category].IN_APP).toBe(true);
+    }
+  });
+
+  it('never returns another account’s preferences', async () => {
+    const owner = await api.signUp();
+    const stranger = await api.signUp();
+    await api.put(
+      '/notifications/preferences',
+      { category: 'MESSAGE', channel: 'EMAIL', enabled: false },
+      { token: owner.token },
+    );
+
+    const res = await api.get('/notifications/preferences', { token: stranger.token });
+    expect(res.status).toBe(200);
+    // The stranger never touched their own preferences, so theirs are still
+    // every-default-on — the owner's opt-out must not leak across accounts.
+    expect(res.body.MESSAGE.EMAIL).toBe(true);
+  });
+
+  it('requires a session', async () => {
+    const res = await api.get('/notifications/preferences');
+    expect(res.status).toBe(401);
+  });
+
   it('lets a product notification be switched off, and then stops queueing it', async () => {
     const user = await api.signUp();
 

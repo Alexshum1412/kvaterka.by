@@ -13,6 +13,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '@/server/db/testing.ts';
 import { ApiTestClient } from './support/api-client.ts';
 import { NotificationService } from '@/server/services/notification-service.ts';
+import { hashToken } from '@/server/auth/credentials.ts';
 import { RetentionService } from '@/server/services/retention-service.ts';
 import { DeliveryService } from '@/server/services/delivery-service.ts';
 import { BookingService } from '@/server/services/booking-service.ts';
@@ -606,5 +607,111 @@ describe('telegramLinkState', () => {
     await notifications.unlinkTelegram(user.userId);
 
     expect(await notifications.telegramLinkState(555004)).toBeNull();
+  });
+});
+
+/**
+ * `POST /notifications/telegram/link` and `DELETE /notifications/telegram` —
+ * the HTTP routes around `beginTelegramLink`/`unlinkTelegram`, exercised only
+ * directly against the service until now (see `unlinkTelegram` calls above).
+ */
+describe('telegram linking over HTTP', () => {
+  it('mints a one-time link code as a hashed, short-lived TELEGRAM_LINK token', async () => {
+    const user = await api.signUp();
+
+    const res = await api.post('/notifications/telegram/link', {}, { token: user.token });
+    expect(res.status).toBe(200);
+    expect(typeof res.body.linkCode).toBe('string');
+    expect(res.body.linkCode.length).toBeGreaterThan(0);
+    expect(res.body.expiresInSeconds).toBe(900);
+    // No TELEGRAM_BOT_USERNAME is configured for this test run; the route is
+    // explicit that "not configured" is null, never an omitted field.
+    expect(res.body.botUsername).toBe(process.env.TELEGRAM_BOT_USERNAME ?? null);
+
+    // The raw code is never stored — only its hash, scoped to this user and
+    // this purpose, the same shape `beginTelegramLink` documents.
+    const { rows } = await db.query<{ user_id: string; expires_at: string; consumed_at: string | null }>(
+      `SELECT user_id, expires_at, consumed_at FROM auth_token
+        WHERE purpose='TELEGRAM_LINK' AND token_hash=$1`,
+      [hashToken(res.body.linkCode)],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.user_id).toBe(user.userId);
+    expect(rows[0]!.consumed_at).toBeNull();
+  });
+
+  it('mints a fresh code, independent of one already outstanding', async () => {
+    const user = await api.signUp();
+    const first = await api.post('/notifications/telegram/link', {}, { token: user.token });
+    const second = await api.post('/notifications/telegram/link', {}, { token: user.token });
+
+    expect(second.body.linkCode).not.toBe(first.body.linkCode);
+    const { rows } = await db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM auth_token WHERE purpose='TELEGRAM_LINK' AND user_id=$1`,
+      [user.userId],
+    );
+    expect(Number(rows[0]!.c)).toBe(2);
+  });
+
+  it('requires a session', async () => {
+    const res = await api.post('/notifications/telegram/link', {});
+    expect(res.status).toBe(401);
+  });
+
+  it('unlinks a connected account and stops Telegram delivery from then on', async () => {
+    const user = await api.signUp();
+    await db.query(`INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1,$2)`, [
+      user.userId,
+      777001,
+    ]);
+
+    const res = await api.delete('/notifications/telegram', { token: user.token });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+
+    const { rows } = await db.query<{ unlinked_at: string | null }>(
+      `SELECT unlinked_at FROM telegram_connection WHERE user_id=$1`,
+      [user.userId],
+    );
+    expect(rows[0]!.unlinked_at).not.toBeNull();
+
+    const queued = await notifications.enqueue({
+      userId: user.userId,
+      category: 'MESSAGE',
+      dedupeKey: 'after-http-unlink',
+      channels: ['TELEGRAM'],
+    });
+    expect(queued).not.toContain('TELEGRAM');
+  });
+
+  it('answers not found when the caller has no Telegram link to remove', async () => {
+    const user = await api.signUp();
+    const res = await api.delete('/notifications/telegram', { token: user.token });
+    expect(res.status).toBe(404);
+  });
+
+  it('never unlinks another account’s Telegram connection', async () => {
+    const owner = await api.signUp();
+    const stranger = await api.signUp();
+    await db.query(`INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1,$2)`, [
+      owner.userId,
+      777002,
+    ]);
+
+    const res = await api.delete('/notifications/telegram', { token: stranger.token });
+    // The stranger has nothing to unlink — their own request is a clean 404 —
+    // and the owner's connection must be untouched by it.
+    expect(res.status).toBe(404);
+
+    const { rows } = await db.query<{ unlinked_at: string | null }>(
+      `SELECT unlinked_at FROM telegram_connection WHERE user_id=$1`,
+      [owner.userId],
+    );
+    expect(rows[0]!.unlinked_at).toBeNull();
+  });
+
+  it('requires a session to unlink', async () => {
+    const res = await api.delete('/notifications/telegram');
+    expect(res.status).toBe(401);
   });
 });

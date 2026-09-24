@@ -8,6 +8,7 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import { createTestDb, type TestDb } from '@/server/db/testing.ts';
 import { ApiTestClient } from './support/api-client.ts';
 import { allRoutes } from '@/server/api/routes/index.ts';
@@ -366,6 +367,145 @@ describe('chat', () => {
       { token: stranger.token },
     );
     expect(res.status).toBe(403);
+  });
+});
+
+describe('chat: marking a conversation read', () => {
+  it('marks the counterparty’s unread messages read, not the caller’s own, and is idempotent', async () => {
+    const { landlord, listingId } = await publishedListing();
+    const tenant = await api.signUp();
+    const conversation = await api.post('/chat/conversations', { propertyId: listingId }, { token: tenant.token });
+    const conversationId = conversation.body.id as string;
+
+    await api.post(
+      `/chat/conversations/${conversationId}/messages`,
+      { text: 'Добрый день, квартира ещё свободна?' },
+      { token: tenant.token },
+    );
+    await api.post(
+      `/chat/conversations/${conversationId}/messages`,
+      { text: 'Да, свободна на нужные даты' },
+      { token: landlord.token },
+    );
+
+    const before = await api.get('/chat/conversations', { token: landlord.token });
+    expect(before.body.find((c: { id: string }) => c.id === conversationId).unreadCount).toBe(1);
+
+    const marked = await api.post(`/chat/conversations/${conversationId}/read`, {}, { token: landlord.token });
+    expect(marked.status).toBe(200);
+    // One message came from the tenant; the landlord's own message is never
+    // "unread" to the landlord, so only that one row flips.
+    expect(marked.body.read).toBe(1);
+
+    const after = await api.get('/chat/conversations', { token: landlord.token });
+    expect(after.body.find((c: { id: string }) => c.id === conversationId).unreadCount).toBe(0);
+
+    // Nothing left to mark — a second call, e.g. from a client retry, is a no-op.
+    const again = await api.post(`/chat/conversations/${conversationId}/read`, {}, { token: landlord.token });
+    expect(again.body.read).toBe(0);
+  });
+
+  it('does not let an outsider mark someone else’s conversation read', async () => {
+    const { listingId } = await publishedListing();
+    const tenant = await api.signUp();
+    const conversation = await api.post('/chat/conversations', { propertyId: listingId }, { token: tenant.token });
+
+    const stranger = await api.signUp();
+    const res = await api.post(`/chat/conversations/${conversation.body.id}/read`, {}, { token: stranger.token });
+    expect(res.status).toBe(403);
+  });
+
+  it('answers not found for a conversation that does not exist', async () => {
+    const user = await api.signUp();
+    const res = await api.post(`/chat/conversations/${randomUUID()}/read`, {}, { token: user.token });
+    expect(res.status).toBe(404);
+  });
+
+  it('requires a session', async () => {
+    const { listingId } = await publishedListing();
+    const tenant = await api.signUp();
+    const conversation = await api.post('/chat/conversations', { propertyId: listingId }, { token: tenant.token });
+
+    const res = await api.post(`/chat/conversations/${conversation.body.id}/read`, {});
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('chat: reporting a message', () => {
+  it('lets a participant report a counterparty’s message, and flags it for moderation', async () => {
+    const { landlord, listingId } = await publishedListing();
+    const tenant = await api.signUp();
+    const conversation = await api.post('/chat/conversations', { propertyId: listingId }, { token: tenant.token });
+    const conversationId = conversation.body.id as string;
+
+    const sent = await api.post(
+      `/chat/conversations/${conversationId}/messages`,
+      { text: 'Обычное сообщение про заезд' },
+      { token: landlord.token },
+    );
+    const messageId = sent.body.id as string;
+
+    const res = await api.post(
+      `/chat/messages/${messageId}/report`,
+      { category: 'SPAM', detail: 'Навязчивая реклама' },
+      { token: tenant.token },
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+
+    const { rows } = await db.query<{ category: string; target_id: string; reporter_id: string; status: string }>(
+      `SELECT category, target_id, reporter_id, status FROM report WHERE target_type='MESSAGE'`,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.target_id).toBe(messageId);
+    expect(rows[0]!.reporter_id).toBe(tenant.userId);
+    expect(rows[0]!.category).toBe('SPAM');
+    expect(rows[0]!.status).toBe('OPEN');
+
+    const message = await db.query<{ moderation_state: string }>(
+      `SELECT moderation_state FROM message WHERE id=$1`,
+      [messageId],
+    );
+    expect(message.rows[0]!.moderation_state).toBe('FLAGGED');
+  });
+
+  it('does not let an outsider report a message in a conversation they are not part of', async () => {
+    const { listingId } = await publishedListing();
+    const tenant = await api.signUp();
+    const conversation = await api.post('/chat/conversations', { propertyId: listingId }, { token: tenant.token });
+    const sent = await api.post(
+      `/chat/conversations/${conversation.body.id}/messages`,
+      { text: 'Здравствуйте, есть вопрос по квартире' },
+      { token: tenant.token },
+    );
+
+    const stranger = await api.signUp();
+    const res = await api.post(
+      `/chat/messages/${sent.body.id}/report`,
+      { category: 'ABUSE' },
+      { token: stranger.token },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('answers not found for a message that does not exist', async () => {
+    const user = await api.signUp();
+    const res = await api.post(`/chat/messages/${randomUUID()}/report`, { category: 'OTHER' }, { token: user.token });
+    expect(res.status).toBe(404);
+  });
+
+  it('requires a session', async () => {
+    const { listingId } = await publishedListing();
+    const tenant = await api.signUp();
+    const conversation = await api.post('/chat/conversations', { propertyId: listingId }, { token: tenant.token });
+    const sent = await api.post(
+      `/chat/conversations/${conversation.body.id}/messages`,
+      { text: 'Привет' },
+      { token: tenant.token },
+    );
+
+    const res = await api.post(`/chat/messages/${sent.body.id}/report`, { category: 'SPAM' });
+    expect(res.status).toBe(401);
   });
 });
 

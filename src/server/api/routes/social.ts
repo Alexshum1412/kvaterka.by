@@ -357,10 +357,16 @@ export const profileRoutes: AnyRoute[] = [
     tags: ['profiles'],
     auth: 'required',
     async handler({ params, ctx, caller }) {
-      await ctx.db.query(
-        `INSERT INTO favorite (user_id, property_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
-        [caller.userId, params.propertyId!],
-      );
+      // Routed through FavoriteService rather than a bare INSERT: it is the
+      // one place that checks the listing exists and is PUBLISHED before
+      // saving it. Skipping that (as this handler used to) both 500s on a
+      // property id that does not exist at all — an unchecked INSERT trips
+      // the `favorite_property_id_fkey` foreign key — and, for one that
+      // does exist but is a draft or paused, turns this into the existence
+      // oracle `FavoriteService`'s own docstring exists to prevent: id
+      // probing would otherwise tell a stranger which unpublished listings
+      // are real from the response alone.
+      await ctx.services.favorites.add(caller.userId, params.propertyId!);
       return { saved: true };
     },
   }),
