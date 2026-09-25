@@ -6,7 +6,7 @@
  * deployed API actually does.
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestDb, type TestDb } from '@/server/db/testing.ts';
 import { ApiTestClient } from './support/api-client.ts';
 import { looksLikeLeak } from '@/server/api/problem.ts';
@@ -14,6 +14,8 @@ import { generateOpenApi } from '@/server/api/openapi.ts';
 import { allRoutes } from '@/server/api/routes/index.ts';
 import { Router } from '@/server/api/router.ts';
 import { AuthService } from '@/server/auth/auth-service.ts';
+import { DeliveryService } from '@/server/services/delivery-service.ts';
+import { MAIL_PER_RECIPIENT_PER_HOUR } from '@/server/api/rate-limit.ts';
 
 const GOOD_PASSWORD = 'karotkaja-vulica-2026';
 
@@ -337,6 +339,92 @@ describe('registration confirmation over HTTP', () => {
     const unknown = await api.post('/auth/register/resend', { identifier: 'nobody-pending-http@example.by' });
     expect(known.status).toBe(unknown.status);
     expect(JSON.stringify(known.body)).toBe(JSON.stringify(unknown.body));
+  });
+});
+
+/* ================================================================== */
+
+describe('registration mail budget', () => {
+  // A pinned mid-window clock so the three-a-window budget cannot straddle
+  // an hour boundary while a test is running.
+  const at = { now: new Date('2026-03-10T12:30:00Z') };
+  let mailed: { address: string; code: string }[];
+
+  beforeEach(() => {
+    mailed = [];
+    vi.spyOn(DeliveryService.prototype, 'sendRegistrationCode').mockImplementation(async (address, code) => {
+      mailed.push({ address, code });
+      return true;
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const codeHash = async (email: string) =>
+    (
+      await db.query<{ h: string }>(
+        `SELECT encode(code_hash, 'hex') AS h FROM pending_registration WHERE lower(email) = lower($1)`,
+        [email],
+      )
+    ).rows[0]?.h;
+
+  const register = (email: string, displayName = 'Бюджет пісьмаў') =>
+    api.post('/auth/register', { email, password: GOOD_PASSWORD, displayName }, at);
+
+  /** Register, then resend until this recipient has been mailed its whole hourly budget. */
+  async function spendBudget(email: string): Promise<void> {
+    expect((await register(email)).status).toBe(201);
+    for (let i = 1; i < MAIL_PER_RECIPIENT_PER_HOUR; i += 1) {
+      expect((await api.post('/auth/register/resend', { identifier: email }, at)).status).toBe(200);
+    }
+    expect(mailed).toHaveLength(MAIL_PER_RECIPIENT_PER_HOUR);
+  }
+
+  it('a resend past the budget leaves the last mailed code working', async () => {
+    const email = `budget-resend-${Date.now()}@example.by`;
+    await spendBudget(email);
+    const lastMailed = mailed.at(-1)!.code;
+    const before = await codeHash(email);
+
+    const res = await api.post('/auth/register/resend', { identifier: email }, at);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(mailed).toHaveLength(MAIL_PER_RECIPIENT_PER_HOUR);
+    expect(await codeHash(email)).toBe(before);
+
+    const confirm = await api.post('/auth/register/confirm', { identifier: email, code: lastMailed });
+    expect(confirm.status).toBe(200);
+  });
+
+  it('registering again past the budget is refused, not silently dropped', async () => {
+    const email = `budget-register-${Date.now()}@example.by`;
+    await spendBudget(email);
+    const lastMailed = mailed.at(-1)!.code;
+    const before = await codeHash(email);
+
+    // A 201 here would tell this person their registration went through while
+    // the pending row still held the previous submitter's password and name,
+    // and the code already in their inbox would confirm THAT account.
+    const res = await register(email, 'Яшчэ адна спроба');
+    expect(res.status).toBe(429);
+    expect(res.body.error.code).toBe('RATE_LIMITED');
+    expect(res.body.error.details.retryAfterSeconds).toBeGreaterThan(0);
+    expect(mailed).toHaveLength(MAIL_PER_RECIPIENT_PER_HOUR);
+    expect(await codeHash(email)).toBe(before);
+
+    const confirm = await api.post('/auth/register/confirm', { identifier: email, code: lastMailed });
+    expect(confirm.status).toBe(200);
+  });
+
+  it('answers a spent budget exactly as it answers an address nobody is registering', async () => {
+    const email = `budget-same-${Date.now()}@example.by`;
+    await spendBudget(email);
+
+    const spent = await api.post('/auth/register/resend', { identifier: email }, at);
+    const unknown = await api.post('/auth/register/resend', { identifier: 'nobody-budget@example.by' }, at);
+    expect(spent.status).toBe(unknown.status);
+    expect(JSON.stringify(spent.body)).toBe(JSON.stringify(unknown.body));
   });
 });
 

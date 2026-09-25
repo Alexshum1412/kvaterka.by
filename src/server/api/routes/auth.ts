@@ -5,6 +5,7 @@ import { SESSION_TTL_DAYS } from '../../auth/auth-service.ts';
 import { permissionsFor } from '../../auth/rbac.ts';
 import type { Sql } from '../../db/sql.ts';
 import { MAIL_PER_RECIPIENT_PER_HOUR, bucketForRecipient, checkRateLimit } from '../rate-limit.ts';
+import { DomainError } from '../../services/errors.ts';
 
 const email = z.string().trim().toLowerCase().email('Некорректный email').max(200);
 const phone = z
@@ -24,13 +25,19 @@ export function sessionCookie(token: string, maxAgeSeconds: number): string {
   return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secure}`;
 }
 
-const clearedCookie = (): string =>
-  `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+const clearedCookie = (): string => `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 
-/** Whether this recipient is still inside its hourly budget for this kind of mail. */
-async function mayMail(db: Sql, kind: string, recipient: string): Promise<boolean> {
-  const result = await checkRateLimit(db, bucketForRecipient(kind, recipient), MAIL_PER_RECIPIENT_PER_HOUR, 3600);
-  return result.allowed;
+/**
+ * Whether this recipient is still inside its hourly budget for this kind of mail.
+ *
+ * Ask BEFORE changing any state the mail is about, never after: a code that is
+ * rotated and then not mailed invalidates the last one the person was sent and
+ * leaves them nothing to type. Every allowed answer is followed by exactly one
+ * mail attempt, so the budget can never be the reason a rotation goes unmailed.
+ * The clock is the request's own, so a test that pins it pins this window too.
+ */
+function mailBudget(db: Sql, kind: string, recipient: string, now: Date) {
+  return checkRateLimit(db, bucketForRecipient(kind, recipient), MAIL_PER_RECIPIENT_PER_HOUR, 3600, now);
 }
 
 export const authRoutes: AnyRoute[] = [
@@ -53,6 +60,20 @@ export const authRoutes: AnyRoute[] = [
       })
       .refine((v) => v.email || v.phone, { message: 'Укажите email или телефон', path: ['email'] }),
     async handler({ body, ctx }) {
+      // Over the per-recipient budget: refuse, and say so. Answering 201 here
+      // would tell this person their registration went through while the
+      // pending row still held whoever submitted last within budget, and the
+      // code sitting in their inbox would then confirm THAT account.
+      if (body.email) {
+        const budget = await mailBudget(ctx.db, 'mail:registration-code', body.email, ctx.now);
+        if (!budget.allowed) {
+          throw new DomainError(
+            'RATE_LIMITED',
+            'На этот адрес уже отправлено несколько писем с кодом. Подождите час и попробуйте снова.',
+            { retryAfterSeconds: Math.max(1, Math.ceil((budget.resetAt.getTime() - ctx.now.getTime()) / 1000)) },
+          );
+        }
+      }
       const result = await ctx.services.auth.beginRegistration(body, {
         ip: ctx.ip,
         userAgent: ctx.userAgent,
@@ -68,7 +89,7 @@ export const authRoutes: AnyRoute[] = [
       // never built (see `PHONE_OTP` sitting unused in auth_token's purpose
       // list). That gap predates this flow; it is not widened here, only
       // left exactly where it was rather than silently crashing on it.
-      if (body.email && (await mayMail(ctx.db, 'mail:registration-code', body.email))) {
+      if (body.email) {
         await ctx.services.delivery.sendRegistrationCode(body.email, result.code, result.identifier);
       }
       return ok({ identifier: result.identifier, verificationRequired: true }, 201);
@@ -118,12 +139,13 @@ export const authRoutes: AnyRoute[] = [
     rateLimit: { limit: 5, windowSeconds: 3600, by: 'ip', bucket: 'auth:register-resend' },
     body: z.object({ identifier: z.string().trim().min(3).max(200) }),
     async handler({ body, ctx }) {
+      const isEmail = email.safeParse(body.identifier).success;
+      // Over the per-recipient budget: same answer, code untouched.
+      if (isEmail && !(await mailBudget(ctx.db, 'mail:registration-code', body.identifier, ctx.now)).allowed) {
+        return { ok: true };
+      }
       const code = await ctx.services.auth.resendRegistrationCode(body.identifier);
-      if (
-        code &&
-        email.safeParse(body.identifier).success &&
-        (await mayMail(ctx.db, 'mail:registration-code', body.identifier))
-      ) {
+      if (code && isEmail) {
         await ctx.services.delivery.sendRegistrationCode(body.identifier, code, body.identifier);
       }
       // Identical response either way: this must not reveal whether a
@@ -236,7 +258,9 @@ export const authRoutes: AnyRoute[] = [
     body: z.object({ identifier: z.string().trim().min(3).max(200) }),
     async handler({ body, ctx }) {
       // Over the per-recipient budget: same answer, no token, no mail.
-      if (!(await mayMail(ctx.db, 'mail:password-reset', body.identifier))) return { ok: true };
+      if (!(await mailBudget(ctx.db, 'mail:password-reset', body.identifier, ctx.now)).allowed) {
+        return { ok: true };
+      }
       const token = await ctx.services.auth.requestPasswordReset(body.identifier);
       if (token) {
         await ctx.services.notifications.enqueue({
