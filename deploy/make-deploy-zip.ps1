@@ -36,13 +36,25 @@ if ($LASTEXITCODE -ge 8) {
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 
 Write-Host "Zipping ..."
+Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory(
-    $stageDir,
-    $zipPath,
-    [System.IO.Compression.CompressionLevel]::Optimal,
-    $true   # include the ".next" base folder itself, so the zip extracts as .next/...
-)
+# ZIP entry names use forward slashes. ZipFile.CreateFromDirectory in Windows
+# PowerShell 5.1 writes backslashes, which unzip on the host reads as part of the
+# file name (and deploy/apply-release.sh cannot find .next/BUILD_ID), so the
+# entries are written one by one with the separator fixed. Entries are relative
+# to deploy\_stage, so the archive extracts as .next/...
+$stageRoot = Join-Path $repoRoot 'deploy\_stage'
+$zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+    Get-ChildItem $stageRoot -Recurse -File | ForEach-Object {
+        $entryName = $_.FullName.Substring($stageRoot.Length + 1).Replace('\', '/')
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+            $zip, $_.FullName, $entryName, [System.IO.Compression.CompressionLevel]::Optimal
+        ) | Out-Null
+    }
+} finally {
+    $zip.Dispose()
+}
 
 Remove-Item (Join-Path $repoRoot 'deploy\_stage') -Recurse -Force
 

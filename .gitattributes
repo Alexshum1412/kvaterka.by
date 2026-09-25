@@ -2,3 +2,5 @@
 # A Windows checkout with core.autocrlf=true would write CRLF and change the
 # checksum of a file the repository stores with LF.
 db/migrations/*.sql text eol=lf
+# A shell script with CRLF endings does not run on the host.
+*.sh text eol=lf

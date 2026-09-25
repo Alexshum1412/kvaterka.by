@@ -96,8 +96,24 @@ npm install --include=dev
 сборка (если бы она вообще запускалась на сервере) падает с
 `Cannot find module '@tailwindcss/postcss'`.
 
+**Ловушка этого хостинга (DEC-087).** `npm install` здесь может ответить
+«up to date in 1s», хотя в `node_modules` стоит **более старый** `next`, чем
+записано в `package-lock.json` — а исправления безопасности Next.js живут именно
+в `node_modules/next` на сервере, а не в загружаемой папке `.next`. Проверка:
+
+```bash
+node -p "require('next/package.json').version"
+grep -A1 '"node_modules/next"' package-lock.json
+```
+
+Если версии разные — поставить нужную точечно, не меняя `package.json` и lock:
+
+```bash
+npm install --no-save --include=dev next@<версия из package-lock.json>
+```
+
 Если добавлены новые миграции базы данных (`scripts/migrate.ts`,
-файлы в `migrations/`):
+файлы в `db/migrations/`):
 
 ```bash
 cd ~/kvaterka
@@ -228,6 +244,27 @@ TELEGRAM_BOT_TOKEN=<токен бота> PUBLIC_BASE_URL=https://kvaterka.by npm
 Должно напечатать `{"ok":true,"description":"Webhook was set",...}`. Повторять
 нужно только при смене домена или токена бота. Проверка: отправить боту
 `/status` — он должен ответить.
+
+### 2.11 Быстрый путь: одна команда вместо шагов 2.3 (миграции), 2.7–2.10 и копии для отката
+
+После `git pull`, `npm install --include=dev` (если менялись зависимости) и
+загрузки `kvaterka-build.zip` в `~/kvaterka` (шаг 2.6) — в cPanel Terminal, в
+каталоге проекта:
+
+```bash
+source ~/nodevenv/kvaterka/22/bin/activate
+bash deploy/apply-release.sh
+```
+
+Скрипт делает всё в том порядке, при котором сайт не бывает «наполовину
+обновлён»: 1) миграции (старый код спокойно работает на новой, только
+добавленной схеме); 2) перерегистрация Telegram-webhook (новый код отвечает 401
+на запросы без секретного заголовка); 3) копия `.next` в `.next.backup-…` и
+распаковка zip; 4) `tmp/restart.txt` и проверка `/` и `/api/health`. Строка
+подключения к базе и токен бота берутся из настроек Node.js-приложения cPanel и
+**нигде не печатаются**. Любая ошибка останавливает скрипт до следующего шага:
+упавшая миграция не даёт заменить сборку. `DRY_RUN=1 bash deploy/apply-release.sh`
+только показывает шаги, ничего не выполняя.
 
 ---
 
