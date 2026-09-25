@@ -71,6 +71,7 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 - [x] Accessibility baseline: keyboard, labels, contrast, focus, touch targets — axe-core finds no serious or critical violation on the key pages at three widths; `npm run contrast` gates the brand colours; touch targets raised to 44 px where the mobile spec found smaller ones (DEC-086)
 - [x] Loading, empty and error states on every async surface — there was no `loading.tsx` anywhere; search results now have a skeleton, alongside the existing empty states and the localized error boundaries. A page-level boundary was tried and removed: it made action refreshes get lost (DEC-086)
 - [x] SEO baseline: structured data, sitemap, canonicals, private routes excluded — hreflang had pointed every page at the home page; now per page, canonicals per locale, sitemap with listings and cities in three languages, robots excludes private routes in every locale (DEC-086)
+- [x] Search indexing **on** in production since 2026-09-26 (`SITE_INDEXABLE=true`, DEC-088): `robots.txt` allows `/` and disallows the private paths and `/api/`, `/sitemap.xml` lists 11 pages (a city only once it has a published listing). Left to the owner: register `https://kvaterka.by` in Google Search Console and Yandex Webmaster and submit `https://kvaterka.by/sitemap.xml` — both need a login as the domain's owner
 
 ## Operations
 
@@ -82,6 +83,8 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 - [x] Alerts on failed fee accrual, stuck completions, notification backlog — `checkOperations()` in the hourly sweep: missing fee, completion past deadline, stay not closed, outbox backlog, delivery failures, failed jobs, new errors; administrators get an OPERATIONS notification once per kind per day, and `/api/health` reports the same list (DEC-086)
 
 ## Legal — **blocking**
+
+Owner statement, 2026-09-26: "правовые вопросы решены" and payments "будут настроены позже". On that basis search indexing was switched on for production (DEC-088). The answers themselves are not recorded in `docs/LEGAL.md` yet, so the boxes below stay unticked until each one is written down there; and `/terms` and `/privacy` still say, in the site's own words, that the lawyer's document is "in preparation" — replace the text when the documents exist (`messages/*/terms.json`, `privacy.json`).
 
 - [x] Legal risk register exists with 16 identified questions
 - [ ] **LEGAL-003** answered — determines hosting region; **answer before provisioning infrastructure**

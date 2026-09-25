@@ -445,7 +445,7 @@ Written to `/etc/kvaterka/kvaterka.env`, one `KEY=value` per line, no quotes nee
 | `NODE_ENV` | yes | no | `production` — set by the systemd unit, not by this file |
 | `PUBLIC_BASE_URL` | yes | no | `https://kvaterka.by` — wrong value means every link in every notification points at localhost |
 | `JOB_RUNNER_TOKEN` | **yes** | **yes** | `openssl rand -base64 48`. Minimum 32 characters or the process refuses to start. **Not an admin account**: it authorises three job routes and reads nothing |
-| `SITE_INDEXABLE` | no | no | leave **unset** for staging. Setting it to `true` is what lets search engines in, and that is a launch decision |
+| `SITE_INDEXABLE` | no | no | leave **unset** for staging. Setting it to `true` is what lets search engines in (`robots.txt` switches from `Disallow: /` to `Allow: /` with the private paths still disallowed, and `/sitemap.xml` fills), and that is a launch decision. **Set to `true` on production (kvaterka.by) on 2026-09-26, DEC-088.** Removing it closes the site again on the next restart; it does not remove pages a crawler already took |
 | `DATABASE_SSL` | no | no | `false` for localhost |
 | `DATABASE_POOL_MAX` | no | no | `10` default; `5` is plenty on a 2 GB box |
 | `SMTP_URL` | no | **yes** | Real SMTP delivery once set (DEC-066) — see §7. `MAIL_FROM` must be set alongside it |
