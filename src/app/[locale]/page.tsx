@@ -214,7 +214,7 @@ export default async function HomePage() {
           margin: calc(var(--space-3) - 3px) -1rem -3px;
           padding: 3px 1rem;
         }
-        .home-cities .chip { min-height: 2.5rem; padding-inline: 0.85rem; }
+        .home-cities .chip { min-height: 2.75rem; padding-inline: 0.85rem; }
 
         .home-listings { margin-top: var(--space-6); }
         .home-head {

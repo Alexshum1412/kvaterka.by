@@ -321,7 +321,7 @@ export async function SiteHeader() {
 
         /* 40px, not the default 44: a full-height button in a 56px bar makes
            the chrome the loudest thing on a phone. */
-        .sh .sh__cta { min-height: 2.5rem; padding-inline: 1rem; }
+        .sh .sh__cta { min-height: 2.75rem; padding-inline: 1rem; }
 
         .sh__me {
           display: inline-flex;
