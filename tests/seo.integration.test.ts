@@ -43,8 +43,23 @@ const { generateMetadata: searchMetadata } = await import('@/app/[locale]/search
 const { default: robots } = await import('@/app/robots.ts');
 
 let db: TestDb;
+let owner: string;
 let published: string;
 let draft: string;
+
+/** One listing of the seeded owner, in `city`, with the given lifecycle status. */
+async function addListing(city: string, status: 'PUBLISHED' | 'DRAFT'): Promise<string> {
+  const id = uuidv7();
+  await db.query(
+    `INSERT INTO property (id, owner_id, title, city, property_type, latitude, longitude,
+        public_latitude, public_longitude, base_price_minor, price_unit, min_nights, max_nights,
+        max_guests, booking_mode, status, published_at)
+     VALUES ($1,$2,'Светлая кватэра ў цэнтры',$4,'APARTMENT',53.9,27.5,53.9,27.5,8000,'NIGHT',1,365,4,
+        'INSTANT_AND_REQUEST',$3, CASE WHEN $3 = 'PUBLISHED' THEN now() END)`,
+    [id, owner, status, city],
+  );
+  return id;
+}
 
 beforeAll(async () => {
   db = await createTestDb();
@@ -58,23 +73,10 @@ afterAll(async () => {
 beforeEach(async () => {
   await db.truncateAll();
   runtime.indexable = true;
-  const owner = uuidv7();
+  owner = uuidv7();
   await db.query(`INSERT INTO app_user (id, email, display_name) VALUES ($1,$2,'Сэо')`, [owner, `${owner}@example.by`]);
-  published = uuidv7();
-  draft = uuidv7();
-  for (const [id, status] of [
-    [published, 'PUBLISHED'],
-    [draft, 'DRAFT'],
-  ] as const) {
-    await db.query(
-      `INSERT INTO property (id, owner_id, title, city, property_type, latitude, longitude,
-          public_latitude, public_longitude, base_price_minor, price_unit, min_nights, max_nights,
-          max_guests, booking_mode, status, published_at)
-       VALUES ($1,$2,'Светлая кватэра ў цэнтры','Минск','APARTMENT',53.9,27.5,53.9,27.5,8000,'NIGHT',1,365,4,
-          'INSTANT_AND_REQUEST',$3, CASE WHEN $3 = 'PUBLISHED' THEN now() END)`,
-      [id, owner, status],
-    );
-  }
+  published = await addListing('Минск', 'PUBLISHED');
+  draft = await addListing('Минск', 'DRAFT');
 });
 
 describe('sitemap.xml', () => {
@@ -99,6 +101,25 @@ describe('sitemap.xml', () => {
   it('is empty on a deployment that is not meant to be found', async () => {
     runtime.indexable = false;
     expect(await sitemap()).toEqual([]);
+  });
+
+  it('lists a city page only once the city has a published listing', async () => {
+    const cityUrl = (city: string) => `https://kvaterka.by/search?city=${encodeURIComponent(city)}`;
+    let urls = (await sitemap()).map((e) => e.url);
+    expect(urls).toContain(cityUrl('Минск'));
+    expect(urls).not.toContain(cityUrl('Гродно'));
+
+    await addListing('гродно', 'PUBLISHED'); // /search matches the city case-insensitively, so must the sitemap
+    urls = (await sitemap()).map((e) => e.url);
+    expect(urls).toContain(cityUrl('Гродно'));
+  });
+
+  it('does not list a city whose only listing is a draft, or that is not one of the six', async () => {
+    await addListing('Брест', 'DRAFT');
+    await addListing('Пинск', 'PUBLISHED');
+    const urls = (await sitemap()).map((e) => decodeURIComponent(e.url));
+    expect(urls).not.toContain('https://kvaterka.by/search?city=Брест');
+    expect(urls.some((u) => u.includes('Пинск'))).toBe(false);
   });
 });
 
@@ -131,6 +152,7 @@ describe('city landing pages', () => {
   });
 
   it('says the same as the sitemap for every city it lists', async () => {
+    for (const city of CITIES) if (city !== 'Минск') await addListing(city, 'PUBLISHED');
     const entries = await sitemap();
     for (const city of CITIES) {
       const entry = entries.find((e) => e.url === `https://kvaterka.by/search?city=${encodeURIComponent(city)}`)!;

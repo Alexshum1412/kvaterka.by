@@ -5,9 +5,9 @@ import { routing } from '@/i18n/routing.ts';
 export const dynamic = 'force-dynamic';
 
 /**
- * The marketing pages, the six city landing pages, and every published
- * listing — each with its Belarusian and English alternates, since each
- * locale is its own canonical page.
+ * The marketing pages, the city landing pages that have a published listing
+ * to show, and every published listing — each with its Belarusian and English
+ * alternates, since each locale is its own canonical page.
  *
  * Listings used to be left out on the theory that enumerating them meant a
  * query per URL. It is one query for all of them, and they are the content
@@ -57,15 +57,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ['/privacy', 0.2, 'yearly'],
   ];
 
-  const { rows } = await (await ready()).query<{ id: string; updated_at: Date }>(
-    `SELECT id, updated_at FROM property WHERE status = 'PUBLISHED' AND deleted_at IS NULL
+  const { rows } = await (await ready()).query<{ id: string; city: string; updated_at: Date }>(
+    `SELECT id, city, updated_at FROM property WHERE status = 'PUBLISHED' AND deleted_at IS NULL
       ORDER BY updated_at DESC LIMIT $1`,
     [MAX_LISTINGS],
   );
 
+  // A city page with nothing in it is a thin page a crawler would file as a soft 404, and
+  // the site would be introducing itself to search engines with six of them. A city is
+  // listed once it has a published listing — the same case-insensitive match /search uses.
+  const stocked = new Set(rows.map((r) => r.city.toLowerCase()));
+
   return [
     ...pages.map(([path, priority, freq]) => entry(path, priority, freq)),
-    ...CITIES.map((city) => entry(`/search?city=${encodeURIComponent(city)}`, 0.8, 'daily')),
+    ...CITIES.filter((city) => stocked.has(city.toLowerCase())).map((city) =>
+      entry(`/search?city=${encodeURIComponent(city)}`, 0.8, 'daily'),
+    ),
     ...rows.map((r) => entry(`/listing/${r.id}`, 0.7, 'weekly', new Date(r.updated_at))),
   ];
 }
