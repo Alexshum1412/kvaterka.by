@@ -44,6 +44,7 @@ document that understates what exists is the same kind of defect as one that ove
 | Session tokens | SHA-256 stored, never the token; rotation chain detects replay of a rotated token; expiry + revocation | IMPLEMENTED — `auth/auth-service.ts` |
 | CSRF | `SameSite=Lax`, `HttpOnly`, `Secure` session cookie; no state change on GET | IMPLEMENTED |
 | Rate limiting | per-IP and per-account, declared per route in the route table | IMPLEMENTED — `api/rate-limit.ts`; login, registration, reset, messaging and Telegram linking all carry limits |
+| Registration confirm | The account is created only when the mailed code AND the password chosen at registration are both presented; a wrong password spends the same attempt counter as a wrong code. The mailed link never submits anything on load, and the page shows only an address and code of the shape a real link carries | IMPLEMENTED and TESTED — `confirmRegistration` in `auth/auth-service.ts`, `lib/verify-link.ts`, `e2e/registration.spec.ts`, DEC-088. Closes the takeover where the first submitter of an address chose the password the mailbox owner then confirmed |
 | Document access control | `document.read` held by VERIFIER alone; every read written to an append-only log before the key is returned | IMPLEMENTED and TESTED — `tests/authorization.integration.test.ts` |
 | Brute force | attempt counters, escalating lockout cleared only by success | IMPLEMENTED for 2FA (see below); login relies on rate limiting |
 | Staff 2FA | TOTP, required for every staff role | **ENFORCED** — see below |

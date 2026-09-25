@@ -21,7 +21,9 @@ This is deliberate. The specification says "Never state 'legally safe' without e
 
 What this register *is* good for: it names the questions precisely, records the product decision currently riding on each one, and states what would have to change if the answer is unfavourable. That makes the lawyer's engagement cheap and specific instead of open-ended.
 
-**Status of LEGAL-003 (Belarus legal verification): BLOCKED.**
+**Status of LEGAL-003 (Belarus legal verification): BLOCKED** — as far as this register can show. See the dated note below.
+
+**2026-09-26 — owner statement, in chat:** "правовые вопросы решены и платежи будут настроены позже" (the legal questions are resolved; payments will be set up later). What this register knows from that: nothing more than the sentence. The answers, who gave them and on what basis are **not recorded here**, so every entry below keeps the status it had and no "Blocks" row in the summaries is lifted. What the sentence did change in practice: search indexing was switched on for production the same day (DEC-088). To close an entry, add under it the answer, the name and qualification of whoever gave it, the date, and the change in code or copy that follows (for example the text of `/terms` and `/privacy`, which still say the lawyer's document is in preparation).
 
 ---
 
