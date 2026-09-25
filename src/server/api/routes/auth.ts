@@ -70,7 +70,12 @@ export const authRoutes: AnyRoute[] = [
           throw new DomainError(
             'RATE_LIMITED',
             'На этот адрес уже отправлено несколько писем с кодом. Подождите час и попробуйте снова.',
-            { retryAfterSeconds: Math.max(1, Math.ceil((budget.resetAt.getTime() - ctx.now.getTime()) / 1000)) },
+            {
+              retryAfterSeconds: Math.max(
+                1,
+                Math.ceil((budget.resetAt.getTime() - ctx.now.getTime()) / 1000),
+              ),
+            },
           );
         }
       }
@@ -141,7 +146,10 @@ export const authRoutes: AnyRoute[] = [
     async handler({ body, ctx }) {
       const isEmail = email.safeParse(body.identifier).success;
       // Over the per-recipient budget: same answer, code untouched.
-      if (isEmail && !(await mailBudget(ctx.db, 'mail:registration-code', body.identifier, ctx.now)).allowed) {
+      if (
+        isEmail &&
+        !(await mailBudget(ctx.db, 'mail:registration-code', body.identifier, ctx.now)).allowed
+      ) {
         return { ok: true };
       }
       const code = await ctx.services.auth.resendRegistrationCode(body.identifier);
