@@ -40,7 +40,8 @@ Demo logins (local PGlite only): `landlord1@demo.kvaterka.by`, `tenant@demo.kvat
 - Machine (job token) principal only on routes with `permission`; elsewhere = anonymous.
 - Telegram webhook: require `X-Telegram-Bot-Api-Secret-Token` (`telegramWebhookSecret`), contact must be sender's own.
 - Upload handlers: sniff bytes (`sniffImage`), strip metadata, delete file if DB row not written.
-- Mail-sending public routes: per-IP AND per-recipient limits (`bucketForRecipient`). IP from `X-Real-IP` is spoofable unless proxy overwrites it.
+- Mail-sending public routes: per-IP AND per-recipient limits (`bucketForRecipient`). IP from `X-Real-IP` is spoofable unless proxy overwrites it. Ask the budget BEFORE mutating the row the mail is about (rotated code + skipped mail = dead code). Over budget: register → 429, resend/reset → same `{ok:true}` as unknown address. Never 201 without changing state (DEC-087).
+- Lockfile: regenerate only with npm 10 (`npx npm@10 …`), then prove with `npx npm@10 ci`. npm 11 drops the `next-intl/node_modules/@swc/helpers` entry and CI + host break. Next security fixes live in server `node_modules/next` → deploy needs `npm install --include=dev` on the host, not only the `.next` zip.
 - Applied migrations are checksummed: never edit one, not even a comment. New change = next `NNNN_*.sql`.
 - New table → entry in `domain/retention.ts` catalogue or the catalogue test fails.
 - Watchdog (`services/watchdog.ts`) runs at end of lifecycle sweep; new invariant worth alerting = new check there. Errors → `error_event` via `recordError` (never throws, no user data).

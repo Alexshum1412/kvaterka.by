@@ -1,0 +1,4 @@
+# Applied migrations are checksummed over their raw bytes (scripts/migrate.ts).
+# A Windows checkout with core.autocrlf=true would write CRLF and change the
+# checksum of a file the repository stores with LF.
+db/migrations/*.sql text eol=lf

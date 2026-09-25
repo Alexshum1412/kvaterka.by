@@ -44,7 +44,7 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 - [~] Upload validation — magic-byte sniffing, server-generated keys, EXIF/XMP/IPTC stripped, dimension cap against decompression bombs. **Still no re-encoding**, so a malformed image reaches the browser's decoder
 - [x] Secure headers and CSP — CSP with a per-request nonce; `style-src` keeps `'unsafe-inline'` for the inline style blocks
 - [x] Secrets managed outside the repository — validated at startup, only `.env.example` is tracked
-- [~] Dependency vulnerability scan in CI — `npm audit` runs, advisory only; no SAST
+- [~] Dependency vulnerability scan in CI — `npm audit` runs, advisory only; no SAST. DEC-087: the two critical Next.js RCE advisories are fixed (15.5.26) and the unused `drizzle-orm` is gone; what remains is dev-only (vitest/vite/esbuild, fix = vitest 2→5) plus the `postcss` Next bundles privately (fix = Next 16). Not a launch blocker, but the server needs `npm install --include=dev` after this release or it keeps running the old Next runtime
 - [x] Identity documents structurally unreachable by `SUPPORT`
 - [x] Every document read logged (append-only)
 

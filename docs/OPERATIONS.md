@@ -394,8 +394,12 @@ The same application, arranged the way cPanel expects. Nothing in the codebase c
    the database. Note them for `DATABASE_URL`.
 3. **cPanel → Terminal**, then, inside the virtual environment cPanel prints when the app is created:
    ```bash
-   cd ~/kvaterka && git clone https://github.com/Alexshum1412/kvaterka.by.git . && npm ci && npm run build && npm run db:migrate
+   cd ~/kvaterka && git clone https://github.com/Alexshum1412/kvaterka.by.git . && npm install --include=dev && npm run db:migrate
    ```
+   **Do not run `npm run build` here.** On this host (CloudLinux LVE) the build dies with the SWC
+   `ThreadPoolBuildError`; the `.next` folder is built on your own machine and uploaded as a zip —
+   the whole loop is in [HOW_TO_UPDATE_THE_SITE.md](../HOW_TO_UPDATE_THE_SITE.md) §2.4–2.8. Until the
+   first zip is extracted there is no `.next` and the app will not start.
 4. **Environment variables** go in the Node.js application screen, not in a file — cPanel injects
    them into the process. Same list as §5.
 5. **cPanel → «Задания cron»**, every 15 minutes. **Both variables, spelled out, on the line:**
@@ -607,7 +611,7 @@ whole VM to recover one table is not a procedure anybody wants at the moment the
 
 The release checklist asks for a **rehearsed restore**, not a taken backup. A backup nobody has
 restored is a hypothesis — and the one line that used to stand here was exactly that. It has been
-replaced by **[docs/OPERATIONS.md](OPERATIONS.md)**, where every command has
+replaced by the section «Резервные копии и перенос базы» further down this file, where every command has
 been run against a real PostgreSQL 10.23 under an unprivileged role and the result verified row by
 row.
 
@@ -629,7 +633,7 @@ non-backup:
    version matching the target.
 
 ```bash
-# The dump that can actually be restored. See DATABASE_MIGRATION.md §1.2.
+# The dump that can actually be restored. See «Резервные копии и перенос базы», §1.
 pg_dump "$DATABASE_URL" --format=custom --compress=9 --data-only   --exclude-table=schema_migration --exclude-table=amenity   --exclude-table=feature_flag --exclude-table=property_occupancy   --file="/var/backups/kvaterka-$(date +%F).dump"
 
 # Prove it is readable without restoring it.
