@@ -5,7 +5,7 @@ import { SearchForm } from '@/ui/search-form.tsx';
 import { SearchFilters, type AmenityOption } from '@/ui/search-filters.tsx';
 import { ListingCard, type ListingCardData } from '@/ui/listing-card.tsx';
 import { SearchMobileView } from '@/ui/search-mobile-view.tsx';
-import { CardSkeleton, EmptyState, ErrorState, formatNightsLocalized } from '@/ui/primitives.tsx';
+import { EmptyState, ErrorState, formatNightsLocalized } from '@/ui/primitives.tsx';
 import { Icon } from '@/ui/icons.tsx';
 import { ready, readyServices } from '@/server/runtime.ts';
 import { currentUser } from '@/server/session.ts';
@@ -265,16 +265,6 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         .srch__summary { font-size: var(--text-sm); color: var(--text-secondary); }
 
       `}</style>
-    </div>
-  );
-}
-
-export function SearchSkeleton() {
-  return (
-    <div className="srch__results">
-      {Array.from({ length: 6 }, (_, i) => (
-        <CardSkeleton key={i} />
-      ))}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 {
   "Layout": {
-    "skipToContent": "Перайсці да зместу"
+    "skipToContent": "Перайсці да зместу",
+    "loadingPage": "Загружаем старонку…"
   }
 }

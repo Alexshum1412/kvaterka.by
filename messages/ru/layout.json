@@ -1,5 +1,6 @@
 {
   "Layout": {
-    "skipToContent": "Перейти к содержимому"
+    "skipToContent": "Перейти к содержимому",
+    "loadingPage": "Загружаем страницу…"
   }
 }

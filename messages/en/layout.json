@@ -1,5 +1,6 @@
 {
   "Layout": {
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "loadingPage": "Loading the page…"
   }
 }
