@@ -31,6 +31,7 @@ import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { currentUser } from '@/server/session.ts';
 import { ready } from '@/server/runtime.ts';
+import { bucketForUser, checkRateLimit } from '@/server/api/rate-limit.ts';
 import { exceedsPixelBudget, sniffImage, stripMetadata } from '@/server/domain/image.ts';
 import { DEV_MEDIA_ROOT } from '@/app/api/uploads/route.ts';
 
@@ -39,6 +40,11 @@ export const dynamic = 'force-dynamic';
 
 /** Well under the listing cap (10 MB) — a profile photo is one face, not a gallery. */
 const MAX_BYTES = 3 * 1024 * 1024;
+
+/* ponytail: a flat per-account ceiling, like the listing route's. A person has one
+   avatar, so ten replacements an hour is generous and bounds one account at
+   ~30 MB/hour of written bytes. */
+const AVATARS_PER_HOUR = 10;
 
 /** Multipart framing around the file itself: boundaries, headers, field names. */
 const FORM_OVERHEAD = 64 * 1024;
@@ -50,6 +56,12 @@ function fail(status: number, message: string): Response {
 export async function POST(request: Request): Promise<Response> {
   const user = await currentUser();
   if (!user) return fail(401, 'Войдите, чтобы загрузить фото профиля');
+
+  // Outside the route table, so its limiter never saw this handler. Counted per
+  // account before the body is read, same bucket convention as the listing route.
+  const db = await ready();
+  const limit = await checkRateLimit(db, bucketForUser('upload:avatar', user.userId), AVATARS_PER_HOUR, 3600);
+  if (!limit.allowed) return fail(429, 'Слишком много загрузок подряд. Попробуйте через час.');
 
   // Same reasoning as the listing route: refuse an oversized body before
   // `formData()` materialises the whole thing in memory.
@@ -92,6 +104,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const storageKey = `avatars/${user.userId}/${randomUUID()}.${kind.ext}`;
   const absolute = path.join(DEV_MEDIA_ROOT, storageKey);
+  const discard = () => unlink(absolute).catch(() => {});
 
   try {
     await mkdir(path.dirname(absolute), { recursive: true });
@@ -100,19 +113,42 @@ export async function POST(request: Request): Promise<Response> {
     return fail(500, 'Не удалось сохранить файл');
   }
 
-  const db = await ready();
+  /* Swap the new key in only if the row still holds the key just read. Reading
+     the previous key and then updating unconditionally let parallel uploads all
+     read the same predecessor: one file was unlinked and the rest stayed on disk
+     with nothing referencing them. With the read in the WHERE clause, a request
+     that lost the race matches no row and reads again, so every key that is ever
+     replaced is replaced by exactly one request, which is the one that unlinks
+     it. Each lost round means another upload succeeded, so the loop ends; the
+     limit above bounds how many can be in flight. */
+  let previousKey: string | null | undefined;
+  try {
+    for (let attempt = 0; attempt < AVATARS_PER_HOUR && previousKey === undefined; attempt += 1) {
+      const { rows: current } = await db.query<{ avatar_storage_key: string | null }>(
+        `SELECT avatar_storage_key FROM app_user WHERE id=$1 AND deleted_at IS NULL`,
+        [user.userId],
+      );
+      if (!current[0]) break;
+      const { rows: swapped } = await db.query(
+        `UPDATE app_user SET avatar_storage_key=$1
+          WHERE id=$2 AND deleted_at IS NULL AND avatar_storage_key IS NOT DISTINCT FROM $3::text
+        RETURNING id`,
+        [storageKey, user.userId, current[0].avatar_storage_key],
+      );
+      if (swapped.length === 1) previousKey = current[0].avatar_storage_key;
+    }
+  } catch {
+    // Nothing references the file unless the row was written.
+    await discard();
+    return fail(500, 'Не удалось сохранить файл');
+  }
 
-  // The row this replaces, read BEFORE the update so the old file can be
-  // cleaned up afterwards — a plain PATCH-style column update, the same
-  // pattern `PATCH /me/profile` already uses directly against `ctx.db`
-  // rather than through a dedicated service for a single-column change.
-  const { rows: existing } = await db.query<{ avatar_storage_key: string | null }>(
-    `SELECT avatar_storage_key FROM app_user WHERE id=$1`,
-    [user.userId],
-  );
-  const previousKey = existing[0]?.avatar_storage_key ?? null;
-
-  await db.query(`UPDATE app_user SET avatar_storage_key=$1 WHERE id=$2`, [storageKey, user.userId]);
+  if (previousKey === undefined) {
+    // The account was closed between the session check and the write, or
+    // every attempt lost to a newer upload: either way this file is unreferenced.
+    await discard();
+    return fail(409, 'Фото профиля не сохранено. Обновите страницу и попробуйте снова.');
+  }
 
   if (previousKey) {
     try {

@@ -14,7 +14,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readFile, rm } from 'node:fs/promises';
+import { readdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { createTestDb, type TestDb } from '@/server/db/testing.ts';
 import { uuidv7 } from '@/lib/id.ts';
@@ -134,6 +134,31 @@ function pngOf(width: number, height: number): Buffer {
     chunk('IEND', Buffer.alloc(0)),
   ]);
 }
+
+/** A WebP that is just its container and the extended-format header: 24-bit canvas width-1 and height-1. */
+function webpExtended(width: number, height: number): Buffer {
+  const header = Buffer.alloc(10);
+  header.writeUIntLE(width - 1, 4, 3);
+  header.writeUIntLE(height - 1, 7, 3);
+  const chunk = Buffer.concat([Buffer.from('VP8X'), Buffer.from([10, 0, 0, 0]), header]);
+  const riff = Buffer.alloc(8);
+  riff.write('RIFF', 0, 'ascii');
+  riff.writeUInt32LE(4 + chunk.length, 4);
+  return Buffer.concat([riff, Buffer.from('WEBP'), chunk]);
+}
+
+/** Every file this account has on disk, whatever the database says. */
+async function filesOnDisk(): Promise<string[]> {
+  return readdir(path.join(MEDIA_ROOT, 'avatars', userId)).catch(() => []);
+}
+
+const storedKey = async (): Promise<string | null> =>
+  (
+    await db.query<{ avatar_storage_key: string | null }>(
+      `SELECT avatar_storage_key FROM app_user WHERE id=$1`,
+      [userId],
+    )
+  ).rows[0]!.avatar_storage_key;
 
 async function upload(
   bytes: Buffer,
@@ -274,6 +299,163 @@ describe('what is refused', () => {
       [userId],
     );
     expect(rows[0]!.avatar_storage_key).toBeNull();
+  });
+});
+
+describe('a WebP is held to the same dimension budget as a JPEG or PNG', () => {
+  it('accepts one within budget and reports its size', async () => {
+    const response = await upload(webpExtended(800, 600), { filename: 'me.webp', type: 'image/webp' });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ width: 800, height: 600, contentType: 'image/webp' });
+    expect(await filesOnDisk()).toHaveLength(1);
+  });
+
+  it('refuses a decompression bomb by its declared canvas, and stores nothing', async () => {
+    const response = await upload(webpExtended(30_000, 30_000), {
+      filename: 'bomb.webp',
+      type: 'image/webp',
+    });
+    expect(response.status).toBe(413);
+    expect(await filesOnDisk()).toEqual([]);
+    expect(await storedKey()).toBeNull();
+  });
+
+  it('refuses a WebP whose header is cut off before its size, and stores nothing', async () => {
+    const response = await upload(webpExtended(800, 600).subarray(0, 24), {
+      filename: 'cut.webp',
+      type: 'image/webp',
+    });
+    expect(response.status).toBe(415);
+    expect(await filesOnDisk()).toEqual([]);
+    expect(await storedKey()).toBeNull();
+  });
+});
+
+describe('one account cannot flood the disk or leave files nothing points to', () => {
+  const bucket = () => `upload:avatar:user:${userId}`;
+  const seedHits = (hits: number) =>
+    db.query(`INSERT INTO rate_limit_counter (bucket, window_start, hits) VALUES ($1,$2,$3)`, [
+      bucket(),
+      new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000).toISOString(),
+      hits,
+    ]);
+
+  it('caps one account at 10 uploads an hour, refusing the 11th before it writes anything', async () => {
+    await seedHits(9);
+    const tenth = await upload(jpegOf(200, 200));
+    expect(tenth.status).toBe(200);
+    const { storageKey } = (await tenth.json()) as { storageKey: string };
+
+    const eleventh = await upload(jpegOf(200, 200));
+    expect(eleventh.status).toBe(429);
+    expect(await storedKey()).toBe(storageKey);
+    expect(await filesOnDisk()).toEqual([path.basename(storageKey)]);
+  });
+
+  it('counts each account on its own', async () => {
+    await seedHits(10);
+    expect((await upload(jpegOf(200, 200))).status).toBe(429);
+
+    const other = uuidv7();
+    await db.query(`INSERT INTO app_user (id, email, display_name) VALUES ($1,$2,'Іншы карыстальнік')`, [
+      other,
+      `${other}@example.by`,
+    ]);
+    session.current = { userId: other, displayName: 'Іншы карыстальнік' };
+    expect((await upload(jpegOf(200, 200))).status).toBe(200);
+  });
+
+  describe('when the database write fails', () => {
+    beforeEach(async () => {
+      await db.execScript(`
+        CREATE FUNCTION refuse_avatar_write() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'avatar write refused'; END $$;
+        CREATE TRIGGER refuse_avatar_write BEFORE UPDATE OF avatar_storage_key ON app_user
+          FOR EACH ROW EXECUTE PROCEDURE refuse_avatar_write();
+      `);
+    });
+    afterEach(async () => {
+      await db.execScript(
+        `DROP TRIGGER refuse_avatar_write ON app_user; DROP FUNCTION refuse_avatar_write();`,
+      );
+    });
+
+    it('removes the file it just wrote', async () => {
+      const response = await upload(jpegOf(200, 200));
+      expect(response.status).toBe(500);
+      expect(await filesOnDisk()).toEqual([]);
+      expect(await storedKey()).toBeNull();
+    });
+
+    it('keeps the avatar the person already had', async () => {
+      await db.execScript(`ALTER TABLE app_user DISABLE TRIGGER refuse_avatar_write`);
+      const first = await upload(jpegOf(200, 200));
+      const { storageKey } = (await first.json()) as { storageKey: string };
+      await db.execScript(`ALTER TABLE app_user ENABLE TRIGGER refuse_avatar_write`);
+
+      expect((await upload(jpegOf(300, 300))).status).toBe(500);
+      expect(await storedKey()).toBe(storageKey);
+      expect(await filesOnDisk()).toEqual([path.basename(storageKey)]);
+    });
+  });
+
+  it('removes the file when the account was closed after the session was checked', async () => {
+    await db.query(`UPDATE app_user SET status='DELETED', deleted_at=now() WHERE id=$1`, [userId]);
+    const response = await upload(jpegOf(200, 200));
+    expect(response.status).toBe(409);
+    expect(await filesOnDisk()).toEqual([]);
+    expect(await storedKey()).toBeNull();
+  });
+
+  it('removes the file when the account row is gone altogether', async () => {
+    session.current = { userId: uuidv7(), displayName: 'Прывід' };
+    const response = await upload(jpegOf(200, 200));
+    expect(response.status).toBe(409);
+    expect(await readdir(path.join(MEDIA_ROOT, 'avatars', session.current.userId)).catch(() => [])).toEqual(
+      [],
+    );
+  });
+
+  it('parallel replacements leave exactly one file, the one the account references', async () => {
+    const N = 8;
+    /* Line the requests up so every one has written its file before any of them
+       touches the account row: the interleaving that used to orphan files, made
+       certain instead of left to timing. Only the first statement each request
+       sends about app_user waits, so a request that sends several is not stuck. */
+    let arrived = 0;
+    let open!: () => void;
+    const released = new Promise<void>((resolve) => (open = resolve));
+    const timer = setTimeout(open, 5_000);
+    runtime.db = {
+      ...db,
+      query: async (text: string, params?: readonly unknown[]) => {
+        if (arrived < N && text.includes('app_user')) {
+          arrived += 1;
+          if (arrived === N) open();
+          await released;
+        }
+        return db.query(text, params);
+      },
+    };
+
+    try {
+      const responses = await Promise.all(
+        Array.from({ length: N }, (_, i) => upload(jpegOf(100 + i, 100 + i))),
+      );
+      expect(responses.map((r) => r.status)).toEqual(Array(N).fill(200));
+
+      const keys = await Promise.all(
+        responses.map(async (r) => ((await r.json()) as { storageKey: string }).storageKey),
+      );
+      expect(new Set(keys).size).toBe(N);
+
+      const current = await storedKey();
+      expect(keys).toContain(current);
+      expect(await filesOnDisk()).toEqual([path.basename(current!)]);
+    } finally {
+      clearTimeout(timer);
+      runtime.db = db;
+    }
   });
 });
 

@@ -4,6 +4,7 @@ import {
   hasStrippableMetadata,
   MAX_DIMENSION,
   MAX_PIXELS,
+  sniffImage,
   stripMetadata,
 } from './image.ts';
 
@@ -96,6 +97,40 @@ function webp(opts: { exif?: boolean; xmp?: boolean } = {}): Bytes {
   header.writeUInt32LE(4 + body.length, 4);
   header.write('WEBP', 8, 'ascii');
   return Buffer.concat([header, body]);
+}
+
+/** Just the container and one image chunk: the header bytes `sniffImage` reads and nothing more. */
+function webpOf(fourcc: string, payload: Bytes): Bytes {
+  const body = Buffer.concat([Buffer.from('WEBP', 'ascii'), riffChunk(fourcc, payload)]);
+  const head = Buffer.alloc(8);
+  head.write('RIFF', 0, 'ascii');
+  head.writeUInt32LE(body.length, 4);
+  return Buffer.concat([head, body]);
+}
+
+/** Lossy: 3-byte key-frame tag, start code 9d 01 2a, then 14-bit width and height. */
+function webpLossy(width: number, height: number): Bytes {
+  const payload = Buffer.alloc(10);
+  payload.set([0x10, 0x02, 0x00, 0x9d, 0x01, 0x2a], 0);
+  payload.writeUInt16LE(width, 6);
+  payload.writeUInt16LE(height, 8);
+  return webpOf('VP8 ', payload);
+}
+
+/** Lossless: signature 0x2f, then 14-bit width-1 and 14-bit height-1 in one little-endian word. */
+function webpLossless(width: number, height: number): Bytes {
+  const payload = Buffer.alloc(10);
+  payload[0] = 0x2f;
+  payload.writeUInt32LE(((width - 1) | ((height - 1) << 14)) >>> 0, 1);
+  return webpOf('VP8L', payload);
+}
+
+/** Extended: flags and reserved bytes, then 24-bit canvas width-1 and height-1. */
+function webpExtended(width: number, height: number): Bytes {
+  const payload = Buffer.alloc(10);
+  payload.writeUIntLE(width - 1, 4, 3);
+  payload.writeUIntLE(height - 1, 7, 3);
+  return webpOf('VP8X', payload);
 }
 
 /* ================================================================== */
@@ -242,8 +277,82 @@ describe('a decompression bomb is refused by its dimensions', () => {
   });
 
   it('defers to the byte cap when the dimensions are unknown', () => {
-    // WebP dimensions are not parsed; the 10 MB limit governs those.
+    // A JPEG with no readable frame header has none; the byte cap governs it.
     expect(exceedsPixelBudget(null, null)).toBe(false);
     expect(exceedsPixelBudget(4000, null)).toBe(false);
+  });
+});
+
+describe('sniffImage reads WebP dimensions, so the same guard covers every accepted format', () => {
+  const kinds = [
+    // Lossy tops out at 16383 per side: 16383x16383 is 268 MP, over the pixel budget.
+    ['VP8 (lossy)', webpLossy, [4000, 3000], [16_383, 16_383]],
+    ['VP8L (lossless)', webpLossless, [4000, 3000], [16_384, 16_384]],
+    // Extended keeps a 24-bit canvas, far beyond what either 14-bit format can say.
+    ['VP8X (extended)', webpExtended, [6000, 4000], [30_000, 30_000]],
+  ] as const;
+
+  it.each(kinds)('%s: reads the size of a picture within budget', (_name, build, [width, height]) => {
+    const sniffed = sniffImage(build(width, height));
+    expect(sniffed).toMatchObject({ ext: 'webp', mime: 'image/webp', width, height });
+    expect(exceedsPixelBudget(sniffed!.width, sniffed!.height)).toBe(false);
+  });
+
+  it.each(kinds)(
+    '%s: reads a size over the pixel budget, which the guard then refuses',
+    (_name, build, _ok, [width, height]) => {
+      const sniffed = sniffImage(build(width, height));
+      expect(sniffed).toMatchObject({ ext: 'webp', width, height });
+      expect(exceedsPixelBudget(sniffed!.width, sniffed!.height)).toBe(true);
+    },
+  );
+
+  it('VP8X: refuses a canvas whose sides are each allowed but whose area is not', () => {
+    const sniffed = sniffImage(webpExtended(MAX_DIMENSION, MAX_DIMENSION));
+    expect(sniffed).toMatchObject({ width: MAX_DIMENSION, height: MAX_DIMENSION });
+    expect(exceedsPixelBudget(sniffed!.width, sniffed!.height)).toBe(true);
+  });
+
+  it('VP8X: reads the full 24-bit canvas, not a truncated 16-bit one', () => {
+    // 65537 would wrap to 1 if only two bytes were read, and pass as a 1-pixel strip.
+    const sniffed = sniffImage(webpExtended(65_537, 1));
+    expect(sniffed).toMatchObject({ width: 65_537, height: 1 });
+    expect(exceedsPixelBudget(sniffed!.width, sniffed!.height)).toBe(true);
+  });
+
+  it.each([
+    // Each cut is one byte short of the last byte of the size field.
+    ['VP8 (lossy)', webpLossy(4000, 3000), 29, 30],
+    ['VP8L (lossless)', webpLossless(4000, 3000), 24, 25],
+    ['VP8X (extended)', webpExtended(6000, 4000), 29, 30],
+  ] as const)('%s: refuses a header cut off before the size', (_name, whole, cut, needed) => {
+    // Failing closed: the size is unknown, and unknown must not pass as small.
+    expect(sniffImage(whole.subarray(0, cut))).toBeNull();
+    expect(sniffImage(whole.subarray(0, needed))).not.toBeNull();
+  });
+
+  it('refuses a lossy header that is not a key frame or lacks the start code', () => {
+    const notKeyFrame = Buffer.from(webpLossy(100, 100));
+    notKeyFrame[20] = 0x11;
+    expect(sniffImage(notKeyFrame)).toBeNull();
+
+    const noStartCode = Buffer.from(webpLossy(100, 100));
+    noStartCode[23] = 0x00;
+    expect(sniffImage(noStartCode)).toBeNull();
+  });
+
+  it('refuses a lossless header without its signature byte', () => {
+    const bad = Buffer.from(webpLossless(100, 100));
+    bad[20] = 0x00;
+    expect(sniffImage(bad)).toBeNull();
+  });
+
+  it('refuses a WebP whose first chunk is not an image header', () => {
+    expect(sniffImage(webpOf('EXIF', Buffer.alloc(10)))).toBeNull();
+  });
+
+  it('leaves JPEG and PNG as they were', () => {
+    expect(sniffImage(jpeg())).toMatchObject({ ext: 'jpg', width: 1600, height: 1200 });
+    expect(sniffImage(png())).toMatchObject({ ext: 'png', width: 1600, height: 1200 });
   });
 });

@@ -72,7 +72,8 @@ export interface SniffedImage {
 /**
  * Identify an upload by its first bytes, never by the content type it claims.
  * Returns null for anything that is not a JPEG, PNG or WebP — an SVG (a script
- * that renders as a picture) included. Used by both upload routes, which had
+ * that renders as a picture) included — and for a WebP whose header is
+ * truncated or malformed. Used by both upload routes, which had
  * each carried a verbatim copy of this function.
  */
 export function sniffImage(buf: Bytes): SniffedImage | null {
@@ -91,10 +92,44 @@ export function sniffImage(buf: Bytes): SniffedImage | null {
     buf.subarray(0, 4).toString('ascii') === 'RIFF' &&
     buf.subarray(8, 12).toString('ascii') === 'WEBP'
   ) {
-    // WebP has three sub-formats with different headers; the dimensions are
-    // not worth three parsers, and the column is nullable.
-    return { ext: 'webp', mime: 'image/webp', width: null, height: null };
+    // A WebP whose header cannot be read is refused rather than passed with
+    // unknown dimensions: unknown would sail through `exceedsPixelBudget`.
+    const size = webpSize(buf);
+    return size ? { ext: 'webp', mime: 'image/webp', ...size } : null;
   }
+  return null;
+}
+
+/**
+ * Canvas size from the header of a WebP's first chunk, or null when that chunk
+ * is not one a decoder would accept. The three sub-formats keep it in three
+ * different places; every read is bounds-checked because the file is hostile.
+ */
+function webpSize(buf: Bytes): { width: number; height: number } | null {
+  const fourcc = buf.subarray(12, 16).toString('ascii');
+
+  if (fourcc === 'VP8 ' && buf.length >= 30) {
+    // Lossy: a key frame (tag bit 0 clear) carries the start code and the size,
+    // two 14-bit fields whose top two bits are an upscaling hint.
+    const keyFrame = (buf[20]! & 0x01) === 0;
+    if (!keyFrame || buf[23] !== 0x9d || buf[24] !== 0x01 || buf[25] !== 0x2a) return null;
+    const width = buf.readUInt16LE(26) & 0x3fff;
+    const height = buf.readUInt16LE(28) & 0x3fff;
+    return width > 0 && height > 0 ? { width, height } : null;
+  }
+
+  if (fourcc === 'VP8L' && buf.length >= 25) {
+    // Lossless: signature byte, then 14-bit width-1 and 14-bit height-1.
+    if (buf[20] !== 0x2f) return null;
+    const bits = buf.readUInt32LE(21);
+    return { width: (bits & 0x3fff) + 1, height: ((bits >>> 14) & 0x3fff) + 1 };
+  }
+
+  if (fourcc === 'VP8X' && buf.length >= 30) {
+    // Extended: 24-bit canvas width-1 and height-1 after the flags.
+    return { width: buf.readUIntLE(24, 3) + 1, height: buf.readUIntLE(27, 3) + 1 };
+  }
+
   return null;
 }
 
