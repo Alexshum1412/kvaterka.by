@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * qualified in Belarus has drafted or reviewed one, and inventing plausible
  * contractual language would be worse than a missing page: it would be a
  * document people rely on that binds nobody and asserts obligations nobody
- * checked. LEGAL_RISK_REGISTER.md records this as an open question, and this
+ * checked. docs/LEGAL.md records this as an open question, and this
  * page says the same thing in public rather than only in the repository.
  *
  * What it CAN state truthfully is how the platform actually behaves, because

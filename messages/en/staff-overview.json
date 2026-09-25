@@ -24,6 +24,18 @@
     "cardReportsLabel": "Reports",
     "cardReportsDetail": "On listings, reviews, and messages.",
     "cardVerificationLabel": "Verification requests",
-    "cardVerificationDetail": "Documents are visible only to VERIFIER."
+    "cardVerificationDetail": "Documents are visible only to VERIFIER.",
+    "watchdogTitle": "Watchdog",
+    "watchdogCalm": "All invariants hold: fees accrued, no completion stuck, the notification queue is moving.",
+    "alert_FEE_MISSING": "Completed bookings with no fee accrued",
+    "alert_COMPLETION_STUCK": "Completion confirmations stuck past their deadline",
+    "alert_STAY_NOT_CLOSED": "Stays over with no completion window opened",
+    "alert_NOTIFICATION_BACKLOG": "Notifications waiting over an hour",
+    "alert_NOTIFICATION_FAILURES": "Notifications undelivered in the last day",
+    "alert_JOB_FAILED": "Background jobs failed or stuck",
+    "alert_NEW_ERRORS": "New errors in the last day",
+    "errorsTitle": "Recent errors",
+    "errorsEmpty": "No errors recorded.",
+    "errorsTimes": "{count, plural, one {# time} other {# times}}"
   }
 }

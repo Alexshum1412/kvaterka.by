@@ -22,6 +22,10 @@ export function LanguageSwitcher({ ariaLabel }: { ariaLabel: string }) {
           key={locale}
           href={pathname}
           locale={locale}
+          // Not prefetched (DEC-086): three extra RSC requests on every page
+          // for a control people use once, and the RU pill's /ru/… is only a
+          // 307 back to the page already on screen.
+          prefetch={false}
           className={`lsw__pill${locale === active ? ' lsw__pill--active' : ''}`}
           aria-current={locale === active ? 'true' : undefined}
         >

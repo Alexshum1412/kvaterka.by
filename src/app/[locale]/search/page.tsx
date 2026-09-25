@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import { Link } from '@/i18n/navigation.ts';
+import { Link, getPathname } from '@/i18n/navigation.ts';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { SearchForm } from '@/ui/search-form.tsx';
 import { SearchFilters, type AmenityOption } from '@/ui/search-filters.tsx';
 import { ListingCard, type ListingCardData } from '@/ui/listing-card.tsx';
 import { SearchMobileView } from '@/ui/search-mobile-view.tsx';
-import { CardSkeleton, EmptyState, ErrorState, formatNightsLocalized } from '@/ui/primitives.tsx';
+import { EmptyState, ErrorState, formatNightsLocalized } from '@/ui/primitives.tsx';
 import { Icon } from '@/ui/icons.tsx';
 import { ready, readyServices } from '@/server/runtime.ts';
 import { currentUser } from '@/server/session.ts';
@@ -17,10 +17,13 @@ export const dynamic = 'force-dynamic';
 type SearchParams = Record<string, string | string[] | undefined>;
 
 export async function generateMetadata({
+  params: routeParams,
   searchParams,
 }: {
+  params: Promise<{ locale: string }>;
   searchParams: Promise<SearchParams>;
 }): Promise<Metadata> {
+  const { locale } = await routeParams;
   const params = await searchParams;
   const city = typeof params.city === 'string' ? params.city : null;
   const t = await getTranslations('Search');
@@ -29,7 +32,9 @@ export async function generateMetadata({
   return {
     title: city ? t('meta.titleCity', { city }) : t('meta.titleDefault'),
     description: city ? t('meta.descriptionCity', { city }) : t('meta.descriptionDefault'),
-    alternates: { canonical: city ? `/search?city=${encodeURIComponent(city)}` : '/search' },
+    alternates: {
+      canonical: getPathname({ locale, href: city ? `/search?city=${encodeURIComponent(city)}` : '/search' }),
+    },
   };
 }
 
@@ -260,16 +265,6 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         .srch__summary { font-size: var(--text-sm); color: var(--text-secondary); }
 
       `}</style>
-    </div>
-  );
-}
-
-export function SearchSkeleton() {
-  return (
-    <div className="srch__results">
-      {Array.from({ length: 6 }, (_, i) => (
-        <CardSkeleton key={i} />
-      ))}
     </div>
   );
 }

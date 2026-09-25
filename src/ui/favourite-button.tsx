@@ -120,8 +120,10 @@ export function FavouriteButton({
           position: relative;
           display: grid;
           place-items: center;
-          width: 2.5rem;
-          height: 2.5rem;
+          /* 44px: the project's touch-target floor (DEC-079). It sits on a
+             photo a thumb is also trying to scroll past. */
+          width: 2.75rem;
+          height: 2.75rem;
           padding: 0;
           border: 0;
           border-radius: var(--radius-full);

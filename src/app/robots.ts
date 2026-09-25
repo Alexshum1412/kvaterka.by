@@ -38,7 +38,13 @@ export default function robots(): MetadataRoute.Robots {
            one of these should still be told twice, and a future page added
            under these prefixes inherits the refusal rather than having to
            remember it. */
-        disallow: ['/dashboard/', '/staff/', '/moderation/', '/notifications', '/bookings/', '/api/'],
+        // Every locale prefix too: '/dashboard/' alone never matched
+        // '/be/dashboard/' or '/en/dashboard/'.
+        disallow: ['', '/be', '/en'].flatMap((prefix) =>
+          ['/dashboard/', '/staff/', '/moderation/', '/notifications', '/bookings/', '/trips', '/favorites', '/verify-', '/password-reset'].map(
+            (path) => `${prefix}${path}`,
+          ),
+        ).concat('/api/'),
       },
     ],
     sitemap: `${base}/sitemap.xml`,

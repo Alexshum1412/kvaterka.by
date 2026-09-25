@@ -9,6 +9,7 @@ import { SiteHeader } from '@/ui/site-header.tsx';
 import { SiteFooter } from '@/ui/site-footer.tsx';
 import { ConsoleEasterEgg } from '@/ui/console-easter-egg.tsx';
 import { currentUser } from '@/server/session.ts';
+import { env } from '@/server/runtime.ts';
 import { routing, type AppLocale } from '@/i18n/routing.ts';
 
 /**
@@ -45,9 +46,13 @@ export async function generateMetadata({
     description: t('homeDescription'),
     openGraph: { type: 'website', locale: OG_LOCALE[locale as AppLocale] ?? OG_LOCALE.ru, siteName: 'Кватэрка.by' },
     robots: { index: true, follow: true },
-    alternates: {
-      languages: Object.fromEntries(routing.locales.map((l) => [l, l === routing.defaultLocale ? '/' : `/${l}`])),
-    },
+    /* Absolute base for every relative canonical/OG URL below. Without it
+       Next resolved them against localhost in production. No `languages`
+       here any more: set in the layout, every page inherited hreflang links
+       pointing at the three HOME pages (/faq said its Belarusian version was
+       /be). next-intl's middleware already sends correct per-page hreflang
+       in the Link response header, absolute and x-default included. */
+    metadataBase: new URL(env().PUBLIC_BASE_URL),
   };
 }
 

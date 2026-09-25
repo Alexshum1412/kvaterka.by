@@ -1,6 +1,17 @@
-# LEGAL_RISK_REGISTER.md
+# Правовые вопросы
 
-## Read this first
+Открытые правовые вопросы (LEGAL-001…018) и то, как каждый из них ограничивает код. Раньше LEGAL_RISK_REGISTER.md и LEGAL_DEPENDENCIES.md. Ничто здесь не является юридическим заключением.
+
+## Содержание
+
+- Реестр правовых вопросов
+- Что из этого следует для кода
+
+---
+
+## Реестр правовых вопросов
+
+### Read this first
 
 **No legal research was performed for this register, and it contains no citations to Belarusian law.** Every entry below is an *engineering-identified open question*, not a legal finding.
 
@@ -14,7 +25,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-## How to read an entry
+### How to read an entry
 
 | Field | Meaning |
 |---|---|
@@ -26,7 +37,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-001 — Intermediary vs. party to the lease
+#### LEGAL-001 — Intermediary vs. party to the lease
 
 **Question.** Does operating this marketplace make the company a party to, or a legally responsible intermediary in, the rental relationship — and what consumer-protection duties follow?
 
@@ -38,7 +49,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-002 — The 5% service fee: legal character, invoicing, VAT, accounting
+#### LEGAL-002 — The 5% service fee: legal character, invoicing, VAT, accounting
 
 **Question.** Is a percentage-based service fee charged to a landlord after a completed rental correctly characterised as a service fee? What invoicing and VAT treatment applies? How must it be recognised in accounting? Does charging a private individual (not a business) change anything?
 
@@ -50,7 +61,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-003 — Personal data: legal basis, consent, storage location, cross-border transfer
+#### LEGAL-003 — Personal data: legal basis, consent, storage location, cross-border transfer
 
 **Question.** What legal basis is required to process account, booking, chat and device data? Are consent records required, and in what form? Must personal data of Belarusian users be stored in Belarus? What are the rules on transfer abroad — which directly constrains hosting choices?
 
@@ -62,7 +73,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-004 — Identity documents (passport data) and property-ownership documents
+#### LEGAL-004 — Identity documents (passport data) and property-ownership documents
 
 **Status as of 0018: the identity-document half is retired, not merely gated.** The user made an explicit product call: passport/ID collection is removed from this product outright, on the reasoning that in Belarus a mobile phone number is already tied to its owner at the point of sale by the operator, so proving control of a real, phone-backed messenger account (Telegram, VK or WhatsApp) is treated as the equivalent identity signal — without this platform ever asking for, receiving or storing a passport image. This is **the user's own product decision, stated to me directly, not a legal finding** — everything else in this register's epistemic posture (see "Read this first" above) still applies: no legal research was performed, and this paragraph is not a substitute for one.
 
@@ -94,7 +105,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-#### Phone verification as the identity signal (0018; Telegram-only since 0021) — its own, separate open questions
+##### Phone verification as the identity signal (0018; Telegram-only since 0021) — its own, separate open questions
 
 **Question.** Verifying "controls a Telegram account" as a proxy for identity is a product decision, not a settled legal one. What actually needs asking: does relying on a third-party messenger's own phone-verification as this platform's identity signal carry any disclosure obligation, and does routing a Belarusian user's verification through Telegram raise the same cross-border personal-data question LEGAL-003 and LEGAL-015 already ask about Telegram notifications.
 
@@ -110,7 +121,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-005 — Landlord tax obligations and platform reporting duties
+#### LEGAL-005 — Landlord tax obligations and platform reporting duties
 
 **Question.** What are a landlord's tax/registration obligations for rental income in Belarus? Does the platform have any duty to inform, withhold or report? Does the answer differ for private individuals, sole traders and companies?
 
@@ -122,7 +133,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-006 — Short-term vs long-term rental: distinct regimes
+#### LEGAL-006 — Short-term vs long-term rental: distinct regimes
 
 **Question.** Does Belarusian law distinguish short-term/daily accommodation from long-term residential tenancy in ways that impose different duties — registration, permits, guest reporting, safety requirements? Does a platform facilitating both need to treat them differently?
 
@@ -134,7 +145,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-007 — Guest registration / residence-reporting duties
+#### LEGAL-007 — Guest registration / residence-reporting duties
 
 **Question.** Is there an obligation to register guests or report temporary residence, particularly for foreign nationals? Does it fall on the landlord, the platform, or both?
 
@@ -146,7 +157,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-008 — Liability for user-generated content
+#### LEGAL-008 — Liability for user-generated content
 
 **Question.** What liability does the platform bear for listings, reviews and chat messages? Are there notice-and-takedown duties, response deadlines, or record-keeping requirements?
 
@@ -158,7 +169,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-009 — Reviews and reputation
+#### LEGAL-009 — Reviews and reputation
 
 **Question.** Are there legal constraints on publishing reviews about named individuals — defamation exposure, a right of reply, correction or deletion duties? Does a computed "trust score" about a natural person create additional obligations (e.g. rules on automated evaluation of individuals)?
 
@@ -170,7 +181,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-010 — Chat interception and contact filtering
+#### LEGAL-010 — Chat interception and contact filtering
 
 **Question.** Does automatically scanning, flagging and redacting private messages between users require specific disclosure or consent? Are there restrictions on retaining the original unredacted text?
 
@@ -182,7 +193,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-011 — Electronic records as evidence
+#### LEGAL-011 — Electronic records as evidence
 
 **Question.** What weight do platform-held records — booking events, chat logs, check-in photos, audit entries — carry in a Belarusian dispute? Are there requirements (timestamping, signatures, integrity proofs) to make them admissible?
 
@@ -194,7 +205,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-012 — Rewards / lottery — **highest-risk item**
+#### LEGAL-012 — Rewards / lottery — **highest-risk item**
 
 **Question.** Would issuing tickets for completed rentals that enter a prize draw constitute a lottery or gambling activity under Belarusian law? What licensing, registration, tax and advertising obligations follow? Which prize types, if any, avoid the regime?
 
@@ -206,7 +217,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-013 — Advertising and paid promotion
+#### LEGAL-013 — Advertising and paid promotion
 
 **Question.** What rules govern advertising claims, and must sponsored placements be labelled as advertising?
 
@@ -216,7 +227,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-014 — Map data and geolocation privacy
+#### LEGAL-014 — Map data and geolocation privacy
 
 **Question.** Are there restrictions on displaying property locations, on the mapping providers usable in Belarus, or on precision of location data for residential addresses?
 
@@ -230,7 +241,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-015 — Telegram integration
+#### LEGAL-015 — Telegram integration
 
 **Question.** Any restriction on using Telegram as a notification channel, and does sending booking data through it constitute a cross-border transfer of personal data (see LEGAL-003)?
 
@@ -242,7 +253,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-016 — Terms of service and the contractual chain
+#### LEGAL-016 — Terms of service and the contractual chain
 
 **Question.** What must the platform's terms contain to establish the fee obligation, define the intermediary role, and set dispute-handling rules? Is a Belarusian-language version legally required?
 
@@ -256,7 +267,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-017 — Handling complaints between users, and what to keep
+#### LEGAL-017 — Handling complaints between users, and what to keep
 
 **Question.** Кватэрка.by now records complaints between users, staff notes about them, and decisions that change whether a fee is owed. Three things follow that a Belarusian lawyer has to answer. First: does running this process create any obligation the platform does not intend — a consumer-complaint duty, a mediation role, a reporting duty for what users allege about each other? Second: what may be retained, and for how long? Dispute cases, case events and audit rows are append-only and currently never deleted, which is right for accountability and is exactly the shape a data-protection regime tends to have opinions about. Third: a case necessarily contains one user's allegations about another, held indefinitely, which is a category of record that usually has rules of its own.
 
@@ -272,9 +283,9 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-### LEGAL-018 — Retention for data no other entry covers
+#### LEGAL-018 — Retention for data no other entry covers
 
-**Question.** Building the retention catalogue forced a per-table answer for all forty tables, and four turned out to be covered by no existing entry. First: **check-in and check-out photographs** (`stay_photo`) — images of somebody's home, sometimes with possessions and occasionally people in them, kept as dispute evidence with no stated limit. Second: **listing data after delisting** (`property`, `property_photo`) — an address, coordinates and photographs of a home that is no longer offered. Third: **reviews** — LEGAL-009 asks whether they may be published and whether there is a correction duty, but not how long they are kept, nor what happens to one written by somebody who has closed their account. Fourth, and the broadest: **does a deletion right reach append-only records at all** — `ledger_entry`, `audit_log`, `booking_event`, `listing_snapshot`? PRIVACY.md has proposed since the first commit that the answer is anonymisation of the linked person rather than destruction of the record, and that proposal has never had a register entry or a lawyer.
+**Question.** Building the retention catalogue forced a per-table answer for all forty tables, and four turned out to be covered by no existing entry. First: **check-in and check-out photographs** (`stay_photo`) — images of somebody's home, sometimes with possessions and occasionally people in them, kept as dispute evidence with no stated limit. Second: **listing data after delisting** (`property`, `property_photo`) — an address, coordinates and photographs of a home that is no longer offered. Third: **reviews** — LEGAL-009 asks whether they may be published and whether there is a correction duty, but not how long they are kept, nor what happens to one written by somebody who has closed their account. Fourth, and the broadest: **does a deletion right reach append-only records at all** — `ledger_entry`, `audit_log`, `booking_event`, `listing_snapshot`? SECURITY.md has proposed since the first commit that the answer is anonymisation of the linked person rather than destruction of the record, and that proposal has never had a register entry or a lawyer.
 
 **Product decision riding on it.** The catalogue in `domain/retention.ts` declares each of these with an UNKNOWN window naming this entry, and the purge job acts on none of them. `listing_snapshot` is the sharpest: it is a frozen JSON blob holding a description, exact coordinates and an apartment number, with no separable columns — so if erasure ever reaches it, there is nothing to anonymise and the only options are destroying dispute evidence or a bespoke migration.
 
@@ -286,7 +297,7 @@ What this register *is* good for: it names the questions precisely, records the 
 
 ---
 
-## Summary
+### Summary
 
 | Item | Blocks |
 |---|---|
@@ -300,3 +311,132 @@ What this register *is* good for: it names the questions precisely, records the 
 | LEGAL-018 | Retention for stay photos, delisted listings, reviews, and whether erasure reaches append-only records |
 
 **Nothing in this product may be described as legally compliant on the basis of this document.**
+
+---
+
+## Что из этого следует для кода
+
+How unresolved legal questions map onto engineering work: what is safe to build **now**, what is deliberately gated, and what cannot ship until a Belarus-qualified lawyer answers.
+
+This is the operational companion to [docs/LEGAL.md](LEGAL.md), which states the questions. Nothing here is a legal conclusion. Every "current assumption" is an engineering placeholder chosen so that being wrong costs a configuration change rather than a rewrite.
+
+**Principle applied throughout:** where the law is unknown, the *architecture* stays neutral and the *behaviour* is a flag. No disputed position is hardcoded.
+
+---
+
+### LEGAL-003 — Personal data: legal basis, residency, cross-border transfer
+
+**Why it matters.** Determines where the database may physically live. Moving a production database across a border afterwards is expensive and legally exposed.
+
+**Current assumption.** Data minimisation applied unconditionally, since it is defensible under any regime: IP addresses stored only as SHA-256 (`user_session.ip_hash`, `audit_log.ip_hash`), audit rows carry diffs rather than snapshots, session tokens stored hashed.
+
+**Built now.** Everything except the hosting decision. `DATABASE_URL` is configuration, so the region is a deployment choice, not a code change.
+
+**Requires a lawyer.** Storage location, consent records, retention periods, sub-processor list.
+
+**Blocks:** provisioning production infrastructure. Do not sign a hosting contract before this is answered.
+
+---
+
+### LEGAL-004 — Identity documents
+
+**Why it matters.** Passport images are the most sensitive data in the product.
+
+**Current assumption.** Collection is **off**. Feature flag `verification.identity_documents` defaults to `false`.
+
+**Built now and enforced:**
+- separate private bucket (`DOCUMENTS_BUCKET_URL`, and the process refuses to start if it equals `MEDIA_BUCKET_URL`);
+- `document.read` permission held by **VERIFIER only** — not SUPPORT, not MODERATOR, not FINANCE, and **not ADMIN**;
+- every read writes to the append-only `document_access_log` before the key is returned;
+- per-document `purge_after`, so retention is a stored, auditable value.
+
+**Verified by tests.** `tests/authorization.integration.test.ts` asserts all four other staff roles get 403, that VERIFIER passes the guard, and that a read is logged.
+
+**Currently:** VERIFIER passes the permission check and then receives 422 — "disabled pending legal review". That is the intended state.
+
+**Requires a lawyer.** Consent form, retention window, whether a third-party KYC provider is permissible.
+
+---
+
+### LEGAL-012 — Rewards / lottery — **highest risk**
+
+**Why it matters.** A prize draw for completed rentals may be a lottery, carrying licensing, registration, tax and advertising consequences.
+
+**Current assumption.** Not shipped. **No prize-drawing logic exists in the codebase.**
+
+**Built now.** Two flags — `rewards.lottery`, `rewards.points` — both `false`, both `requires_legal_approval = true`. `PUT /admin/feature-flags/:key` **refuses** to enable any such flag unless a `legalApprovalReference` is supplied, and stores that reference in the audit log.
+
+**Verified by tests.** Enabling without a reference returns 422 and the flag stays off; enabling with one records the reference in `audit_log.reason`.
+
+**Requires a lawyer.** Everything. Do not enable under any circumstances without written approval.
+
+---
+
+### LEGAL-016 — Is the service fee enforceable as modelled?
+
+**Why it matters.** The entire revenue model rests on the 5% fee being a collectable debt.
+
+**Current assumption.** It is treated as a contractual debt arising on completion — an assumption, not a finding.
+
+**Built now.** Flag `fee.enforcement` (default `true`). The fee is always *calculated and recorded* — that part is a factual record of a transaction and is safe regardless. What the flag controls is *consequence*: with it off, `FinanceService.restrictionsFor()` returns no restrictions, so an unpaid fee stops limiting the account.
+
+> This register was right and the flag's own `description` column was not: it said disabling would record the fee "as informational only", which `accrueServiceFee()` never did — it reads no flag and always writes a PAYABLE row. That text is served verbatim by `GET /admin/feature-flags` to the administrator most likely to switch the flag off after legal advice, so somebody could have disabled it believing the platform had stopped creating debts. Migration 0015 corrects it where they read it.
+
+Ledger entries are append-only, so if the answer is unfavourable, historical fees are waived or written off with new compensating rows. **Nothing has to be deleted or rewritten.**
+
+**Requires a lawyer.** Terms of service (drafting, not merely review), invoicing, VAT, and whether charging a private individual differs from charging a business.
+
+---
+
+### LEGAL-015 — Telegram as a notification channel
+
+**Why it matters.** Sending booking data through Telegram may be a cross-border transfer of personal data (see LEGAL-003).
+
+**Current assumption.** Permissible with explicit opt-in and minimal payloads.
+
+**Built now.** Telegram is **off by default** for every category — `channelAllowed()` returns false unless a `telegram_connection` exists *and* the per-category preference is on. Linking requires a single-use token the user pastes into the bot themselves. Unlinking sets `unlinked_at` **and** disables every Telegram preference, so withdrawing consent stops future sends rather than merely breaking the link.
+
+**Verified by tests.** Notifications are recorded as `SUPPRESSED` rather than sent when consent is absent.
+
+**Requires a lawyer.** Whether payload contents constitute a transfer; if so, reduce notifications to content-free "you have a new message" pings — a payload change, not an architecture change.
+
+---
+
+### LEGAL-009 / LEGAL-010 — Reviews, trust scores, chat scanning
+
+**Why it matters.** Publishing evaluations of named individuals, computing a score about a person, and scanning private messages each carry their own exposure.
+
+**Current assumption.** Permissible with transparency.
+
+**Built now.**
+- The trust score is **explainable by construction**: `/profiles/:id` returns the components, their weights and a plain-language detail for each. An opaque automated judgement about a person is both a product failure and a legal risk.
+- Reviews are anchored to completed bookings, one per side, and publish only when both sides submit or the window closes.
+- Reviews show duration (`"останавливался(ась) на 7 ночей"`) and never exact dates — publishing when a home stood empty is a security problem.
+- Chat filtering happens server-side and tells the sender plainly why text was hidden. `body_original` is retained for moderation and dispute evidence.
+
+**Requires a lawyer.** Right of reply, correction/deletion duties, disclosure needed for message scanning, retention limit on `body_original`.
+
+---
+
+### LEGAL-006 / LEGAL-007 — Rental regimes and guest registration
+
+**Current assumption.** No regime-specific duties are implemented, and no data is collected for guest registration — a deliberate minimisation choice rather than an oversight.
+
+**Built now.** Duration is a per-listing range in nights, so short/medium/long bands are expressible as data if different rules turn out to apply. `DEC-017` records that hourly rental is deferred partly because its regulatory character is unassessed.
+
+**Requires a lawyer.** Whether daily accommodation carries permits or reporting duties, and on whom they fall.
+
+---
+
+### Summary
+
+| Question | Flag / mechanism | Default | Blocks |
+|---|---|---|---|
+| LEGAL-003 | `DATABASE_URL` configuration | — | **Production hosting** |
+| LEGAL-004 | `verification.identity_documents` | off | Identity verification launch |
+| LEGAL-012 | `rewards.lottery`, `rewards.points` | off, approval-gated | Any rewards feature |
+| LEGAL-016 | `fee.enforcement` | on (assumption) | Enforcing debt |
+| LEGAL-015 | per-user Telegram opt-in | off | Nothing — already conservative |
+| LEGAL-017 | none yet — dispute records are append-only and never purged | retained | Nothing today; a retention answer may require a purge path |
+
+**Development is not blocked.** Everything above is either built and gated, or is a configuration value. The two genuine blockers are the hosting decision (LEGAL-003) and enabling identity verification (LEGAL-004) — and both fail closed today rather than open.

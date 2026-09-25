@@ -24,6 +24,18 @@
     "cardReportsLabel": "Жалобы",
     "cardReportsDetail": "На объявления, отзывы и сообщения.",
     "cardVerificationLabel": "Заявки на верификацию",
-    "cardVerificationDetail": "Документы открывает только VERIFIER."
+    "cardVerificationDetail": "Документы открывает только VERIFIER.",
+    "watchdogTitle": "Сторож",
+    "watchdogCalm": "Все инварианты в порядке: сборы начислены, завершения не зависли, очередь уведомлений движется.",
+    "alert_FEE_MISSING": "Завершённые брони без начисленного сбора",
+    "alert_COMPLETION_STUCK": "Подтверждения завершения, зависшие после дедлайна",
+    "alert_STAY_NOT_CLOSED": "Проживания закончились, а окно подтверждения не открылось",
+    "alert_NOTIFICATION_BACKLOG": "Уведомления, ждущие отправки дольше часа",
+    "alert_NOTIFICATION_FAILURES": "Уведомления, не доставленные за сутки",
+    "alert_JOB_FAILED": "Фоновые задания с ошибкой или зависшие",
+    "alert_NEW_ERRORS": "Новые ошибки за сутки",
+    "errorsTitle": "Последние ошибки",
+    "errorsEmpty": "Ошибок не зарегистрировано.",
+    "errorsTimes": "{count, plural, one {# раз} few {# раза} many {# раз} other {# раз}}"
   }
 }

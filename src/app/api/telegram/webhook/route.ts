@@ -20,7 +20,7 @@
  *     token travels a second time.
  *   - `/status`, `/unlink`, `/help` — the three commands DECISIONS.md
  *     DEC-078 added so the bot is a real menu (registered with Telegram via
- *     `scripts/telegram-set-commands.mjs`, see DEPLOYMENT.md §5bis) rather
+ *     `scripts/telegram-set-commands.mjs`, see docs/OPERATIONS.md §5bis) rather
  *     than a bare linking mechanism a person can only use once. All three
  *     are answered from the chat id alone via `telegramLinkState`, the same
  *     way the `contact` handler already resolves "whose chat is this".

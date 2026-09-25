@@ -436,11 +436,18 @@ export class RetentionService {
       `DELETE FROM rate_limit_counter WHERE window_start < $1::timestamptz - interval '24 hours'`,
       [at],
     );
+    // A failure nobody has seen for 90 days has been fixed or forgotten; the
+    // tracker is for what is happening now (DEC-086).
+    const errors = await this.db.query(
+      `DELETE FROM error_event WHERE last_seen < $1::timestamptz - interval '90 days'`,
+      [at],
+    );
     return {
       sessions: sessions.rowCount,
       authTokens: tokens.rowCount,
       idempotencyRecords: idempotency.rowCount,
       rateLimitCounters: rateLimits.rowCount,
+      errorEvents: errors.rowCount,
     };
   }
 

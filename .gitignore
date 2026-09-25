@@ -36,7 +36,7 @@ ruvector.db
 # Database dumps. A dump holds every email address, phone number, private
 # message and exact flat address in the system — it is as sensitive as the
 # database itself and habitually ends up somewhere far less protected.
-# See docs/DATABASE_MIGRATION.md §10.
+# See docs/OPERATIONS.md, «Резервные копии и перенос базы» §10.
 *.dump
 *.sql.gz
 /backups/
@@ -48,3 +48,7 @@ deploy/*.zip
 
 # Live admin credentials. Never in git — see HOW_TO_UPDATE_THE_SITE.md §7.
 ADMIN_ACCESS.md
+
+# Playwright (npm run e2e)
+/test-results/
+/playwright-report/

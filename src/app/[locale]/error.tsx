@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation.ts';
+import { reportClientError } from '@/lib/report-error.ts';
 
 /**
  * The last line before a blank screen.
@@ -24,6 +25,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
     // The server has already logged this with its stack. Repeating the message
     // into the browser console would put internals somewhere they need not be.
     console.error('render failed', error.digest ?? '');
+    reportClientError(error);
   }, [error]);
 
   return (

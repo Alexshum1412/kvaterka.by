@@ -5,6 +5,7 @@ import { invalid, notFound } from '../../services/errors.ts';
 import { MODERATION_REASON_CODES } from '../../domain/moderation.ts';
 import { VERIFICATION_REASON_CODES } from '../../domain/verification.ts';
 import { ROLES } from '../../auth/rbac.ts';
+import { checkOperations, notifyAdministrators, type OpsAlert } from '../../services/watchdog.ts';
 
 const email = z.string().trim().toLowerCase().email('Некорректный email').max(200);
 const phone = z
@@ -830,6 +831,8 @@ export const adminRoutes: AnyRoute[] = [
         completionsResolved: [] as { id: string; status: string; feeAccrued: boolean }[],
         reviewsPublished: 0,
         failures: [] as { id: string; step: string }[],
+        /** Broken invariants the watchdog found this run (DEC-086). */
+        alerts: [] as OpsAlert[],
         /** Null when another run already holds the job; nothing was done. */
         runId: null as string | null,
         note: undefined as string | undefined,
@@ -928,6 +931,15 @@ export const adminRoutes: AnyRoute[] = [
         result.reviewsPublished = await ctx.services.reviews.publishExpiredWindows(now);
       } catch {
         result.failures.push({ id: 'reviews', step: 'PUBLISH_REVIEWS' });
+      }
+
+      /* Last, so it sees the state this run left behind: anything the steps
+         above should have fixed and did not is exactly what it reports. */
+      try {
+        result.alerts = await checkOperations(ctx.db);
+        await notifyAdministrators(ctx.db, ctx.services.notifications, result.alerts, now);
+      } catch {
+        result.failures.push({ id: 'watchdog', step: 'WATCHDOG' });
       }
 
       await ctx.services.retention.finishRun(runId, {

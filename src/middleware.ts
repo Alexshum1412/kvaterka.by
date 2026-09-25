@@ -99,7 +99,12 @@ export default function middleware(request: NextRequest): NextResponse {
     // Belt and braces with X-Frame-Options, which older browsers honour and
     // this directive supersedes.
     `frame-ancestors 'none'`,
-    `upgrade-insecure-requests`,
+    /* Not on a plain-http loopback host. There is no https://localhost to
+       upgrade to, so the directive turned next-intl's own /ru/… → /… redirect
+       into a TLS error and broke client navigation in any local production
+       build (`next start`) — which is exactly what the browser e2e suite runs.
+       A public host never matches, so production keeps the directive. */
+    ...(isLoopback(request.nextUrl.hostname) ? [] : [`upgrade-insecure-requests`]),
   ].join('; ');
 
   /* The nonce travels on the request (set above, before next-intl ran) so the
@@ -108,6 +113,10 @@ export default function middleware(request: NextRequest): NextResponse {
      read by browsers too old for nonces. */
   response.headers.set('Content-Security-Policy', policy);
   return response;
+}
+
+function isLoopback(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
 }
 
 export const config = {

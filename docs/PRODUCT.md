@@ -1,6 +1,404 @@
-# MASTER PROMPT FOR CODEX — BELARUS RENTAL PLATFORM
+# Продукт: требования и спецификация
 
-## 0. ROLE
+Первая часть — требования с идентификаторами (AUTH-001, BOOK-…) и их статус; раньше PRODUCT_REQUIREMENTS.md. Вторая — исходная спецификация, на которую ссылаются «spec §N» в коде и в DECISIONS.md; раньше CODEX_MASTER_PROMPT_BELARUS_RENTAL.md. Номера разделов сохранены.
+
+## Содержание
+
+- Требования и их статус
+- Исходная спецификация
+
+---
+
+## Требования и их статус
+
+Traceability from the master specification to implementation. Status vocabulary per spec §75: **NOT STARTED · IN PROGRESS · IMPLEMENTED · TESTED · AUDITED · BLOCKED**.
+
+`TESTED` means automated tests exist and pass. `IMPLEMENTED` means the code exists but is not yet covered by tests. Nothing is marked on the strength of a UI existing.
+
+---
+
+### AUTH — Accounts and access
+
+| ID | Requirement | Acceptance criteria | Status |
+|---|---|---|---|
+| AUTH-001 | Registration by email or phone | Account creatable with either; DB rejects an account with neither | TESTED (schema) |
+| AUTH-002 | Password hashing with a modern algorithm | argon2id, verified working on the target platform | IN PROGRESS |
+| AUTH-003 | Session management with rotation | Token stored as SHA-256; rotation chain via `previous_id`; expiry enforced | NOT STARTED (schema TESTED) |
+| AUTH-004 | Email/phone verification | Single-use tokens with expiry and attempt counting | NOT STARTED (schema TESTED) |
+| AUTH-005 | Secure password reset | Single-use, expiring, invalidates sessions | NOT STARTED |
+| AUTH-006 | Brute-force and rate limiting | Per-account and per-IP limits on auth endpoints | NOT STARTED |
+| AUTH-007 | Admin 2FA | Staff roles require a second factor | NOT STARTED |
+| AUTH-008 | RBAC least privilege | 7 roles; `SUPPORT` cannot reach identity documents | IN PROGRESS (roles modelled) |
+| AUTH-009 | Guest browsing | Published listings readable without an account | NOT STARTED |
+| AUTH-010 | Company accounts identify as companies | `COMPANY` without a company name is rejected by the DB | TESTED |
+
+### LIST — Listings
+
+| ID | Requirement | Acceptance criteria | Status |
+|---|---|---|---|
+| LIST-001 | Structured rental passport | Type, area, rooms, floor, beds, baths, capacity as typed columns | TESTED (schema) |
+| LIST-002 | Creation flow, minimum 1 photo | Publishable with one photo; quality nudges optional | NOT STARTED |
+| LIST-003 | Moderation before publication | `DRAFT → PENDING_MODERATION → PUBLISHED`; rejection carries a reason | NOT STARTED (schema TESTED) |
+| LIST-004 | Photos with ordering and one cover | DB permits exactly one cover per property | TESTED |
+| LIST-005 | Standardised amenities and rules | Controlled vocabulary, filterable | TESTED (schema) |
+| LIST-006 | Duration range per listing | min/max nights; `max >= min` enforced | TESTED |
+| LIST-007 | Approximate vs exact location | Deterministic public point; exact address only from `CONFIRMED` | TESTED (schema) |
+| LIST-008 | Freshness signals | `calendar_updated_at` / `content_updated_at` maintained and indexed | TESTED (schema) |
+| LIST-009 | Immutable snapshot at booking time | Snapshot captured and append-only | TESTED |
+
+### PRICE — Pricing and transparency
+
+| ID | Requirement | Acceptance criteria | Status |
+|---|---|---|---|
+| PRICE-001 | Fixed pricing per night or month | Monthly bills 30-night months exactly (DEC-012) | TESTED |
+| PRICE-002 | Tiered pricing by length of stay | Correct tier selected; base used when none matches | TESTED |
+| PRICE-003 | Seasonal pricing | Applied night by night; straddling stays split correctly | TESTED |
+| PRICE-004 | Total price with no hidden fees | Mandatory charges sum exactly to the stated total | TESTED |
+| PRICE-005 | Variable costs labelled, not hidden | Metered utilities appear as a zero-valued variable line | TESTED |
+| PRICE-006 | Deposit excluded from total and fee base | Refundable, so neither | TESTED |
+| PRICE-007 | Terms immutable after confirmation | Later property edits do not change a confirmed booking | TESTED |
+| PRICE-008 | Negotiation / make an offer | Immutable offer chain; at most one live offer | IMPLEMENTED (schema + FSM); service NOT STARTED |
+
+### BOOK — Booking
+
+| ID | Requirement | Acceptance criteria | Status |
+|---|---|---|---|
+| BOOK-001 | Explicit state machine | Declarative table; `applyEvent()` the only mutator | TESTED |
+| BOOK-002 | Instant booking | Straight to `CONFIRMED` where the listing allows it | TESTED |
+| BOOK-003 | Request to book | Landlord accepts/declines/counters | TESTED |
+| BOOK-004 | **No double booking under concurrency** | DB `EXCLUDE`; second overlapping confirmation fails | TESTED (constraint) / **PENDING real-server concurrency run** |
+| BOOK-005 | Back-to-back stays allowed | Checkout day bookable by the next tenant | TESTED |
+| BOOK-006 | Competing requests auto-declined | Losers declined with a stated reason in the same transaction | TESTED |
+| BOOK-007 | Idempotent creation | Retry with the same key returns the original booking | TESTED |
+| BOOK-008 | Cancellation frees the calendar | Cancelled dates immediately re-bookable | TESTED |
+| BOOK-009 | Duration and guest limits enforced | Out-of-range requests rejected with a specific code | TESTED |
+| BOOK-010 | Check-in / check-out records | One per booking × kind × reporter, with photos | TESTED (both, via `stay_event`); photo attachment NOT STARTED |
+| BOOK-012 | A stay reaches the completion window | Tenant check-out, or the scheduled sweep (DEC-037) | TESTED |
+| BOOK-013 | Either party can report a problem instead of answering | Opens a `dispute_case`; no automatic resolution (DEC-036) | TESTED |
+| BOOK-014 | A disputed booking has an exit | `RESOLVE_DISPUTE_AS_*` through the FSM, ADMIN only (DEC-042) | TESTED |
+| BOOK-011 | Request expiry | Unanswered requests expire on a schedule | IMPLEMENTED (FSM + index); worker NOT STARTED |
+
+### FEE — Service fee and landlord debt
+
+| ID | Requirement | Acceptance criteria | Status |
+|---|---|---|---|
+| FEE-001 | 5% of the final agreed amount | 1000 BYN → 50.00 BYN exactly | TESTED |
+| FEE-002 | No floating point anywhere | Integer kopecks; `money()` rejects fractional numbers | TESTED |
+| FEE-003 | Deterministic, reproducible rounding | Half away from zero; identical across 1000 evaluations | TESTED |
+| FEE-004 | **Never charged twice** | Three independent guards; retries create nothing | TESTED |
+| FEE-005 | Fee only on a completed rental | Only the `→ COMPLETED` transition accrues | TESTED |
+| FEE-006 | Immutable ledger | Update/delete rejected by trigger | TESTED |
+| FEE-007 | Balance from the ledger | `SUM(amount_minor)`; no mutable balance column | TESTED |
+| FEE-008 | Auditable fee | `base`, `bps`, `fee` stored; `verifyStoredFee()` re-derives | TESTED |
+| FEE-009 | Debt restricts new commercial activity, not active rentals | Restrictions must not harm a live booking | TESTED |
+| FEE-010 | Reminders, grace period, admin override | With audit and reason | NOT STARTED |
+
+### COMPLETE — Two-sided completion
+
+| ID | Requirement | Acceptance criteria | Status |
+|---|---|---|---|
+| COMPLETE-001 | Both parties confirm | Agreement completes or voids the rental | TESTED |
+| COMPLETE-002 | Contradiction escalates | `DISPUTED`, no fee | TESTED |
+| COMPLETE-003 | Landlord silence cannot avoid the fee | Tenant's confirmation completes after the deadline | TESTED |
+| COMPLETE-004 | Landlord admission trusted immediately | Completes without waiting | TESTED |
+| COMPLETE-005 | Lone landlord denial flagged | Honoured + `UNILATERAL_LANDLORD_DENIAL` signal | TESTED |
+| COMPLETE-006 | No debt without evidence | Total silence + no check-in → no fee | TESTED |
+| COMPLETE-007 | Answers are final | Changing a submitted answer rejected | TESTED |
+
+### CHAT — Messaging and anti-off-platform
+
+| ID | Requirement | Acceptance criteria | Status |
+|---|---|---|---|
+| CHAT-001 | Internal chat with booking context | Text, images, system messages, unread state | NOT STARTED (schema TESTED) |
+| CHAT-002 | Phone numbers detected | 10 real-world formats incl. spaced and symbol-separated | TESTED |
+| CHAT-003 | Emails detected, including obfuscated | `(собака)`, `at … dot …` | TESTED |
+| CHAT-004 | Messengers, handles, links detected | Telegram/Viber/WhatsApp, `@handle`, `t.me`, bare domains, "точка бай" | TESTED |
+| CHAT-005 | Obfuscation resisted | Zero-width chars, Cyrillic homoglyphs, spelled-out digits (ru + be) | TESTED |
+| CHAT-006 | **No false positives on normal chat** | 24-message ru/be corpus passes untouched | TESTED |
+| CHAT-007 | Redact rather than swallow | Message delivered minus the contact, sender told why | TESTED |
+| CHAT-008 | Contact release at the right stage | Released only from `CONFIRMED`; timestamped and audited | TESTED |
+| CHAT-009 | Moderation trail | Detectors, confidence and spans recorded, append-only | IMPLEMENTED (schema) |
+
+### REV — Reviews
+
+| ID | Requirement | Acceptance criteria | Status |
+|---|---|---|---|
+| REV-001 | Two-sided reviews | Tenant→landlord and landlord→tenant | TESTED |
+| REV-002 | Only after a completed rental | FK to booking; window opens on completion | TESTED |
+| REV-003 | One per side per rental | DB unique constraint | TESTED |
+| REV-004 | Structured dimensions per role | Each role's own set enforced by CHECK | TESTED |
+| REV-005 | Anti-retaliation publication | Publish when both submit, or on timeout | TESTED |
+| REV-006 | Cannot review yourself | CHECK | TESTED |
+| REV-007 | Guest-confirmed facts | `confirmed_facts` feeds the evidence layer | TESTED |
+| REV-008 | Review text is contact-filtered | Same filter as chat; redaction recorded (DEC-039) | TESTED |
+| REV-009 | Published reviews are immutable; reporting does not hide | Report queues for `review.moderate` (DEC-040) | TESTED |
+
+### VERIFY / TRUST
+
+| ID | Requirement | Acceptance criteria | Status |
+|---|---|---|---|
+| VERIFY-001 | Levels 0/1/2 | Phone+email → identity → identity + property | IMPLEMENTED (schema) |
+| VERIFY-002 | Property verification separate from identity | Distinct fields and badges | TESTED |
+| VERIFY-003 | An applicant can actually ask to be verified | Submission, resubmission preserving answers, one live request per kind | TESTED |
+| VERIFY-004 | A level is never granted with no evidence | `evidenceSufficiency()` gates every approval (DEC-045) | TESTED |
+| VERIFY-005 | Approving requires being able to open the documents | APPROVE needs `document.read`; ADMIN is refused (DEC-046) | TESTED |
+| VERIFY-006 | Structured refusal codes with a fix target | Ten codes, each with applicant text and a destination (DEC-047) | TESTED |
+| VERIFY-007 | Internal note never reaches the applicant | Separate column, separate event visibility | TESTED |
+| VERIFY-008 | Documents fail closed twice over | Legal flag AND private storage, independently (LEGAL-004) | TESTED |
+| VERIFY-009 | Level wording claims a platform check, not a legal conclusion | Asserted against a forbidden-phrase list (DEC-049) | TESTED |
+| VERIFY-003 | Documents encrypted and access-controlled | Private bucket, `VERIFIER` role only | NOT STARTED (schema TESTED) |
+| VERIFY-004 | Every document read logged | Append-only access log | TESTED (schema) |
+| VERIFY-005 | Retention and purge | `purge_after` per document, job-enforced | NOT STARTED |
+| TRUST-001 | Behaviour-based trust score | Documented, gameable-resistant, cold-start handled | NOT STARTED |
+| TRUST-002 | Trust cannot be bought | Paid promotion separate from organic ranking | NOT STARTED |
+| TRUST-003 | Public profile reflects completed activity, and only that | Counts and rating update on completion; no contact details, no counterparties | TESTED |
+
+### SEARCH / ADMIN / NOTIFY / LEGAL
+
+| ID | Requirement | Acceptance criteria | Status |
+|---|---|---|---|
+| SEARCH-001 | Radius/geo search | lat/lng rectangle on a btree index, then haversine in plain SQL; correct inclusion/exclusion | TESTED (query level, and end to end on PostgreSQL 10.23) |
+| SEARCH-002 | Russian full-text with typo tolerance | Stemming + trigram similarity | TESTED (query level) |
+| SEARCH-003 | Structured filters | Amenities, rules, price, duration, verification | NOT STARTED |
+| SEARCH-004 | Map search with clustering and bounds | Mobile-first | NOT STARTED |
+| ADMIN-001 | Admin panel exists in MVP | Moderation, verification, cases, users, flags | IN PROGRESS — moderation + disputes have screens; verification, reports and users are API-only |
+| ADMIN-002 | All admin actions audited | Actor, target, diff, reason | TESTED (dispute + booking-outcome paths) |
+| ADMIN-003 | No manual DB edits for business operations | Every operation has an audited code path | IN PROGRESS |
+| CASE-001 | Dispute queue ordered by what is most pressing | Active stay, safety/fraud, then age; server-side filter and paging | TESTED |
+| CASE-002 | Deterministic priority users cannot set | Derived from category, booking state, signals and age (DEC-041) | TESTED |
+| CASE-003 | Case workflow through a transition table | Only declared moves; a reason required for consequential ones | TESTED |
+| CASE-004 | Deciding a case is separate from deciding the booking | `case.resolve` for both; no amount crosses the boundary (DEC-042) | TESTED |
+| CASE-005 | Internal notes never reach the parties | `case_event.visibility` defaults to INTERNAL (DEC-043) | TESTED |
+| CASE-006 | Evidence assembled per entitlement | Messages need `message.review`, finance `debt.view` (DEC-044) | TESTED |
+| CASE-007 | Identity documents unreachable from a case | No role, including ADMIN, reaches one from the console | TESTED |
+| CASE-008 | Assignment to staff who work cases | Assign, reassign, unassign; every change in the case history | TESTED |
+| CASE-009 | Staff communication through the notification queue | The console is never exposed; internal notes never sent | TESTED |
+| NOTIFY-001 | In-app / email / Telegram | Preferences per category and channel | NOT STARTED (schema TESTED) |
+| NOTIFY-002 | Idempotent delivery | Dedupe key unique per user × channel | TESTED (schema) |
+| NOTIFY-003 | Telegram is notifications only | Canonical history stays on-platform | IMPLEMENTED (by design) |
+| LEGAL-001 | Legal risk register exists | Every topic with confidence and lawyer-review flag | IMPLEMENTED — see [docs/LEGAL.md](LEGAL.md) |
+| LEGAL-002 | Rewards/lottery gated | Feature flag with `requires_legal_approval`; no prize logic | IMPLEMENTED (DEC-015) |
+| LEGAL-003 | Belarus legal verification | **BLOCKED** — requires a Belarus-qualified lawyer | BLOCKED |
+
+### UX
+
+| ID | Requirement | Acceptance criteria | Status |
+|---|---|---|---|
+| UX-001 | Mobile-first critical flows | Search, map, listing, booking, chat, calendar, check-in, review | NOT STARTED |
+| UX-002 | Accessibility baseline | Keyboard, labels, semantics, contrast, focus, touch targets | NOT STARTED |
+| UX-003 | Loading / empty / error states | Every async surface | NOT STARTED |
+| UX-004 | Original design language | Not an Airbnb clone; own identity | NOT STARTED |
+| UX-005 | Errors never leak internals | Stable codes, safe messages, correlation id | IMPLEMENTED (`errors.ts`) |
+
+---
+
+### Reconciliation — tenant journey slice (2026-08-17)
+
+The status table above is **stale in parts**: several rows still read `NOT STARTED`
+for things that have since shipped and are covered by tests. Rather than sweep the
+whole table on the strength of a UI existing — which the status vocabulary
+explicitly forbids — only the rows this slice's tests actually prove are restated
+here. Everything else keeps its old value until someone verifies it row by row.
+
+Verified by `tests/tenant-journey.integration.test.ts` (30 tests) and
+`tests/moderation.integration.test.ts` (32 tests):
+
+| ID | Restated status | Evidence |
+|---|---|---|
+| AUTH-009 | TESTED | anonymous search returns published listings; anonymous booking is 401 |
+| LIST-002 | TESTED | wizard creates from a property type alone; submit refuses without a photo |
+| LIST-003 | TESTED | `DRAFT → PENDING_MODERATION → PUBLISHED`, rejection carries structured reasons |
+| BOOK-001 | TESTED | request creates `REQUESTED` without holding the calendar |
+| BOOK-002 | TESTED | landlord accept confirms and holds the dates; decline frees them |
+| BOOK-003 | TESTED | two tenants may request the same nights; only one confirmation succeeds |
+| BOOK-004 | TESTED | idempotent with a key, and with none (DEC-034) |
+| PRICE-001 | TESTED | quote returns integer minor units for the real stay |
+
+Not implemented in that slice, and deliberately not restated there: payment
+processing, escrow, reviews (the write path), completion beyond the existing FSM
+states, and `PRICE-008` negotiation.
+
+### Status reconciliation — the completion and review slice
+
+Verified by `tests/completion-reviews.integration.test.ts` (56 tests) over the
+real dispatcher, plus a browser walkthrough of the same journey. Only rows this
+suite actually exercises are restated:
+
+| ID | Restated status | Evidence |
+|---|---|---|
+| BOOK-010 | TESTED | check-in and check-out each write one `stay_event` per reporter; a retry is a no-op |
+| BOOK-012 | TESTED | tenant check-out and the `lifecycle.run` sweep both reach `COMPLETION_PENDING`; neither completes a booking |
+| BOOK-013 | TESTED | a report opens one `dispute_case`, freezes the fee, and leaves `resolution` NULL |
+| FEE-001 | TESTED | 480.00 BYN base → 24.00 BYN; 99.99 → 5.00 with half-up rounding |
+| FEE-004 | TESTED | three repeated confirmations produce one `service_fee` and one ledger accrual |
+| FEE-005 | TESTED | `NOT_TAKEN_PLACE` and `DISPUTED` accrue nothing; silence with no check-in record accrues nothing |
+| FEE-009 | TESTED | a restricted landlord cannot accept a NEW booking but can still check in, check out and complete an ACTIVE one |
+| REV-001 | TESTED | both directions submit, and each side becomes eligible independently |
+| REV-002 | TESTED | eligibility and submission both refused before completion and after cancellation |
+| REV-005 | TESTED | the first review stays `PENDING` and invisible; both publish together, or a lone one publishes when the window closes |
+| REV-007 | TESTED | confirmed facts aggregate as `confirmed`/`total`, including a contradiction |
+| REV-008 | TESTED | a phone number and an email in review text are redacted and a moderation note is recorded |
+| REV-009 | TESTED | reporting leaves the review `PUBLISHED`; reporting your own is refused |
+| TRUST-003 | TESTED | completed-rental counts and rating update for both sides; the public profile carries no email, phone or counterparty id |
+
+Still not implemented at that point, and deliberately not restated there:
+payment processing, escrow, `PRICE-008` negotiation, stay photos on
+check-in/check-out records, and any scheduler that calls `lifecycle.run` on its
+own. `REV-002`'s review window is opened by the transition (DEC-035); bookings
+completed before that fix still carry a NULL deadline and are not backfilled.
+
+### Status reconciliation — the staff operations slice
+
+Verified by `tests/staff-operations.integration.test.ts` (39 tests) and
+`src/server/domain/dispute.test.ts` (22 tests), plus a browser walkthrough of
+the whole case lifecycle. Only rows those suites exercise are restated:
+
+| ID | Restated status | Evidence |
+|---|---|---|
+| ADMIN-002 | TESTED | four staff actions each produce an audit row with actor, ADMIN role, reason and before/after state; the log refuses UPDATE and DELETE |
+| CASE-001 | TESTED | an active-stay safety report sorts above a ten-day-old routine case; filtering and paging happen in SQL |
+| CASE-002 | TESTED | `priorityOf()` and `PRIORITY_SQL` agree across every category × booking state, and on the signal and age escalations |
+| CASE-003 | TESTED | a move the table does not define is 409, a consequential move with no reason is 422 |
+| CASE-004 | TESTED | SUPPORT and MODERATOR are refused both `RESOLVE` and the booking outcome; a posted `feeMinor` changes nothing |
+| CASE-005 | TESTED | an internal note is absent from both parties' booking payloads and cannot be edited or deleted |
+| CASE-006 | TESTED | SUPPORT sees finance and not messages, MODERATOR the reverse; an unavailable section is absent, not empty |
+| CASE-007 | TESTED | SUPPORT, MODERATOR, FINANCE and ADMIN are all refused a document; VERIFIER must state a purpose and the read is logged |
+| CASE-008 | TESTED | assign / reassign / unassign, refused for a user who does not work cases |
+| CASE-009 | TESTED | the request reaches the tenant's inbox; the internal note and the console path do not |
+| BOOK-014 | TESTED | `RESOLVE_DISPUTE_AS_*` moves a DISPUTED booking and accrues the fee from its frozen terms; refused from any other state |
+| FEE-004 | TESTED | a dispute outcome cannot fabricate an amount, and the ledger still refuses UPDATE and DELETE |
+
+Still not implemented, and deliberately not restated: payment processing,
+escrow, `PRICE-008` negotiation, stay photos, any scheduler that calls
+`lifecycle.run` on its own, and screens for the report, verification and user
+queues — those remain API-only behind their existing permissions, and the
+overview says so on the card rather than linking nowhere. There is no
+resolution-template or bulk-action support, and no SLA notification: overdue is
+computed and shown, and nothing chases it.
+
+The intended platform role is unchanged: a venue connecting the parties, with rent
+paid directly between them. No new legal claim is made here, and no legally gated
+feature was enabled. Dispute handling is described throughout as «рассмотрение
+обращения» and «решение по обращению» — an internal review, not arbitration.
+
+
+
+### Notification delivery, staff 2FA and booking expiry
+
+| ID | Requirement | Status |
+|---|---|---|
+| NOTIF-001 | A queued notification is actually delivered | TESTED — for IN_APP, the only channel with a transport |
+| NOTIF-002 | The same notification is never delivered twice by two runs | TESTED — the claim moves the row to SENDING inside the claiming statement |
+| NOTIF-003 | Two concurrent workers do the work once | TESTED — the job_run mutex turns the second away |
+| NOTIF-004 | A transient failure retries later, not immediately | TESTED — `next_attempt_at`, and the row is not re-claimed before it |
+| NOTIF-005 | The backoff escalates rather than repeating at a fixed interval | TESTED |
+| NOTIF-006 | A permanent failure is never retried | TESTED |
+| NOTIF-007 | SENT is unreachable except through a provider reporting DELIVERED | TESTED |
+| NOTIF-008 | A channel with no transport is never claimed, so the backlog stays honest | TESTED |
+| NOTIF-009 | The recipient address is resolved at send time from the user record | TESTED — and never from the payload |
+| NOTIF-010 | A notification never reaches the wrong person | TESTED |
+| NOTIF-011 | An account with no address for a channel is suppressed, not failed | TESTED — a phone-only account has no email |
+| NOTIF-012 | A row a dead worker never settled is reclaimed | TESTED |
+| NOTIF-013 | The backlog view carries no address and no message body | TESTED |
+| NOTIF-014 | Real EMAIL delivery | LIVE — `smtpProvider()` (nodemailer) ships in `provider.ts`; `SMTP_URL`/`MAIL_FROM` confirmed set in production via the cPanel env panel (DEC-080) |
+| NOTIF-015 | Real TELEGRAM delivery | LIVE — `telegramProvider()` plus the `/api/telegram/webhook` route and account-linking UI ship; `TELEGRAM_BOT_TOKEN` confirmed set in production (DEC-080) |
+| 2FA-001 | Staff roles are unusable without a second factor | TESTED — at the route AND in the roles a console page reads |
+| 2FA-002 | An ordinary account is unaffected | TESTED |
+| 2FA-003 | A landlord who is also staff keeps the landlord half | TESTED |
+| 2FA-004 | TOTP interoperates with real authenticator apps | TESTED — RFC 6238 vectors, plus a WebCrypto cross-check in a browser |
+| 2FA-005 | A code cannot be replayed within its window | TESTED |
+| 2FA-006 | Repeated failures lock out, escalating, cleared only by success | TESTED — including that the counter survives its own rejection |
+| 2FA-007 | Recovery codes work once each | TESTED |
+| 2FA-008 | Recovery codes are stored only as hashes | TESTED |
+| 2FA-009 | A valid authenticator code never burns a recovery code | TESTED |
+| 2FA-010 | Every failure says the same thing | TESTED |
+| 2FA-011 | A submitted code never reaches the audit log | TESTED |
+| 2FA-012 | A rotated session keeps its authentication level | TESTED |
+| 2FA-013 | Disabling requires a current code | TESTED — a stolen session cannot remove the factor |
+| 2FA-014 | SUPPORT cannot reset a colleague's 2FA; ADMIN can, with a reason | TESTED |
+| 2FA-015 | Sensitive permissions require a recent confirmation | TESTED — and ordinary queue work does not |
+| 2FA-016 | The enrolment page is reachable while roles are withheld | TESTED |
+| 2FA-017 | The TOTP secret is protected at rest | **NOT MET** — plaintext; no encryption-at-rest layer exists (DEC-055) |
+| EXPIRE-001 | An unanswered request expires | TESTED |
+| EXPIRE-002 | A request within its window does not | TESTED |
+| EXPIRE-003 | Expiry writes an event and an audit row attributed to the job | TESTED |
+| EXPIRE-004 | Running twice expires once and notifies once | TESTED |
+| EXPIRE-005 | A landlord accepting first makes expiry a no-op, not a failure | TESTED |
+| EXPIRE-006 | Accepting an expired request is refused with a usable error | TESTED — 409 |
+
+**Deliberately not built.** No SMS as a factor. No "remember this device" — it would need a threat-model analysis this slice did not do, and an unanalysed trusted-device cookie is a second factor that quietly stops being one. No 2FA for ordinary tenants and landlords. Noself-service recovery that bypasses the authenticator.
+
+### Data lifecycle and retention
+
+| ID | Requirement | Status |
+|---|---|---|
+| DATA-001 | Every table has a declared data class, subject, disposition on account closure and retention window | TESTED — `RETENTION_CATALOGUE`, compared against `information_schema` so a new table cannot be added without one |
+| DATA-002 | No retention period is defined anywhere without a cited basis | TESTED — every window is technical, per-row, indefinite-with-reason, or UNKNOWN naming its LEGAL-xxx; a test forbids a fourth kind |
+| DATA-003 | An absent retention window never permits destruction | TESTED — `purge_after IS NULL` yields RETAINED and blocks with `NO_RETENTION_POLICY` |
+| DATA-004 | Retention state is derived, and the TypeScript and SQL rules agree | TESTED — all 36 combinations through both |
+| DATA-005 | A legal hold blocks destruction, including one placed after the candidate list was built | TESTED — re-checked inside the purge transaction under a row lock |
+| DATA-006 | Placing a hold is broader than lifting one; lifting requires ADMIN and a written reason | TESTED — SUPPORT places and is refused 403 on release; the database refuses a release with no reason |
+| DATA-007 | VERIFIER can neither hold nor run retention | TESTED — 404 on the page, 403 on all four routes |
+| DATA-008 | Purging destroys bytes before recording it, and never records an unconfirmed destruction | TESTED — a failing store leaves `purged_at` NULL and the row is retried |
+| DATA-009 | The access log survives the document it describes | TESTED — and still refuses direct deletion afterwards |
+| DATA-010 | No retention response carries a storage key at any permission level | TESTED — across ADMIN, SUPPORT, MODERATOR |
+| DATA-011 | A scheduled job cannot run twice concurrently, and records what it did | TESTED — partial unique index; a stale run is reclaimed after a lease |
+| DATA-012 | One failing item never abandons the batch | TESTED — 3 documents, the middle one fails, the others are destroyed |
+| DATA-013 | Closing an account revokes all access and destroys nothing | TESTED — session dead, re-login refused, the row and display name intact |
+| DATA-014 | Closure is refused during an active booking, an open dispute or a hold — and never for debt | TESTED |
+| DATA-015 | The closure screen names every unbuilt erasure step with its legal blocker | TESTED — and no step that destroys personal data may be marked built |
+| DATA-016 | Financial and audit records survive every retention operation | TESTED — counts and content unchanged; append-only tables still refuse mutation |
+| DATA-017 | Erasure of personal data | **NOT BUILT** — LEGAL-003. Declared, surfaced, refused. |
+| DATA-018 | Purge or anonymisation of dispute records | **NOT BUILT** — LEGAL-017 |
+| DATA-019 | Data export | **NOT STARTED** — LEGAL-003 |
+| DATA-020 | Real destruction of document bytes | **NOT POSSIBLE** — no private object storage exists; the store refuses rather than pretending |
+
+**Deliberately not built, and not claimed.** No anonymisation routine of any
+kind. No redaction of `message.body_original`. No purge of disputes, reviews,
+listings or media. No automatic expiry of legal holds — a hold that released
+itself would not be a hold. Each of these is listed in the risk register as a
+consequence of an *unfavourable* answer, which makes it a contingency rather
+than a default, and building a destruction path before knowing what may be kept
+would be exactly backwards.
+
+**The one number in the subsystem** is a ninety-day review cadence for legal
+holds. It decides how often staff must look at a hold, never how long anybody's
+data is kept, which is why it can be a number when no retention window can be.
+
+### Status reconciliation — the verification slice
+
+Verified by `tests/verification.integration.test.ts` (42 tests) and
+`src/server/domain/verification.test.ts` (29 tests), plus a browser walkthrough
+of both sides. Only rows those suites exercise are restated:
+
+| ID | Restated status | Evidence |
+|---|---|---|
+| VERIFY-001 | TESTED | levels 0/1/2 with level 2 reachable only via a property request by somebody already holding level 1 |
+| VERIFY-003 | TESTED | a submitted request appears in the verifier queue; a second submit returns the first rather than duplicating it |
+| VERIFY-004 | TESTED | approval refused with the flag off, with no documents, and with a document but no selfie — the level stays 0 in every case |
+| VERIFY-005 | TESTED | ADMIN is offered no approve action and refused 403 on both the new and the legacy endpoint; VERIFIER succeeds on both |
+| VERIFY-006 | TESTED | an empty rejection is 422; codes reach the applicant with explanations and a fix target |
+| VERIFY-007 | TESTED | the internal note is absent from the applicant's view, their timeline and their notifications |
+| VERIFY-008 | TESTED | `FEATURE_DISABLED` with the flag off, `NOT_IMPLEMENTED` with the flag on and no bucket |
+| VERIFY-009 | TESTED | no forbidden legal phrasing in any level label, claim, explanation or refusal text |
+| ADMIN-002 | TESTED | submit, take, assign and reject each produce an audit row with actor, role and reason |
+
+**Deliberately not built, and not claimed.** There is no document upload path that
+works — collection is gated on LEGAL-004 and on private object storage that does
+not exist, and both refuse independently. The purge job now exists
+(the retention slice), and `purge_after` is deliberately left NULL, which the
+retention domain treats as never eligible — so the job cannot act on a window
+nobody chose. There is no
+selfie-matching, liveness check or third-party KYC integration. Approving is
+impossible today by design, and the console says so rather than looking broken.
+
+---
+
+## Исходная спецификация
+
+> Исходный бриф проекта, сохранён дословно. Имена файлов в нём — те, что были на момент написания; где они теперь, сказано в README.md.
+
+### 0. ROLE
 
 You are the principal product architect, senior full-stack engineer, system designer, security architect, DevOps engineer, QA lead, UX/product strategist, and technical project manager for this product.
 
@@ -28,7 +426,7 @@ This document is the product vision and baseline specification. It does not over
 
 ---
 
-# 1. PRODUCT VISION
+## 1. PRODUCT VISION
 
 We are building a Belarusian rental marketplace inspired by the convenience of Airbnb, but NOT a clone.
 
@@ -62,7 +460,7 @@ Core value:
 
 ---
 
-# 2. INITIAL LEGAL / BUSINESS MODEL
+## 2. INITIAL LEGAL / BUSINESS MODEL
 
 The company behind the platform already has an LLC/ООО.
 
@@ -112,7 +510,7 @@ Create a legal-risk matrix and identify exactly what must be verified by a Belar
 
 ---
 
-# 3. CORE DIFFERENTIATOR
+## 3. CORE DIFFERENTIATOR
 
 The platform should make users feel:
 
@@ -120,7 +518,7 @@ The platform should make users feel:
 
 Major product principle:
 
-## RENTAL WITHOUT SURPRISES
+### RENTAL WITHOUT SURPRISES
 
 The platform should proactively eliminate:
 - hidden fees;
@@ -137,9 +535,9 @@ The platform should proactively eliminate:
 
 ---
 
-# 4. TARGET USERS
+## 4. TARGET USERS
 
-## 4.1 Tenant / renter
+### 4.1 Tenant / renter
 
 Examples:
 - tourist;
@@ -152,7 +550,7 @@ Examples:
 - person renting for several months;
 - person renting for a year or more.
 
-## 4.2 Landlord / property owner
+### 4.2 Landlord / property owner
 
 Examples:
 - individual with one apartment;
@@ -164,7 +562,7 @@ Examples:
 
 Companies/agencies must NOT pretend to be ordinary private individuals.
 
-## 4.3 Administrator / moderation staff
+### 4.3 Administrator / moderation staff
 
 Responsible for:
 - moderation;
@@ -182,7 +580,7 @@ Architect for role-based permissions and least privilege.
 
 ---
 
-# 5. GEOGRAPHY AND LANGUAGE
+## 5. GEOGRAPHY AND LANGUAGE
 
 Launch market:
 - Belarus only.
@@ -205,7 +603,7 @@ Centralize:
 
 ---
 
-# 6. RENTAL DURATION MODEL
+## 6. RENTAL DURATION MODEL
 
 This is one of the defining product features.
 
@@ -241,17 +639,17 @@ The same listing can have different pricing for different durations.
 
 ---
 
-# 7. PRICING MODEL
+## 7. PRICING MODEL
 
 The platform must support multiple pricing strategies.
 
-## 7.1 Fixed pricing
+### 7.1 Fixed pricing
 Examples:
 - 100 BYN/night
 - 1,900 BYN/month
 - 20,000 BYN/year
 
-## 7.2 Tiered pricing
+### 7.2 Tiered pricing
 Example:
 - 1–3 days: 120 BYN/day
 - 4–7 days: 105 BYN/day
@@ -259,19 +657,19 @@ Example:
 - 1–6 months: 2,100 BYN/month
 - 6+ months: 1,800 BYN/month
 
-## 7.3 Seasonal pricing
+### 7.3 Seasonal pricing
 Different prices by date periods.
 
-## 7.4 Day-of-week pricing
+### 7.4 Day-of-week pricing
 Optional.
 
-## 7.5 Demand/recommendation mode
+### 7.5 Demand/recommendation mode
 System can recommend pricing but must NOT silently change it unless landlord explicitly enables an automation mode.
 
-## 7.6 Custom price
+### 7.6 Custom price
 Landlord manually sets prices.
 
-## 7.7 Negotiation / “Make an offer”
+### 7.7 Negotiation / “Make an offer”
 Optional per listing.
 
 Flow:
@@ -285,7 +683,7 @@ The platform must support a wide range of landlord styles rather than forcing on
 
 ---
 
-# 8. TOTAL PRICE / TRANSPARENCY
+## 8. TOTAL PRICE / TRANSPARENCY
 
 The tenant must see the total expected rental cost before committing.
 
@@ -315,25 +713,25 @@ After a booking is confirmed:
 
 ---
 
-# 9. BOOKING MODES
+## 9. BOOKING MODES
 
 Each listing can choose one or more supported modes, subject to rules.
 
-## 9.1 Instant booking
+### 9.1 Instant booking
 Tenant confirms according to listing conditions.
 
-## 9.2 Request-to-book
+### 9.2 Request-to-book
 Tenant submits a request.
 Landlord accepts/rejects.
 
-## 9.3 Negotiation
+### 9.3 Negotiation
 Tenant and landlord agree on custom price/terms.
 
 Do not build separate parallel systems if one booking state machine can support all modes cleanly.
 
 ---
 
-# 10. BOOKING STATE MACHINE
+## 10. BOOKING STATE MACHINE
 
 Design an explicit finite state machine.
 
@@ -382,7 +780,7 @@ Document every transition:
 
 ---
 
-# 11. TWO-SIDED COMPLETION CONFIRMATION
+## 11. TWO-SIDED COMPLETION CONFIRMATION
 
 This is critical.
 
@@ -406,7 +804,7 @@ Design a robust event-driven workflow.
 
 ---
 
-# 12. PLATFORM SERVICE FEE / LANDLORD DEBT
+## 12. PLATFORM SERVICE FEE / LANDLORD DEBT
 
 Default:
 - 5% of the final agreed rental amount.
@@ -452,7 +850,7 @@ Use immutable ledger-style records where appropriate.
 
 ---
 
-# 13. REGISTRATION
+## 13. REGISTRATION
 
 Require accounts for meaningful platform actions.
 
@@ -470,9 +868,9 @@ Avoid requiring excessive personal data at initial registration.
 
 ---
 
-# 14. USER PROFILE VISIBILITY
+## 14. USER PROFILE VISIBILITY
 
-## Tenant can see landlord:
+### Tenant can see landlord:
 - personal name OR company name;
 - rating;
 - number of active properties;
@@ -480,7 +878,7 @@ Avoid requiring excessive personal data at initial registration.
 - completed rental count;
 - useful public trust information.
 
-## Landlord can see tenant:
+### Landlord can see tenant:
 - name;
 - rating;
 - completed rental count;
@@ -499,11 +897,11 @@ Public profile must be privacy-safe.
 
 ---
 
-# 15. VERIFICATION SYSTEM
+## 15. VERIFICATION SYSTEM
 
 Three main levels.
 
-## Level 0 — “Newcomer”
+### Level 0 — “Newcomer”
 Verified:
 - phone;
 - email.
@@ -514,7 +912,7 @@ Listing visible, but:
 - no verification badge;
 - restricted advanced capabilities as defined by policy.
 
-## Level 1 — “Identity verified”
+### Level 1 — “Identity verified”
 Identity verified using:
 - passport/photo documents + selfie;
 OR
@@ -529,7 +927,7 @@ Benefits may include:
 - improved search ranking;
 - other reasonable trust benefits.
 
-## Level 2 — “Verified”
+### Level 2 — “Verified”
 Verify:
 - identity;
 - right to rent the specific property;
@@ -551,7 +949,7 @@ If not available, design manual/document verification.
 
 ---
 
-# 16. PROPERTY VERIFICATION
+## 16. PROPERTY VERIFICATION
 
 Property verification is separate from identity verification.
 
@@ -576,7 +974,7 @@ Do not make badges misleading.
 
 ---
 
-# 17. DOCUMENT SECURITY
+## 17. DOCUMENT SECURITY
 
 Identity documents and verification materials are highly sensitive.
 
@@ -596,7 +994,7 @@ Need a privacy/data-protection review before production.
 
 ---
 
-# 18. PROPERTY CREATION FLOW
+## 18. PROPERTY CREATION FLOW
 
 Make listing creation extremely easy.
 
@@ -633,7 +1031,7 @@ However, use:
 
 ---
 
-# 19. MAP
+## 19. MAP
 
 Map is central.
 
@@ -657,7 +1055,7 @@ Design provider abstraction so map provider can be replaced later.
 
 ---
 
-# 20. PHOTOS
+## 20. PHOTOS
 
 Support:
 - multiple photos;
@@ -677,7 +1075,7 @@ Encourage high-quality complete galleries.
 
 ---
 
-# 21. PROPERTY “RENTAL PASSPORT”
+## 21. PROPERTY “RENTAL PASSPORT”
 
 Each listing should have a structured factual profile.
 
@@ -715,7 +1113,7 @@ Store structured data, not only free text.
 
 ---
 
-# 22. PROPERTY TAGS / FILTERABLE RULES
+## 22. PROPERTY TAGS / FILTERABLE RULES
 
 Examples:
 - smoking prohibited;
@@ -747,18 +1145,18 @@ Free text can complement tags but must not replace structured values for critica
 
 ---
 
-# 23. SMART / STANDARD LANDLORD MODES
+## 23. SMART / STANDARD LANDLORD MODES
 
 Landlord can choose how much automation to use.
 
-## Standard
+### Standard
 Manual:
 - pricing;
 - calendar;
 - booking acceptance;
 - rules.
 
-## Flexible
+### Flexible
 Adds:
 - seasonal rules;
 - discounts;
@@ -766,7 +1164,7 @@ Adds:
 - minimum stay logic;
 - negotiation.
 
-## Smart
+### Smart
 Adds:
 - price suggestions;
 - occupancy recommendations;
@@ -780,7 +1178,7 @@ Never silently change landlord-controlled business values.
 
 ---
 
-# 24. CALENDAR
+## 24. CALENDAR
 
 Calendar must be one of the best parts of the product.
 
@@ -824,7 +1222,7 @@ Potential future:
 
 ---
 
-# 25. INTERNAL CHAT
+## 25. INTERNAL CHAT
 
 All meaningful communication should occur inside the platform.
 
@@ -844,7 +1242,7 @@ Chat must support:
 
 ---
 
-# 26. ANTI-OFF-PLATFORM / CONTACT BLOCKING
+## 26. ANTI-OFF-PLATFORM / CONTACT BLOCKING
 
 Before an appropriate booking stage, the chat should block or flag:
 - phone numbers;
@@ -892,7 +1290,7 @@ The product should log when contact-sharing permissions change.
 
 ---
 
-# 27. TELEGRAM NOTIFICATIONS
+## 27. TELEGRAM NOTIFICATIONS
 
 Telegram is an optional NOTIFICATION CHANNEL.
 
@@ -917,7 +1315,7 @@ Secure linking and unlinking.
 
 ---
 
-# 28. REVIEWS
+## 28. REVIEWS
 
 Reviews are core trust infrastructure.
 
@@ -936,7 +1334,7 @@ Do not allow one party to see the other's unpublished review in a way that can i
 
 ---
 
-# 29. STRUCTURED REVIEWS
+## 29. STRUCTURED REVIEWS
 
 Do not allow only:
 “5 stars, everything good.”
@@ -978,7 +1376,7 @@ Avoid publishing exact private dates unless explicitly needed.
 
 ---
 
-# 30. REVIEW QUALITY
+## 30. REVIEW QUALITY
 
 Prevent empty meaningless reviews.
 
@@ -999,7 +1397,7 @@ Review integrity:
 
 ---
 
-# 31. TRUST SCORE
+## 31. TRUST SCORE
 
 Create a reputation system stronger than a simple star rating.
 
@@ -1035,7 +1433,7 @@ plus explanation.
 
 ---
 
-# 32. RENTAL DNA / COMPATIBILITY
+## 32. RENTAL DNA / COMPATIBILITY
 
 This is a differentiator.
 
@@ -1074,7 +1472,7 @@ Explain why:
 
 ---
 
-# 33. AI / NATURAL-LANGUAGE SEARCH
+## 33. AI / NATURAL-LANGUAGE SEARCH
 
 Support natural-language intent.
 
@@ -1101,7 +1499,7 @@ Only use indexed/verified listing data.
 
 ---
 
-# 34. “WHY THIS LISTING”
+## 34. “WHY THIS LISTING”
 
 For each result, explain:
 - what matched;
@@ -1122,7 +1520,7 @@ This is a major trust feature.
 
 ---
 
-# 35. FACTUAL CONFIRMATION BY TENANTS
+## 35. FACTUAL CONFIRMATION BY TENANTS
 
 Distinguish:
 “Landlord says”
@@ -1139,7 +1537,7 @@ Design a moderation/anti-gaming layer.
 
 ---
 
-# 36. CHECK-IN / CHECK-OUT
+## 36. CHECK-IN / CHECK-OUT
 
 Introduce a rental workflow.
 
@@ -1162,7 +1560,7 @@ Quick flow first, detailed evidence second.
 
 ---
 
-# 37. PROPERTY CONDITION TIMELINE
+## 37. PROPERTY CONDITION TIMELINE
 
 Optional/encouraged:
 - before check-in photos;
@@ -1182,7 +1580,7 @@ It preserves evidence and offers a structured case workflow.
 
 ---
 
-# 38. CASE / DISPUTE SYSTEM
+## 38. CASE / DISPUTE SYSTEM
 
 Every important problem can create a case.
 
@@ -1223,7 +1621,7 @@ Never let regular support staff silently alter evidence.
 
 ---
 
-# 39. PROPERTY / LISTING FRESHNESS
+## 39. PROPERTY / LISTING FRESHNESS
 
 Display:
 - calendar updated;
@@ -1243,7 +1641,7 @@ Possible inactivity automation:
 
 ---
 
-# 40. SEARCH
+## 40. SEARCH
 
 Search must support:
 - city;
@@ -1274,7 +1672,7 @@ Mobile UX is first-class.
 
 ---
 
-# 41. MAP SEARCH
+## 41. MAP SEARCH
 
 Support:
 - map/list split;
@@ -1289,7 +1687,7 @@ Do not overwhelm map with too much information.
 
 ---
 
-# 42. LANDLORD DASHBOARD
+## 42. LANDLORD DASHBOARD
 
 Need:
 - listings;
@@ -1311,7 +1709,7 @@ Need:
 
 ---
 
-# 43. TENANT DASHBOARD
+## 43. TENANT DASHBOARD
 
 Need:
 - saved listings;
@@ -1331,7 +1729,7 @@ Need:
 
 ---
 
-# 44. ADMIN PANEL
+## 44. ADMIN PANEL
 
 Must exist in MVP.
 
@@ -1358,7 +1756,7 @@ No “magic” direct DB edits for routine business operations.
 
 ---
 
-# 45. MONETIZATION
+## 45. MONETIZATION
 
 Primary planned monetization:
 - 5% landlord service fee after completed rental.
@@ -1380,7 +1778,7 @@ Separate:
 
 ---
 
-# 46. REWARDS / LOTTERY IDEA
+## 46. REWARDS / LOTTERY IDEA
 
 Original product idea:
 - every completed honest transaction can generate a digital ticket;
@@ -1408,7 +1806,7 @@ Build a future-compatible Reward subsystem, but gate the actual prize/lottery me
 
 ---
 
-# 47. ANTI-FRAUD
+## 47. ANTI-FRAUD
 
 Need platform-wide anti-fraud.
 
@@ -1434,7 +1832,7 @@ Provide admin explanation.
 
 ---
 
-# 48. SECURITY
+## 48. SECURITY
 
 Treat this as a production financial-adjacent marketplace even though rental payments are outside our platform in MVP.
 
@@ -1464,7 +1862,7 @@ Identity/document access should be especially strict.
 
 ---
 
-# 49. PRIVACY
+## 49. PRIVACY
 
 Create a real privacy architecture.
 
@@ -1492,7 +1890,7 @@ Do not expose internal identifiers unnecessarily.
 
 ---
 
-# 50. LEGAL RESEARCH REQUIREMENT
+## 50. LEGAL RESEARCH REQUIREMENT
 
 Before production launch, research current Belarusian requirements using authoritative sources.
 
@@ -1537,7 +1935,7 @@ Never state “legally safe” without evidence.
 
 ---
 
-# 51. TECHNICAL ARCHITECTURE PRINCIPLES
+## 51. TECHNICAL ARCHITECTURE PRINCIPLES
 
 You must choose the best stack based on the existing repository.
 
@@ -1565,7 +1963,7 @@ Do not over-engineer MVP.
 
 ---
 
-# 52. DATA MODEL
+## 52. DATA MODEL
 
 Design normalized relational entities for core concepts.
 
@@ -1626,7 +2024,7 @@ Use immutable/auditable records for:
 
 ---
 
-# 53. SEARCH ARCHITECTURE
+## 53. SEARCH ARCHITECTURE
 
 Search must eventually scale.
 
@@ -1652,7 +2050,7 @@ Need:
 
 ---
 
-# 54. FILE STORAGE
+## 54. FILE STORAGE
 
 Property photos and identity documents must not live in the same unrestricted bucket.
 
@@ -1665,7 +2063,7 @@ Use signed URLs / controlled access where appropriate.
 
 ---
 
-# 55. NOTIFICATION ARCHITECTURE
+## 55. NOTIFICATION ARCHITECTURE
 
 Support:
 - in-app;
@@ -1686,7 +2084,7 @@ Need:
 
 ---
 
-# 56. AUDIT LOGGING
+## 56. AUDIT LOGGING
 
 Critical events require audit logs:
 - login/security changes;
@@ -1713,7 +2111,7 @@ Logs must be tamper-resistant enough for operational use and include:
 
 ---
 
-# 57. UX PRINCIPLES
+## 57. UX PRINCIPLES
 
 The platform must be:
 - mobile-first;
@@ -1734,7 +2132,7 @@ Do not force professional-level controls on casual users.
 
 ---
 
-# 58. DESIGN LANGUAGE
+## 58. DESIGN LANGUAGE
 
 Aim for:
 - trustworthy;
@@ -1750,7 +2148,7 @@ Create original information architecture and visual identity.
 
 ---
 
-# 59. SEO
+## 59. SEO
 
 Plan for:
 - city pages;
@@ -1770,7 +2168,7 @@ Do not expose private profile/booking content to search engines.
 
 ---
 
-# 60. PERFORMANCE
+## 60. PERFORMANCE
 
 Targets:
 - fast first load;
@@ -1788,7 +2186,7 @@ Do not render huge result sets on mobile.
 
 ---
 
-# 61. OBSERVABILITY
+## 61. OBSERVABILITY
 
 Production must have:
 - structured logs;
@@ -1815,7 +2213,7 @@ Critical business metrics:
 
 ---
 
-# 62. TESTING
+## 62. TESTING
 
 This is mandatory.
 
@@ -1856,7 +2254,7 @@ Create adversarial tests for:
 
 ---
 
-# 63. IDEMPOTENCY / CONCURRENCY
+## 63. IDEMPOTENCY / CONCURRENCY
 
 Any endpoint that can be retried must be safe where appropriate.
 
@@ -1875,7 +2273,7 @@ Use transactions/constraints appropriately.
 
 ---
 
-# 64. FEATURE FLAGS
+## 64. FEATURE FLAGS
 
 Use feature flags for:
 - rewards;
@@ -1891,7 +2289,7 @@ Document each flag.
 
 ---
 
-# 65. ADMIN SAFETY
+## 65. ADMIN SAFETY
 
 Admin UI must distinguish:
 - read;
@@ -1909,7 +2307,7 @@ Sensitive admin actions require:
 
 ---
 
-# 66. ERROR HANDLING
+## 66. ERROR HANDLING
 
 Every user-facing failure should:
 - be understandable;
@@ -1922,7 +2320,7 @@ Do not show raw stack traces to users.
 
 ---
 
-# 67. ACCESSIBILITY
+## 67. ACCESSIBILITY
 
 Target a strong baseline:
 - keyboard navigation;
@@ -1936,7 +2334,7 @@ Target a strong baseline:
 
 ---
 
-# 68. MOBILE-FIRST
+## 68. MOBILE-FIRST
 
 Do not build desktop first and “adapt later”.
 
@@ -1953,7 +2351,7 @@ Critical mobile flows:
 
 ---
 
-# 69. MVP PRIORITY
+## 69. MVP PRIORITY
 
 MVP MUST focus on:
 1. auth;
@@ -1981,7 +2379,7 @@ Do not delay launch for sophisticated AI.
 
 ---
 
-# 70. POST-MVP
+## 70. POST-MVP
 
 Phase 2:
 - AI natural-language search;
@@ -2004,7 +2402,7 @@ Phase 3:
 
 ---
 
-# 71. CORE PRODUCT PRINCIPLES
+## 71. CORE PRODUCT PRINCIPLES
 
 When requirements conflict, prefer:
 
@@ -2021,11 +2419,11 @@ Never sacrifice legal/privacy/security just to launch faster.
 
 ---
 
-# 72. WHAT CODEX MUST DO FIRST
+## 72. WHAT CODEX MUST DO FIRST
 
 Before writing code:
 
-## STEP 1 — REPOSITORY AUDIT
+### STEP 1 — REPOSITORY AUDIT
 
 Inspect:
 - all directories;
@@ -2058,7 +2456,7 @@ Include:
 - missing components;
 - recommended architecture.
 
-## STEP 2 — BUILD PRODUCT TRACEABILITY
+### STEP 2 — BUILD PRODUCT TRACEABILITY
 
 Create:
 `PRODUCT_REQUIREMENTS.md`
@@ -2084,7 +2482,7 @@ TRUST-001
 ADMIN-001
 LEGAL-001
 
-## STEP 3 — ARCHITECTURE
+### STEP 3 — ARCHITECTURE
 
 Create:
 `ARCHITECTURE.md`
@@ -2100,7 +2498,7 @@ Include:
 - storage;
 - deployment model.
 
-## STEP 4 — PRODUCT FLOWS
+### STEP 4 — PRODUCT FLOWS
 
 Create:
 `USER_FLOWS.md`
@@ -2118,7 +2516,7 @@ Document:
 - dispute;
 - Telegram linking.
 
-## STEP 5 — DATABASE DESIGN
+### STEP 5 — DATABASE DESIGN
 
 Create:
 `DATABASE_DESIGN.md`
@@ -2132,14 +2530,14 @@ Include:
 - audit data;
 - immutability rules.
 
-## STEP 6 — LEGAL RISK REGISTER
+### STEP 6 — LEGAL RISK REGISTER
 
 Create:
 `LEGAL_RISK_REGISTER.md`
 
 Research current authoritative Belarusian sources.
 
-## STEP 7 — IMPLEMENTATION PLAN
+### STEP 7 — IMPLEMENTATION PLAN
 
 Create:
 `IMPLEMENTATION_PLAN.md`
@@ -2159,7 +2557,7 @@ Every task needs:
 
 ---
 
-# 73. HOW CODEX MUST WORK AFTER PLANNING
+## 73. HOW CODEX MUST WORK AFTER PLANNING
 
 Do not stop after producing documentation.
 
@@ -2178,7 +2576,7 @@ Do not move to the next major domain with known critical defects unresolved.
 
 ---
 
-# 74. “BEST DECISION” PROTOCOL
+## 74. “BEST DECISION” PROTOCOL
 
 When a decision is not explicitly defined:
 
@@ -2215,7 +2613,7 @@ Only ask the user when:
 
 ---
 
-# 75. NO FAKE COMPLETION
+## 75. NO FAKE COMPLETION
 
 Never claim:
 - “implemented” if only mocked;
@@ -2234,7 +2632,7 @@ Maintain explicit statuses:
 
 ---
 
-# 76. QUALITY GATE BEFORE CALLING MVP COMPLETE
+## 76. QUALITY GATE BEFORE CALLING MVP COMPLETE
 
 MVP cannot be considered complete until:
 
@@ -2264,7 +2662,7 @@ Create:
 
 ---
 
-# 77. FINAL AUDIT
+## 77. FINAL AUDIT
 
 Before declaring success, perform an independent audit pass.
 
@@ -2295,7 +2693,7 @@ Include:
 
 ---
 
-# 78. DELIVERABLES
+## 78. DELIVERABLES
 
 At minimum maintain:
 - README.md
@@ -2316,7 +2714,7 @@ Add other documents as needed.
 
 ---
 
-# 79. COMMUNICATION STYLE
+## 79. COMMUNICATION STYLE
 
 When reporting progress:
 - be concise but factual;
@@ -2335,7 +2733,7 @@ At milestone completion provide:
 
 ---
 
-# 80. FINAL PRODUCT OUTCOME
+## 80. FINAL PRODUCT OUTCOME
 
 The final platform should feel like:
 
@@ -2354,7 +2752,7 @@ Use the best ideas from the global market, learn from their user pain points, an
 
 ---
 
-# 81. FIRST COMMAND / FIRST ACTION
+## 81. FIRST COMMAND / FIRST ACTION
 
 Before modifying the repository, perform a complete repository inspection.
 

@@ -356,6 +356,9 @@ function Stars({
           color: var(--border-strong); cursor: pointer;
         }
         .st[data-size='lg'] .st__btn { width: 2.75rem; height: 2.75rem; }
+        /* On a touchscreen every star gets the full 44px target; the compact
+           36px size only suits a mouse. */
+        @media (pointer: coarse) { .st__btn { width: 2.75rem; height: 2.75rem; } }
         .st__btn[data-on='true'] { color: var(--warning); }
         @media (hover: hover) and (pointer: fine) {
           .st__btn:hover { background: var(--surface-sunken); }

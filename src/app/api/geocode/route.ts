@@ -9,7 +9,7 @@
  * exactly what happens today: an empty pin the host drags into place by hand.
  *
  * PROVIDER CHOICE, FLAGGED (same posture as LEGAL-014 on `map-panel.tsx`/
- * `location-picker.tsx`, extended in LEGAL_RISK_REGISTER.md for this route):
+ * `location-picker.tsx`, extended in docs/LEGAL.md for this route):
  * OpenStreetMap's Nominatim (https://nominatim.openstreetmap.org/search).
  * This product already sends every visitor's browser to OSM's tile servers
  * for the map itself, so Nominatim is the same ecosystem's standard geocoder

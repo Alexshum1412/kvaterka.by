@@ -7,7 +7,7 @@
  * does not carry `X-Telegram-Bot-Api-Secret-Token`, because before it did,
  * anyone could POST a forged update and verify a phone number they do not own.
  * Telegram only sends that header if the webhook was registered with
- * `secret_token`, so the plain `setWebhook?url=...` link DEPLOYMENT.md used to
+ * `secret_token`, so the plain `setWebhook?url=...` link docs/OPERATIONS.md used to
  * give is no longer enough: run this once per bot token, and again whenever
  * PUBLIC_BASE_URL or the token changes. The secret is derived from the token
  * by the same function the route checks against, so there is nothing new to

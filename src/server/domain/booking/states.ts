@@ -128,7 +128,7 @@ export interface TransitionRule {
   readonly to: BookingState;
   readonly actors: readonly Actor[];
   readonly effects: readonly SideEffect[];
-  /** Human-readable rule, mirrored into USER_FLOWS.md. */
+  /** Human-readable rule, mirrored into docs/ARCHITECTURE.md. */
   readonly note?: string;
 }
 

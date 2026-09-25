@@ -404,6 +404,13 @@ img { max-width: 100%; }
    page body never scrolls sideways on a phone. */
 .overflow-guard { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
+/* Leaflet's zoom buttons ship at 30px — too small for a thumb. Only on
+   touch; a mouse is precise enough for the stock size. */
+@media (pointer: coarse) {
+  /* Doubled class: leaflet.css loads after this file with the same selector. */
+  .leaflet-container.leaflet-touch .leaflet-bar a { width: 44px; height: 44px; line-height: 44px; }
+}
+
 /* ==================================================================== *
  * Buttons
  * ==================================================================== */

@@ -24,6 +24,18 @@
     "cardReportsLabel": "Скаргі",
     "cardReportsDetail": "На аб'явы, водгукі і паведамленні.",
     "cardVerificationLabel": "Заяўкі на верыфікацыю",
-    "cardVerificationDetail": "Дакументы адкрывае толькі VERIFIER."
+    "cardVerificationDetail": "Дакументы адкрывае толькі VERIFIER.",
+    "watchdogTitle": "Вартаўнік",
+    "watchdogCalm": "Усе інварыянты ў парадку: зборы налічаны, завяршэнні не завіслі, чарга апавяшчэнняў рухаецца.",
+    "alert_FEE_MISSING": "Завершаныя браніраванні без налічанага збору",
+    "alert_COMPLETION_STUCK": "Пацвярджэнні завяршэння, што завіслі пасля дэдлайну",
+    "alert_STAY_NOT_CLOSED": "Пражыванні скончыліся, а акно пацвярджэння не адкрылася",
+    "alert_NOTIFICATION_BACKLOG": "Апавяшчэнні, што чакаюць адпраўкі больш за гадзіну",
+    "alert_NOTIFICATION_FAILURES": "Апавяшчэнні, не дастаўленыя за суткі",
+    "alert_JOB_FAILED": "Фонавыя заданні з памылкай або завіслыя",
+    "alert_NEW_ERRORS": "Новыя памылкі за суткі",
+    "errorsTitle": "Апошнія памылкі",
+    "errorsEmpty": "Памылак не зарэгістравана.",
+    "errorsTimes": "{count, plural, one {# раз} few {# разы} many {# разоў} other {# разу}}"
   }
 }
