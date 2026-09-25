@@ -10,7 +10,7 @@ import { Icon } from '@/ui/icons.tsx';
 import { ready, readyServices } from '@/server/runtime.ts';
 import { currentUser } from '@/server/session.ts';
 import { nightsBetween, PricingError } from '@/server/domain/pricing.ts';
-import type { AppLocale } from '@/i18n/routing.ts';
+import { routing, type AppLocale } from '@/i18n/routing.ts';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,13 +27,27 @@ export async function generateMetadata({
   const params = await searchParams;
   const city = typeof params.city === 'string' ? params.city : null;
   const t = await getTranslations('Search');
+  const path = city ? `/search?city=${encodeURIComponent(city)}` : '/search';
+  // A city landing page is a city and nothing else: any filter makes it a
+  // result list whose canonical is the city page, not a page of its own.
+  const isCityLanding =
+    !!city && Object.entries(params).every(([key, value]) => key === 'city' || !value?.length);
   // City pages are the SEO surface (spec §59); the private dashboards are
   // excluded from indexing by the header rule in next.config.ts.
   return {
     title: city ? t('meta.titleCity', { city }) : t('meta.titleDefault'),
     description: city ? t('meta.descriptionCity', { city }) : t('meta.descriptionDefault'),
     alternates: {
-      canonical: getPathname({ locale, href: city ? `/search?city=${encodeURIComponent(city)}` : '/search' }),
+      canonical: getPathname({ locale, href: path }),
+      // next-intl's Link header builds hreflang from the pathname alone and
+      // drops the query, so for these URLs it names plain /search in every
+      // locale. The city pages therefore declare their own, query included.
+      ...(isCityLanding && {
+        languages: {
+          ...Object.fromEntries(routing.locales.map((l) => [l, getPathname({ locale: l, href: path })])),
+          'x-default': getPathname({ locale: routing.defaultLocale, href: path }),
+        },
+      }),
     },
   };
 }
