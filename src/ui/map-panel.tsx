@@ -207,11 +207,17 @@ const MAP_CSS = `
     align-items: center;
   }
   /* --primary carries white text at 5.28:1; --accent would fail here. */
-  .leaflet-marker-icon.map-pin--active .map-pin__inner,
-  .leaflet-marker-icon.map-pin:hover .map-pin__inner {
+  .leaflet-marker-icon.map-pin--active .map-pin__inner {
     background: var(--primary);
     color: var(--text-on-primary);
     border-color: var(--primary);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .leaflet-marker-icon.map-pin:hover .map-pin__inner {
+      background: var(--primary);
+      color: var(--text-on-primary);
+      border-color: var(--primary);
+    }
   }
   .leaflet-marker-icon.map-pin--active { z-index: 1000 !important; }
 

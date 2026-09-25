@@ -220,7 +220,9 @@ export default async function TicketQueuePage({ searchParams }: { searchParams: 
           border-radius: var(--radius-sm);
           font-size: var(--text-xs); font-weight: 500; color: var(--text-secondary);
         }
-        .tq__tab:hover { background: var(--surface); color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .tq__tab:hover { background: var(--surface); color: var(--text-primary); }
+        }
         .tq__tab[aria-current='page'] { background: var(--surface); color: var(--text-primary); font-weight: 600; }
         .tq__tabCount {
           font-size: var(--text-2xs); font-weight: 700;
@@ -242,7 +244,9 @@ export default async function TicketQueuePage({ searchParams }: { searchParams: 
           background: var(--surface); border-radius: var(--radius-md);
           transition: box-shadow 160ms ease;
         }
-        .tq__row:hover { box-shadow: var(--shadow-raised); }
+        @media (hover: hover) and (pointer: fine) {
+          .tq__row:hover { box-shadow: var(--shadow-raised); }
+        }
         .tq__row > svg:last-child { color: var(--text-tertiary); flex: 0 0 auto; }
 
         .tq__lead { display: grid; gap: 0.2rem; justify-items: start; flex: 0 0 7.5rem; }

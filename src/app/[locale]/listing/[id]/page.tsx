@@ -477,7 +477,9 @@ export default async function ListingPage({ params }: { params: Promise<{ locale
           font-size: var(--text-sm); color: var(--text-secondary);
         }
         .lst__crumbLink { display: inline-flex; align-items: center; gap: 0.3rem; flex: 0 0 auto; min-height: 1.5rem; }
-        .lst__crumbLink:hover { color: var(--primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .lst__crumbLink:hover { color: var(--primary); }
+        }
         .lst__crumbSep { flex: 0 0 auto; color: var(--text-tertiary); }
         .lst__crumbCurrent { flex: 1 1 auto; min-width: 0; color: var(--text-primary); font-weight: 500; }
 

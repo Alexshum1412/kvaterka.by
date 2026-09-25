@@ -173,7 +173,9 @@ export function ListingStatusActions({ id, status }: { id: string; status: strin
       <style>{`
         .lsa { display: contents; }
         .lsa__delete { color: var(--error); }
-        .lsa__delete:hover:not(:disabled) { background: var(--error-soft, var(--surface-sunken)); }
+        @media (hover: hover) and (pointer: fine) {
+          .lsa__delete:hover:not(:disabled) { background: var(--error-soft, var(--surface-sunken)); }
+        }
         .lsa__confirm { display: inline-flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
         .lsa__confirmText { font-size: var(--text-xs); color: var(--text-secondary); }
         .lsa__error { flex-basis: 100%; font-size: var(--text-xs); }
@@ -328,7 +330,9 @@ function PromotionGroup({
           text-align: left;
           cursor: pointer;
         }
-        .lsa-tier__card:hover:not(:disabled) { border-color: var(--border-control); }
+        @media (hover: hover) and (pointer: fine) {
+          .lsa-tier__card:hover:not(:disabled) { border-color: var(--border-control); }
+        }
         .lsa-tier--active .lsa-tier__card { border-color: var(--primary); background: var(--primary-soft); }
         .lsa-tier__name { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
         .lsa-tier__desc { font-size: var(--text-2xs); color: var(--text-secondary); }

@@ -340,7 +340,9 @@ export default async function DashboardPage() {
           border-left: 3px solid var(--border-strong);
           transition: background-color 140ms ease;
         }
-        .dash-att__row:hover { background: var(--surface-sunken); }
+        @media (hover: hover) and (pointer: fine) {
+          .dash-att__row:hover { background: var(--surface-sunken); }
+        }
         /* The card clips its corners, so the ring is drawn inside it. */
         .dash-att__row:focus-visible { outline-offset: -3px; }
         .dash-att__row--urgent .dash-att__icon { color: var(--error); }
@@ -377,7 +379,9 @@ export default async function DashboardPage() {
           font-size: var(--text-sm); font-weight: 600; flex: 0 0 auto;
         }
         .dash-pc__title { font-size: var(--text-base); font-weight: 600; line-height: 1.35; }
-        .dash-pc__title a:hover { color: var(--primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .dash-pc__title a:hover { color: var(--primary); }
+        }
         .dash-pc__place { font-size: var(--text-sm); color: var(--text-secondary); }
         .dash-pc__price { font-size: var(--text-sm); }
         .dash-pc__price strong { font-weight: 600; }
@@ -416,7 +420,9 @@ export default async function DashboardPage() {
           border-radius: var(--radius-sm);
           transition: background-color 140ms ease;
         }
-        .dash-stay__row:hover { background: var(--surface); }
+        @media (hover: hover) and (pointer: fine) {
+          .dash-stay__row:hover { background: var(--surface); }
+        }
         .dash-stay__date {
           flex: 0 0 auto; width: 2.5rem;
           display: flex; flex-direction: column; align-items: center; line-height: 1.05;
@@ -441,7 +447,9 @@ export default async function DashboardPage() {
         .dash-fig__label { font-size: var(--text-xs); color: var(--text-secondary); }
         .dash-fig__value { font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; }
         .dash-fig__value.is-emphasis { color: var(--primary); }
-        .dash-fig:hover .dash-fig__value { color: var(--primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .dash-fig:hover .dash-fig__value { color: var(--primary); }
+        }
         .dash-fig__sub { font-size: var(--text-2xs); color: var(--text-tertiary); }
       `}</style>
     </div>

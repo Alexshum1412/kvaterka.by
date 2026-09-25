@@ -178,7 +178,9 @@ export default async function TripsPage() {
           background: var(--surface); border-radius: var(--radius-sm);
           font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary);
         }
-        .tp__link:hover { color: var(--text-primary); box-shadow: var(--shadow-subtle); }
+        @media (hover: hover) and (pointer: fine) {
+          .tp__link:hover { color: var(--text-primary); box-shadow: var(--shadow-subtle); }
+        }
         .tp__link > svg { color: var(--primary); }
 
         .tp__invite {

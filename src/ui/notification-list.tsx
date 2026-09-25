@@ -163,7 +163,9 @@ export function NotificationList({ items }: { items: readonly InboxItem[] }) {
           text-align: left; background: none; border: 0; cursor: pointer;
           font: inherit; color: inherit;
         }
-        .nl__row:hover { background: var(--surface-sunken); }
+        @media (hover: hover) and (pointer: fine) {
+          .nl__row:hover { background: var(--surface-sunken); }
+        }
 
         .nl__dot {
           flex: 0 0 auto; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--primary);

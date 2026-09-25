@@ -167,7 +167,9 @@ export function VerificationRequestForm({
           background: var(--surface); border: 1px solid var(--border);
           border-radius: var(--radius-sm); cursor: pointer;
         }
-        .vrf__option:hover { border-color: var(--border-control); }
+        @media (hover: hover) and (pointer: fine) {
+          .vrf__option:hover { border-color: var(--border-control); }
+        }
         .vrf__option[aria-pressed='true'] { border-color: var(--primary); background: var(--primary-soft); }
         .vrf__option strong { font-size: var(--text-sm); }
         .vrf__option span { font-size: var(--text-2xs); color: var(--text-secondary); }

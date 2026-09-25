@@ -105,7 +105,9 @@ export default async function MyTicketDetailPage({ params }: { params: Promise<{
       <style>{`
         .td { padding-block: var(--space-4) var(--space-8); max-width: 42rem; }
         .td__back { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.5rem; margin-bottom: var(--space-2); font-size: var(--text-sm); color: var(--text-secondary); }
-        .td__back:hover { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .td__back:hover { color: var(--text-primary); }
+        }
 
         .td__head { margin-bottom: var(--space-4); }
         .td__headTop { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }

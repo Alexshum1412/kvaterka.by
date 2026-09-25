@@ -44,9 +44,13 @@ export function LanguageSwitcher({ ariaLabel }: { ariaLabel: string }) {
           color: var(--text-tertiary);
           transition: background-color 140ms ease, color 140ms ease;
         }
-        .lsw__pill:hover { background: var(--surface-sunken); color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .lsw__pill:hover { background: var(--surface-sunken); color: var(--text-primary); }
+        }
         .lsw__pill--active { background: var(--primary-soft); color: var(--primary); }
-        .lsw__pill--active:hover { background: var(--primary-soft-hover, var(--primary-soft)); }
+        @media (hover: hover) and (pointer: fine) {
+          .lsw__pill--active:hover { background: var(--primary-soft-hover, var(--primary-soft)); }
+        }
       `}</style>
     </div>
   );

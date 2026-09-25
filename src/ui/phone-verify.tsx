@@ -188,7 +188,9 @@ const PV_CSS = `
     text-decoration: none;
     color: var(--text-primary);
   }
-  .pv__channel:hover { border-color: var(--primary); color: var(--primary); }
+  @media (hover: hover) and (pointer: fine) {
+    .pv__channel:hover { border-color: var(--primary); color: var(--primary); }
+  }
   .pv__channel[aria-disabled='true'] { pointer-events: none; opacity: 0.5; }
 
   .pv__waiting {

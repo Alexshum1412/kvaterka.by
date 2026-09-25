@@ -407,7 +407,9 @@ export function DisputeActions({
           border-radius: var(--radius-sm); cursor: pointer;
           min-height: 3rem;
         }
-        .da__choice:hover { border-color: var(--border-control); }
+        @media (hover: hover) and (pointer: fine) {
+          .da__choice:hover { border-color: var(--border-control); }
+        }
         .da__choice[aria-pressed='true'] { border-color: var(--primary); background: var(--primary-soft); }
         .da__choice strong { font-size: var(--text-sm); }
         .da__choice span { font-size: var(--text-2xs); color: var(--text-secondary); }

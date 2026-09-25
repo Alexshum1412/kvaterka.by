@@ -184,7 +184,9 @@ export default async function FaqPage() {
         }
         .faq-crumbs li { display: flex; align-items: center; }
         .faq-crumbs a { color: var(--text-secondary); min-height: 1.75rem; display: inline-flex; align-items: center; }
-        .faq-crumbs a:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+        @media (hover: hover) and (pointer: fine) {
+          .faq-crumbs a:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+        }
         .faq-crumbs li[aria-current='page'] { color: var(--text-primary); font-weight: 500; }
 
         .faq-list { display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-3); }
@@ -219,7 +221,9 @@ export default async function FaqPage() {
           transition: background-color 140ms ease;
         }
         .faq-item__q::-webkit-details-marker { display: none; }
-        .faq-item__q:hover { background: var(--surface-sunken); }
+        @media (hover: hover) and (pointer: fine) {
+          .faq-item__q:hover { background: var(--surface-sunken); }
+        }
 
         .faq-item__chev { color: var(--text-tertiary); transition: transform 200ms ease; }
         .faq-item[open] .faq-item__chev { transform: rotate(180deg); }

@@ -261,7 +261,9 @@ function PanelStyles() {
         border-radius: var(--radius-md); cursor: pointer;
         min-height: 3.25rem;
       }
-      .cp__choice:hover { border-color: var(--border-control); }
+      @media (hover: hover) and (pointer: fine) {
+        .cp__choice:hover { border-color: var(--border-control); }
+      }
       .cp__choice strong { font-size: var(--text-sm); }
       .cp__choice span { font-size: var(--text-xs); color: var(--text-secondary); }
 

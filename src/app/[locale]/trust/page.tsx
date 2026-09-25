@@ -103,7 +103,9 @@ export default async function TrustPage() {
         .page-crumb ol { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; list-style: none; padding: 0; margin: 0; }
         .page-crumb li { display: flex; align-items: center; gap: 0.35rem; }
         .page-crumb a { color: var(--text-tertiary); font-weight: 500; }
-        .page-crumb a:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+        @media (hover: hover) and (pointer: fine) {
+          .page-crumb a:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+        }
         .page-crumb li[aria-current] { color: var(--text-secondary); font-weight: 500; }
         .page-crumb svg { flex: 0 0 auto; }
         @media (min-width: 768px) { .page-crumb { padding-inline: 1.5rem; } }

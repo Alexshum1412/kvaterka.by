@@ -309,7 +309,9 @@ export default async function VerificationQueuePage({ searchParams }: { searchPa
           border-radius: var(--radius-sm);
           font-size: var(--text-xs); font-weight: 500; color: var(--text-secondary);
         }
-        .vq__tab:hover { background: var(--surface); color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .vq__tab:hover { background: var(--surface); color: var(--text-primary); }
+        }
         .vq__tab[aria-current='page'] { background: var(--surface); color: var(--text-primary); font-weight: 600; }
         .vq__tabCount {
           font-size: var(--text-2xs); font-weight: 700;
@@ -332,7 +334,9 @@ export default async function VerificationQueuePage({ searchParams }: { searchPa
           background: var(--surface); border-radius: var(--radius-md);
           transition: box-shadow 160ms ease;
         }
-        .vq__row:hover { box-shadow: var(--shadow-raised); }
+        @media (hover: hover) and (pointer: fine) {
+          .vq__row:hover { box-shadow: var(--shadow-raised); }
+        }
         /* A rule, not only a hue: an overdue row reads without colour. */
         .vq__row.is-overdue { box-shadow: inset 3px 0 0 var(--error); }
         .vq__row > svg:last-child { color: var(--text-tertiary); flex: 0 0 auto; }

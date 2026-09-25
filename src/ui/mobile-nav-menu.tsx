@@ -107,8 +107,10 @@ export function MobileNavMenu({
             padding-block: 0.4rem;
             border-radius: var(--radius-sm);
           }
-          .sh__mobileNav[data-open='true'] #sh-mobile-nav .sh__link:hover {
-            background: var(--surface-sunken);
+          @media (hover: hover) and (pointer: fine) {
+            .sh__mobileNav[data-open='true'] #sh-mobile-nav .sh__link:hover {
+              background: var(--surface-sunken);
+            }
           }
         }
       `}</style>

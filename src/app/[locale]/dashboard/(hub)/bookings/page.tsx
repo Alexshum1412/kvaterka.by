@@ -161,7 +161,9 @@ export default async function LandlordBookingsPage({
         .lb { padding-block: var(--space-4) var(--space-8); max-width: 56rem; }
         .lb__back { margin-bottom: var(--space-3); }
         .lb__backLink { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; font-size: var(--text-sm); color: var(--text-secondary); }
-        .lb__backLink:hover { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .lb__backLink:hover { color: var(--text-primary); }
+        }
         .lb__head { display: grid; gap: 0.2rem; margin-bottom: var(--space-4); }
         .lb__tabs { display: flex; gap: var(--space-1); flex-wrap: wrap; margin-bottom: var(--space-4); }
         .lb__tab {
@@ -170,7 +172,9 @@ export default async function LandlordBookingsPage({
           border-radius: var(--radius-sm);
           font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary);
         }
-        .lb__tab:hover { background: var(--surface); color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .lb__tab:hover { background: var(--surface); color: var(--text-primary); }
+        }
         .lb__tab[aria-current='page'] { background: var(--surface); color: var(--text-primary); font-weight: 600; }
         .lb__tabCount {
           font-size: var(--text-2xs); font-weight: 700;

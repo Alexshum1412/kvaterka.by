@@ -479,7 +479,9 @@ export default async function BookingDetailPage({
         .bk { padding-block: var(--space-4) var(--space-8); max-width: 62rem; }
         .bk__back { margin-bottom: var(--space-3); }
         .bk__backLink { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; font-size: var(--text-sm); color: var(--text-secondary); }
-        .bk__backLink:hover { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .bk__backLink:hover { color: var(--text-primary); }
+        }
 
         .bk__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-4); }
         .bk__headMain { display: grid; gap: var(--space-2); justify-items: start; min-width: 0; }

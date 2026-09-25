@@ -89,7 +89,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           border-radius: var(--radius-sm);
           font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary);
         }
-        .dsh__navLink:hover { background: var(--surface); color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .dsh__navLink:hover { background: var(--surface); color: var(--text-primary); }
+        }
         .dsh__navLink[aria-current='page'] { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
         .dsh__navLink > svg { flex: 0 0 auto; }
 

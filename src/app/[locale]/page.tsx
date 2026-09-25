@@ -224,10 +224,14 @@ export default async function HomePage() {
         /* The heading owns the weight in this row; the link is a way out, not a
            second headline. */
         .home-head .link { font-weight: 500; font-size: var(--text-sm); min-height: 2.5rem; }
-        .home-head .link:hover { text-decoration: none; }
-        .home-head .link:hover span { text-decoration: underline; text-underline-offset: 3px; }
+        @media (hover: hover) and (pointer: fine) {
+          .home-head .link:hover { text-decoration: none; }
+          .home-head .link:hover span { text-decoration: underline; text-underline-offset: 3px; }
+        }
         .home-head .link svg { transition: transform 140ms ease; }
-        .home-head .link:hover svg { transform: translateX(2px); }
+        @media (hover: hover) and (pointer: fine) {
+          .home-head .link:hover svg { transform: translateX(2px); }
+        }
 
         .home-grid {
           display: grid;

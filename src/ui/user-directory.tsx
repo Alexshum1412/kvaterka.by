@@ -186,7 +186,9 @@ export function UserDirectory({ canCreate }: { canCreate: boolean }) {
           background: var(--surface); border-radius: var(--radius-md);
           transition: box-shadow 160ms ease;
         }
-        .udir__row:hover { box-shadow: var(--shadow-raised); }
+        @media (hover: hover) and (pointer: fine) {
+          .udir__row:hover { box-shadow: var(--shadow-raised); }
+        }
         .udir__row > svg:last-child { color: var(--text-tertiary); flex: 0 0 auto; }
 
         .udir__main { display: grid; gap: 0.2rem; flex: 1 1 auto; min-width: 0; }

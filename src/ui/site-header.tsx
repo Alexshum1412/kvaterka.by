@@ -245,7 +245,9 @@ export async function SiteHeader() {
           white-space: nowrap;
           transition: color 140ms ease;
         }
-        .sh__link:hover { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .sh__link:hover { color: var(--text-primary); }
+        }
 
         /* The identity block is the only part allowed to give up width, and
            it gives it up by truncating a name rather than by overflowing. */
@@ -281,7 +283,9 @@ export async function SiteHeader() {
           color: var(--text-secondary);
           transition: color 140ms ease;
         }
-        .sh__icon-link:hover { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .sh__icon-link:hover { color: var(--text-primary); }
+        }
 
         .sh__bell { position: relative; }
         /* Sits on the bell rather than beside it: a badge that reflows the bar
@@ -350,8 +354,10 @@ export async function SiteHeader() {
           background: var(--primary);
           border: 1.5px solid var(--surface);
         }
-        .sh__me:hover .sh__monogram { background: var(--primary-soft-hover); }
-        .sh__me:hover .sh__name { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .sh__me:hover .sh__monogram { background: var(--primary-soft-hover); }
+          .sh__me:hover .sh__name { color: var(--text-primary); }
+        }
         .sh__name {
           display: none;
           max-width: 9rem;

@@ -238,7 +238,9 @@ export default async function VerificationPage() {
         .vp { padding-block: var(--space-4) var(--space-8); max-width: 46rem; }
         .vp__back { margin-bottom: var(--space-3); }
         .vp__backLink { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; font-size: var(--text-sm); color: var(--text-secondary); }
-        .vp__backLink:hover { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .vp__backLink:hover { color: var(--text-primary); }
+        }
         .vp__head { display: grid; gap: 0.25rem; margin-bottom: var(--space-5); }
         .vp__head p { max-width: 58ch; }
 

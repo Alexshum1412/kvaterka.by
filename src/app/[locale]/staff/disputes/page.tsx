@@ -277,7 +277,9 @@ export default async function DisputeQueuePage({ searchParams }: { searchParams:
           border-radius: var(--radius-sm);
           font-size: var(--text-xs); font-weight: 500; color: var(--text-secondary);
         }
-        .dq__tab:hover { background: var(--surface); color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .dq__tab:hover { background: var(--surface); color: var(--text-primary); }
+        }
         .dq__tab[aria-current='page'] { background: var(--surface); color: var(--text-primary); font-weight: 600; }
         .dq__tabCount {
           font-size: var(--text-2xs); font-weight: 700;
@@ -300,7 +302,9 @@ export default async function DisputeQueuePage({ searchParams }: { searchParams:
           background: var(--surface); border-radius: var(--radius-md);
           transition: box-shadow 160ms ease;
         }
-        .dq__row:hover { box-shadow: var(--shadow-raised); }
+        @media (hover: hover) and (pointer: fine) {
+          .dq__row:hover { box-shadow: var(--shadow-raised); }
+        }
         /* A rule, not just a colour: an overdue row is legible without hue. */
         .dq__row.is-overdue { box-shadow: inset 3px 0 0 var(--error); }
         .dq__row > svg:last-child { color: var(--text-tertiary); flex: 0 0 auto; }

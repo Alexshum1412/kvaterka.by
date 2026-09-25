@@ -518,7 +518,9 @@ export function SearchForm({ compact = false, initial }: { compact?: boolean; in
             font-weight: 500;
           }
           .sf .select { padding-right: 1.5rem; background-position: right 0 center; }
-          .sf .input:hover, .sf .select:hover, .sf__trigger:hover { border-color: transparent; }
+          @media (hover: hover) and (pointer: fine) {
+            .sf .input:hover, .sf .select:hover, .sf__trigger:hover { border-color: transparent; }
+          }
           .sf .input:focus, .sf .select:focus { outline-offset: 3px; }
           .sf .sf__city { padding-left: 1.625rem; }
           .sf__pinned svg { left: 0; }

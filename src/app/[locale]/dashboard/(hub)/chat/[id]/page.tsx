@@ -122,7 +122,9 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         .cv { padding-block: var(--space-4) var(--space-7); max-width: 44rem; }
         .cv__back { margin-bottom: var(--space-3); }
         .cv__backLink { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; font-size: var(--text-sm); color: var(--text-secondary); }
-        .cv__backLink:hover { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .cv__backLink:hover { color: var(--text-primary); }
+        }
 
         .cv__head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
         .cv__avatar {
@@ -136,7 +138,9 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
         .cv__verified { display: inline-flex; align-items: center; gap: 0.25rem; font-size: var(--text-2xs); font-weight: 600; color: var(--success); }
         .cv__phoneWarn { display: inline-flex; align-items: center; gap: 0.25rem; font-size: var(--text-2xs); font-weight: 600; color: var(--warning); }
         .cv__property { font-size: var(--text-sm); color: var(--text-secondary); }
-        .cv__property:hover { color: var(--primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .cv__property:hover { color: var(--primary); }
+        }
         .cv__booking { flex: 0 0 auto; }
 
         .cv__notice {

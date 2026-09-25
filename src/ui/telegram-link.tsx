@@ -77,7 +77,9 @@ export function TelegramLink() {
       <style>{`
         .tgl { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); font-size: var(--text-sm); }
         .tgl__link { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; color: var(--primary); text-decoration: none; }
-        .tgl__link:hover { text-decoration: underline; }
+        @media (hover: hover) and (pointer: fine) {
+          .tgl__link:hover { text-decoration: underline; }
+        }
         .tgl__hint { color: var(--text-secondary); }
         .tgl__error { color: var(--error); }
       `}</style>
