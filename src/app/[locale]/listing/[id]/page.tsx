@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
-import { Link } from '@/i18n/navigation.ts';
+import { Link, getPathname } from '@/i18n/navigation.ts';
 import type { AppLocale } from '@/i18n/routing.ts';
 import { ready, readyServices } from '@/server/runtime.ts';
 import { currentUser } from '@/server/session.ts';
@@ -40,7 +40,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ locale: string; id: string }>;
 }): Promise<Metadata> {
-  const { id } = await params;
+  const { id, locale } = await params;
   const listing = await loadListing(id);
   const t = await getTranslations('ListingDetail');
   if (!listing) return { title: t('meta.notFoundTitle') };
@@ -50,7 +50,9 @@ export async function generateMetadata({
     description:
       String(listing.description || '').slice(0, 160) ||
       t('meta.descriptionFallback', { title: listing.title, city: listing.city }),
-    alternates: { canonical: `/listing/${id}` },
+    // Each locale is its own canonical. Pointing /be/… at the Russian URL
+    // told search engines the Belarusian and English pages were duplicates.
+    alternates: { canonical: getPathname({ locale, href: `/listing/${id}` }) },
     openGraph: { title: listing.title as string, type: 'article' },
   };
 }
