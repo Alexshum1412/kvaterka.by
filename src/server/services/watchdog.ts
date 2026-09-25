@@ -52,8 +52,13 @@ const CHECKS: readonly [AlertKind, string][] = [
   ],
   [
     'NOTIFICATION_BACKLOG',
-    `SELECT count(*)::int AS c FROM notification
-      WHERE status IN ('PENDING', 'SENDING') AND created_at < now() - interval '1 hour'`,
+    // Two counts, not `status IN (...)`: each half then reads its own partial
+    // index (notification_outbox_idx, notification_claimed_idx) instead of the
+    // planner falling back to a scan of the whole table (DEC-086).
+    `SELECT ((SELECT count(*) FROM notification
+               WHERE status = 'PENDING' AND created_at < now() - interval '1 hour')
+           + (SELECT count(*) FROM notification
+               WHERE status = 'SENDING' AND created_at < now() - interval '1 hour'))::int AS c`,
   ],
   // One person blocking the bot or a bounced address is an ordinary,
   // permanent fact about that recipient. Five in a day is the relay or the
