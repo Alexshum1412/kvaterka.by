@@ -7,7 +7,7 @@ import { db } from './support.ts';
  * touch device at 375px (Pixel 7 profile, `mobile` project).
  */
 test('search switches between list and map from the bottom dock', async ({ page }) => {
-  await page.goto('/search');
+  await page.goto('/search', { waitUntil: 'networkidle' });
   const dock = page.getByRole('group', { name: 'Переключить вид' });
   await expect(dock).toBeVisible();
   await dock.getByRole('button', { name: 'Карта' }).click();
@@ -19,7 +19,7 @@ test('search switches between list and map from the bottom dock', async ({ page 
 
 test('the listing page keeps a booking entry point under the thumb', async ({ page }) => {
   const id = (await db.query(`SELECT id FROM property WHERE status='PUBLISHED' LIMIT 1`)).rows[0].id;
-  await page.goto(`/listing/${id}`);
+  await page.goto(`/listing/${id}`, { waitUntil: 'networkidle' });
   const book = page.locator('.lst__dock').getByRole('link', { name: 'Забронировать' }).or(
     page.locator('.lst__dock').getByRole('button', { name: 'Забронировать' }),
   );

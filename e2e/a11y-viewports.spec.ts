@@ -46,7 +46,7 @@ for (const width of [375, 430, 1440]) {
 }
 
 test('the keyboard reaches search and submits it, with a visible focus ring', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'networkidle' });
   // The skip link is the first stop, as it must be.
   await page.keyboard.press('Tab');
   await expect(page.locator(':focus')).toHaveClass(/skip-link/);

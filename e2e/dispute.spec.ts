@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { DEMO, db, freshStay, signIn, signInStaff } from './support.ts';
+import { DEMO, db, freeStay, fillStay, signIn, signInStaff } from './support.ts';
 
 /**
  * MVP_RELEASE_CHECKLIST: "Admin: … resolve a dispute". A tenant books an
@@ -11,11 +11,9 @@ test('a tenant opens a dispute and an administrator resolves it', async ({ brows
   await signIn(tenant, DEMO.tenant);
 
   const { rows } = await db.query(`SELECT id FROM property WHERE booking_mode='INSTANT' AND status='PUBLISHED' LIMIT 1`);
-  await tenant.goto(`/listing/${rows[0].id}`);
-  const stay = freshStay(2);
-  const dates = tenant.locator('.bp__dates input[type="date"]');
-  await dates.nth(0).fill(stay.from);
-  await dates.nth(1).fill(stay.to);
+  await tenant.goto(`/listing/${rows[0].id}`, { waitUntil: 'networkidle' });
+  const stay = await freeStay(rows[0].id, 2);
+  await fillStay(tenant, stay);
   await tenant.locator('.bp__actions').getByRole('button', { name: 'Забронировать сразу' }).click();
   await tenant.locator('.bp__confirm').getByRole('button', { name: 'Подтвердить бронирование' }).click();
   await expect(tenant.getByText('Бронирование подтверждено')).toBeVisible();
@@ -38,7 +36,8 @@ test('a tenant opens a dispute and an administrator resolves it', async ({ brows
   const admin = await (await browser.newContext()).newPage();
   await signInStaff(admin, DEMO.admin);
   const caseId = (await db.query(`SELECT id FROM dispute_case WHERE booking_id=$1`, [bookingId])).rows[0].id;
-  await admin.goto(`/staff/disputes/${caseId}`);
+  // networkidle: a click before hydration is swallowed, and the case stays NEW.
+  await admin.goto(`/staff/disputes/${caseId}`, { waitUntil: 'networkidle' });
   await admin.getByRole('button', { name: 'Взять в работу' }).click();
   await admin.getByRole('button', { name: 'Принять решение' }).click();
   await admin.getByLabel('Решение по обращению').fill('Проверили переписку: неисправность подтверждена, аренда не засчитывается.');

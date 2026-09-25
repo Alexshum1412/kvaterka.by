@@ -57,7 +57,7 @@ test('a landlord publishes a new listing through moderation, and a visitor finds
 
   const landlord = await (await browser.newContext()).newPage();
   await signIn(landlord, DEMO.landlord1);
-  await landlord.goto('/dashboard/listings/new');
+  await landlord.goto('/dashboard/listings/new', { waitUntil: 'networkidle' });
 
   await landlord.getByRole('button', { name: /Квартира/ }).first().click();
   await expect(landlord.getByText('Где находится жильё?')).toBeVisible();
@@ -88,18 +88,18 @@ test('a landlord publishes a new listing through moderation, and a visitor finds
   await signInStaff(admin, DEMO.admin);
 
   const { rows } = await db.query(`SELECT id FROM property WHERE title=$1`, [title]);
-  await admin.goto(`/moderation/${rows[0].id}`);
+  await admin.goto(`/moderation/${rows[0].id}`, { waitUntil: 'networkidle' });
   await admin.getByRole('button', { name: /Одобрить|Опубликовать/ }).first().click();
   await expect
     .poll(async () => (await db.query(`SELECT status FROM property WHERE title=$1`, [title])).rows[0]?.status)
     .toBe('PUBLISHED');
 
   // The audit trail recorded it, and the staff audit screen shows it.
-  await admin.goto('/staff/audit');
+  await admin.goto('/staff/audit', { waitUntil: 'networkidle' });
   await expect(admin.getByText('listing.moderate').first()).toBeVisible();
 
   // Anyone can now find it.
   const visitor = await (await browser.newContext()).newPage();
-  await visitor.goto('/search?city=Минск');
+  await visitor.goto('/search?city=Минск', { waitUntil: 'networkidle' });
   await expect(visitor.getByRole('link', { name: new RegExp(title) }).first()).toBeVisible();
 });
