@@ -2,6 +2,17 @@
 
 Architecture decision record. Format per master spec §74. Newest decisions are appended; existing entries are amended rather than rewritten, with a revision note.
 
+**File names in older entries (DEC-086).** The documentation was consolidated from 21 files to 10. Entries below keep the names they were written with; this is where each one lives now:
+
+| Old name | Now |
+|---|---|
+| ARCHITECTURE.md, DATABASE_DESIGN.md, USER_FLOWS.md | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| PRODUCT_REQUIREMENTS.md, CODEX_MASTER_PROMPT_BELARUS_RENTAL.md ("master spec §N") | [docs/PRODUCT.md](docs/PRODUCT.md) |
+| LEGAL_RISK_REGISTER.md, LEGAL_DEPENDENCIES.md | [docs/LEGAL.md](docs/LEGAL.md) |
+| DEPLOYMENT.md, docs/DATABASE_MIGRATION.md, docs/EMAIL_PRODUCTION.md | [docs/OPERATIONS.md](docs/OPERATIONS.md) |
+| PRIVACY.md | second half of [SECURITY.md](SECURITY.md) |
+| REPO_AUDIT.md, IMPLEMENTATION_PLAN.md, UI_UX_AUDIT.md, VISUAL_REVIEW.md | removed: point-in-time audits and a plan whose every phase is now done or tracked in MVP_RELEASE_CHECKLIST.md; still readable in git history |
+
 ---
 
 ## DEC-001 — Greenfield build rather than adapting an existing codebase
@@ -10,7 +21,7 @@ Architecture decision record. Format per master spec §74. Newest decisions are 
 
 **Options.** (a) Preserve and extend existing code. (b) Build from scratch.
 
-**Chosen.** (b), because the repository contained only the specification — no code, no schema, no git history. See [REPO_AUDIT.md](REPO_AUDIT.md) §1.
+**Chosen.** (b), because the repository contained only the specification — no code, no schema, no git history. See REPO_AUDIT.md §1 (removed in DEC-086; in git history).
 
 **Consequences.** No migration risk, no legacy constraints; equally, no validated foundation to lean on, so every invariant must be established deliberately.
 
@@ -236,7 +247,7 @@ What is rejected: scroll-jacking, pinned/stacked sections and decorative motion 
 
 **Chosen.** (c), with (d) as a required additional CI mode.
 
-**Why.** Detailed in [REPO_AUDIT.md](REPO_AUDIT.md) §2.1. Briefly: the invariants under test are PostgreSQL features, so only a real PostgreSQL engine can test them. SQLite lacks every relevant construct and would produce green tests over a broken production schema.
+**Why.** Detailed in REPO_AUDIT.md §2.1 (removed in DEC-086; in git history). Briefly: the invariants under test are PostgreSQL features, so only a real PostgreSQL engine can test them. SQLite lacks every relevant construct and would produce green tests over a broken production schema.
 
 **Trade-offs.** PGlite serialises connections and cannot exercise simultaneous transactions. Stated in the code, in the audit and in the release checklist rather than glossed over. `TEST_DATABASE_URL` runs the identical suite against a server, and that run is a release gate.
 
@@ -256,7 +267,7 @@ What is rejected: scroll-jacking, pinned/stacked sections and decorative motion 
 
 **Trade-offs.** An unused table. Trivial cost against a licensing risk.
 
-**Revisit when.** A Belarus-qualified lawyer has answered LEGAL-012 in [LEGAL_RISK_REGISTER.md](LEGAL_RISK_REGISTER.md).
+**Revisit when.** A Belarus-qualified lawyer has answered LEGAL-012 in LEGAL_RISK_REGISTER.md (now [docs/LEGAL.md](docs/LEGAL.md)).
 
 ---
 
@@ -1628,3 +1639,25 @@ None of this was in the repository before. `MVP_RELEASE_CHECKLIST.md` asked for 
 **caveman.** Terse status updates in chat; a new caveman-compressed `CLAUDE.md` memory file so future sessions start from the invariants and hard-won rules instead of this 220 KB log.
 
 **Verification.** `npm run typecheck`, `npm run lint`, `npm run contrast` and `npm run build` clean. PGlite: 1390 passing, 1 skipped, 0 failing (up from 1378). PostgreSQL 10.23 (`postgres:10.23-bullseye`) under a non-superuser role with no extensions: 1391 passing, 0 failing — the first green real-postgres run since the image tag vanished. Every layout fix re-screenshotted after the change; every security fix shown to fail its new test on the old code.
+
+---
+
+## DEC-086 — Closing the launch checklist's code gates: browser tests, SEO, a watchdog, error tracking, loading states, an index review, and one documentation set instead of twenty-one files
+
+**Question.** The owner asked what is left before real users can be let in, and to do everything code can do. MVP_RELEASE_CHECKLIST.md had eleven unchecked items that are engineering work rather than legal or owner action. What does closing them find?
+
+**SEO.** The locale layout set `alternates.languages` once for the whole site, so every page — every listing included — told search engines its Belarusian and English versions were the home pages. Now each page declares its own hreflang and a per-locale canonical (`metadataBase` from `PUBLIC_BASE_URL`); the sitemap lists published listings and city searches in all three languages; robots excludes private routes under every locale prefix, not only the Russian one. `tests/seo.integration.test.ts`.
+
+**Browser tests.** Playwright against a production build (`next start`) on PostgreSQL 10.23, in a new CI job: the tenant journey from search to review, the landlord journey from the listing wizard with a real upload through moderation to a published listing and a visible fee, an administrator taking and resolving a dispute (with real TOTP enrolment, since staff roles are withheld until then), and viewports at 375/430/1440 with axe-core. They found real defects: CSP `upgrade-insecure-requests` broke client navigation on plain-http localhost (now skipped for loopback hosts only), and several touch targets under 44 px on phones (favourite button, city chips, sticky search button, review stars, Leaflet zoom). Admin "verify" (level 2) stays gated by LEGAL-004, so nothing exists to click.
+
+Making them reliable was its own lesson. Three failure classes, each first misread as flakiness: a click that lands before React hydrates is swallowed (every navigation now waits for `networkidle`); a reload issued while an action's own `router.refresh()` is in flight can leave the old panel on screen (steps now wait for the next panel, as a person would, and never reload mid-action); and random stay dates collided with bookings earlier runs left behind — about one pick in five once a listing had 66 occupied nights — leaving the book button disabled until the four-minute timeout (`freeStay()` now checks `property_occupancy`). The fourth class was a real bug, and this batch introduced it. After an action — check-in, taking a case — the POST committed and the page kept showing the old panel indefinitely; the refresh request returned the new state and React never applied it. It began the moment a `[locale]/loading.tsx` was added (below): with a loading boundary over every page, a `router.refresh()` fired shortly after a client navigation was lost. Measured on the same build and database: with the file, the full suite failed in each of three runs; without it, 13/13 in three consecutive runs. The root boundary was removed before it ever shipped. The language switcher's prefetches were turned off along the way (`prefetch={false}`) — three RSC requests per page for a control used once, one of them a 307 back to the page on screen — as a saving, not as the fix.
+
+**Watchdog and error tracking.** Nothing watched `job_run` or the outbox. `checkOperations()` runs at the end of every lifecycle sweep and reports: a completed booking with no fee, a completion past its deadline by a day, a stay two days past its end and still open, outbox backlog older than an hour, five or more delivery failures in a day (one blocked bot is an ordinary fact about one recipient), a failed or stuck job, and new errors. Administrators get one OPERATIONS notification per kind per day; `/api/health` and the staff overview show the same list. Errors from the API and from the browser's error boundaries are fingerprinted into `error_event` (numbers, UUIDs and hex masked; no user data; 90-day retention in the catalogue) — no third-party tracker, so no new processor for LEGAL-003.
+
+**Loading states.** There was no `loading.tsx` anywhere. A page-level one over every route broke action refreshes (above) and was removed; the search results keep a skeleton of six cards, because search is a navigation-heavy page with no in-place actions. Everything else keeps its empty states and the localized error boundaries.
+
+**Index review.** EXPLAIN ANALYZE on PostgreSQL with 1M notifications and 24k published listings. Every search join, inbox, booking list and queue is indexed. The gap was new code: the watchdog's backlog and failure counts scanned the whole notification table (64 ms and 58 ms at 1M rows). Split the backlog count so each half uses its partial index (0.05 ms) and added `notification_failed_idx` (migration 0025, 0.2 ms). Search at 24k listings takes 105–140 ms, dominated by the relevance score computed per row — acceptable at launch scale; the fix, if it is ever needed, is a precomputed score column, not an index.
+
+**Documentation.** Twenty-one Markdown files, several overlapping and four of them self-declared history, became ten: README, CLAUDE, DECISIONS, the checklist, the owner's update guide, SECURITY (with privacy), and in `docs/` ARCHITECTURE (with the schema and the flows), PRODUCT (requirements and the original spec, section numbers kept), LEGAL (register and code dependencies) and OPERATIONS (deployment, backups, mail). Content was merged, not rewritten; the day-one audit, the finished plan and two point-in-time UI audits were removed and remain in history. The header of this file maps old names to new, because older entries keep the names they were written with. Applied migrations were left untouched even where their comments name an old file: the migrator checksums them.
+
+**Verification.** PGlite: 1404 passing, 1 skipped. Typecheck, lint, contrast and build clean. E2E: 13 of 13 in three consecutive full runs against the production build on PostgreSQL. Remaining launch blockers are not code: the legal questions, a payment route for the fee, and re-registering the Telegram webhook with its secret once after deploying DEC-085.

@@ -500,7 +500,7 @@ export class NotificationService {
    * In Belarus a mobile number is tied to its owner at the point of sale, the
    * same fact a passport would establish, so this product treats "controls a
    * live Telegram account" as the identity signal Level 1 needs — see
-   * LEGAL-004 in LEGAL_RISK_REGISTER.md for the reasoning and its still-open
+   * LEGAL-004 in docs/LEGAL.md for the reasoning and its still-open
    * legal question.
    *
    * ONE short-lived token (`PHONE_OTP`, reusing the purpose `auth_token`

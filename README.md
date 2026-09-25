@@ -89,17 +89,15 @@ The dependency arrow points one way: `services → domain`. Domain modules do no
 
 | Document | Contents |
 |---|---|
-| [REPO_AUDIT.md](REPO_AUDIT.md) | **Historical** — the day-one audit of an empty repository. Not current status |
-| [DECISIONS.md](DECISIONS.md) | Architecture decision records with alternatives and trade-offs |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | System shape, layering, where correctness lives |
-| [DATABASE_DESIGN.md](DATABASE_DESIGN.md) | Entities, constraints, indexes, immutability |
-| [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | Requirement IDs, acceptance criteria, implementation status |
-| [USER_FLOWS.md](USER_FLOWS.md) | Transition table, tenant/landlord/admin journeys, completion decision matrix |
-| [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Phased plan with requirement traceability |
-| [SECURITY.md](SECURITY.md) | Threat model, controls implemented vs designed, known gaps |
-| [PRIVACY.md](PRIVACY.md) | Data categories, minimisation, retention, document handling |
-| [LEGAL_RISK_REGISTER.md](LEGAL_RISK_REGISTER.md) | 16 open legal questions — **all unverified, all require a Belarus-qualified lawyer** |
-| [MVP_RELEASE_CHECKLIST.md](MVP_RELEASE_CHECKLIST.md) | Gates that must pass before MVP can be called complete |
+| [MVP_RELEASE_CHECKLIST.md](MVP_RELEASE_CHECKLIST.md) | Launch gates and their honest current state — start here |
+| [HOW_TO_UPDATE_THE_SITE.md](HOW_TO_UPDATE_THE_SITE.md) | Step-by-step update of the live site on HostFly (in Russian, for the owner) |
+| [DECISIONS.md](DECISIONS.md) | Decision log DEC-001… with the question, the evidence and the verification |
+| [SECURITY.md](SECURITY.md) | Threat model, controls, known gaps; privacy: data categories, minimisation, retention |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System shape and layering, database schema, booking transitions and user journeys |
+| [docs/PRODUCT.md](docs/PRODUCT.md) | Requirement IDs with status, and the original product specification ("spec §N") |
+| [docs/LEGAL.md](docs/LEGAL.md) | Open legal questions LEGAL-001…018 — **all unverified, all require a Belarus-qualified lawyer** — and how each gates the code |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Deployment, environment variables, Telegram bot, backups and database transfer, production e-mail |
+| [CLAUDE.md](CLAUDE.md) | Compressed memory file for coding agents |
 
 ## Legal position
 

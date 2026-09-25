@@ -1,7 +1,7 @@
 // Passenger/LSNode's Node.js Selector expects a startup file that binds to
 // process.env.PORT itself — `next start` is a CLI command, not a requirable
 // file, so shared cPanel hosting needs this thin wrapper around Next's own
-// programmatic server. See DEPLOYMENT.md §4bis.
+// programmatic server. See docs/OPERATIONS.md §4bis.
 import { createServer } from 'node:http';
 import next from 'next';
 

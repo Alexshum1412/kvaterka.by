@@ -4,26 +4,26 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 
 ## Core journeys
 
-- [ ] Tenant: search → listing → request → confirmed → check-in → completion → review
-- [ ] Landlord: create → moderated → published → accept → completion → fee → debt visible
-- [ ] Admin: moderate, verify, resolve a dispute, view audit
+- [x] Tenant: search → listing → request → confirmed → check-in → completion → review — clicked end to end in a real browser by `e2e/booking-lifecycle.spec.ts` against a production build on PostgreSQL 10.23, in CI (DEC-086)
+- [x] Landlord: create → moderated → published → accept → completion → fee → debt visible — `e2e/listing-publication.spec.ts` (wizard with a real photo upload → moderation queue → admin approves → published) plus the landlord half of `booking-lifecycle.spec.ts` (accept → confirm → exactly one fee → visible on /dashboard/finance)
+- [~] Admin: moderate, verify, resolve a dispute, view audit — moderate, resolve a dispute (`e2e/dispute.spec.ts`) and view audit are clicked end to end, with real TOTP enrolment. **Verify** (level 2) stays gated off pending LEGAL-004, so there is nothing to click
 - [x] Booking lifecycle works end to end **at the service layer** (32 integration tests)
 
 ## Database
 
 - [x] Migrations build the full schema from empty
 - [x] Migrations refuse to run if an applied file was edited
-- [x] **Backup and restore procedure documented and rehearsed** — `docs/DATABASE_MIGRATION.md`. Every command run against a real PostgreSQL 10.23 under a non-superuser role: dump, list, restore into a freshly migrated database, and a row-count-plus-fingerprint comparison that came back identical. The rehearsal found two things reasoning had not: a full `pg_restore` is impossible without a superuser (`COMMENT ON EXTENSION plpgsql`), and `property_occupancy` must be excluded from the dump so its triggers can rebuild it. `npm run db:validate` is the check
-- [ ] Indexes reviewed against real query plans on representative data
+- [x] **Backup and restore procedure documented and rehearsed** — `docs/OPERATIONS.md`. Every command run against a real PostgreSQL 10.23 under a non-superuser role: dump, list, restore into a freshly migrated database, and a row-count-plus-fingerprint comparison that came back identical. The rehearsal found two things reasoning had not: a full `pg_restore` is impossible without a superuser (`COMMENT ON EXTENSION plpgsql`), and `property_occupancy` must be excluded from the dump so its triggers can rebuild it. `npm run db:validate` is the check
+- [x] Indexes reviewed against real query plans on representative data — EXPLAIN ANALYZE on PostgreSQL with 1M notifications and 24k published listings (DEC-086). One gap found and fixed: the watchdog's two outbox counts read the whole table (58–64 ms at 1M rows); migration 0025 plus a rewritten query make them 0.05–0.2 ms. Search at 24k listings: 105–140 ms, dominated by the relevance score computed per row, acceptable at launch scale; every join it makes is indexed
 
 ## Tests
 
-- [x] Test suite passes — 1034 tests (`npm test` is the source of truth for the number)
+- [x] Test suite passes — 1404 tests on PGlite, 1 skipped (`npm test` is the source of truth for the number)
 - [x] Typecheck clean
 - [x] **Suite run against a real PostgreSQL server** — 1391 tests pass on **PostgreSQL 10.23**, the version production runs, under a `NOSUPERUSER` role with **zero extensions installed**; 1390 pass on PGlite with one skipped (DEC-085). CI's image is `postgres:10.23-bullseye` — the bare `10.23` tag no longer resolves on Docker Hub, which silently kept this job from starting until DEC-085. Includes 20 genuine-concurrency assertions that cannot run under PGlite. The harness needed a schema per test file before this was possible at all, and CI now runs `postgres:10.23` rather than `postgres:18` — testing against something more capable than production proves the wrong thing
 - [x] Authorization test suite for every API endpoint — audited all 141 endpoints across 13 route files against the real test suite and closed every gap with a real regression test (DEC-083, DEC-084). Found and fixed two real bugs along the way: a moderation-bypass on listing republish, and an existence oracle on the profile-surface favorites route
-- [ ] End-to-end browser tests for critical flows
-- [ ] Mobile viewport tests
+- [x] End-to-end browser tests for critical flows — Playwright, 13 tests, `npm run e2e`; CI job `e2e` builds, migrates and seeds a PostgreSQL 10.23 service and runs them against `next start` (DEC-086)
+- [x] Mobile viewport tests — `e2e/mobile.spec.ts` on a 375 px Pixel 7 profile: bottom dock, booking dock, 44 px touch targets; `a11y-viewports.spec.ts` at 375/430/1440
 
 ## Correctness invariants
 
@@ -67,19 +67,19 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 - [x] Telegram notification flow works end to end — bot token, `/api/telegram/webhook`, and account-linking UI all ship; `TELEGRAM_BOT_TOKEN` confirmed set in production (DEC-080). Phone verification is Telegram-only (d7f4610), so any verified account has necessarily linked a chat — live linked-chat count not re-checked from this pass, since it needs a DB query this session's hosting outage currently blocks
 - [x] Notification outbox with deduplication running — the outbox, the worker, the retry ladder, the inbox and the preferences screen all exist and run, and all three channels (IN_APP, EMAIL, TELEGRAM) reach real recipients in production
 - [~] Verification levels 0/1/2 operating — 0 and 1 operate; 2 requires identity documents and is gated off pending LEGAL-004
-- [ ] Mobile UX reviewed at 375 px, 430 px and desktop
-- [ ] Accessibility baseline: keyboard, labels, contrast, focus, touch targets
-- [ ] Loading, empty and error states on every async surface
-- [ ] SEO baseline: structured data, sitemap, canonicals, private routes excluded
+- [x] Mobile UX reviewed at 375 px, 430 px and desktop — every layout bug found in DEC-085 re-screenshotted; now guarded by the viewport specs
+- [x] Accessibility baseline: keyboard, labels, contrast, focus, touch targets — axe-core finds no serious or critical violation on the key pages at three widths; `npm run contrast` gates the brand colours; touch targets raised to 44 px where the mobile spec found smaller ones (DEC-086)
+- [x] Loading, empty and error states on every async surface — there was no `loading.tsx` anywhere; search results now have a skeleton, alongside the existing empty states and the localized error boundaries. A page-level boundary was tried and removed: it made action refreshes get lost (DEC-086)
+- [x] SEO baseline: structured data, sitemap, canonicals, private routes excluded — hreflang had pointed every page at the home page; now per page, canonicals per locale, sitemap with listings and cities in three languages, robots excludes private routes in every locale (DEC-086)
 
 ## Operations
 
-- [ ] Reproducible deployment — no Dockerfile, no hosting target (blocked on LEGAL-003)
+- [~] Reproducible deployment — the site runs on HostFly cPanel by a documented, repeated manual procedure (HOW_TO_UPDATE_THE_SITE.md). Not automated, and the hosting region is still an open LEGAL-003 question
 - [x] Environment/configuration documented — every variable the code reads is in `.env.example`
 - [x] Structured logs and health endpoints — `/api/health` touches the database and reports job status and notification backlog; API errors log as JSON with a correlation id; the scheduler prints one JSON line per job
-- [ ] Error tracking
-- [~] Background job monitoring — `job_run` records every run and `/admin/notifications/backlog` reports the queue; nothing watches either
-- [ ] Alerts on failed fee accrual, stuck completions, notification backlog
+- [x] Error tracking — server and browser errors are fingerprinted into `error_event` (no third party, no personal data, 90-day retention); the latest are on the staff overview for administrators (DEC-086)
+- [x] Background job monitoring — the watchdog reads `job_run` on every lifecycle sweep and alerts on a failed job or one stuck running for an hour (DEC-086)
+- [x] Alerts on failed fee accrual, stuck completions, notification backlog — `checkOperations()` in the hourly sweep: missing fee, completion past deadline, stay not closed, outbox backlog, delivery failures, failed jobs, new errors; administrators get an OPERATIONS notification once per kind per day, and `/api/health` reports the same list (DEC-086)
 
 ## Legal — **blocking**
 
@@ -109,3 +109,8 @@ What remains is not mostly feature work. It is four things the codebase cannot d
 3. ~~The real-server concurrency run~~ — **done**: 1135 tests on PostgreSQL 10.23 with no extensions, and a production build verified against it end to end, including search, radius search, availability, the calendar and case-insensitive login.
 4. **Every legal question**, which needs a Belarus-qualified lawyer — hosting region above all,
    because it decides where the database may physically live.
+5. **One owner action after deploying DEC-085:** re-register the Telegram webhook with its secret
+   (`npm run telegram:webhook`, HOW_TO_UPDATE_THE_SITE.md §2.10).
+
+Everything on this list that code can do was done in DEC-086: browser tests in CI, mobile and
+accessibility checks, loading states, SEO, error tracking, alerts, job monitoring and an index review.

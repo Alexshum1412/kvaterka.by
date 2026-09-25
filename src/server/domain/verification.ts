@@ -288,7 +288,7 @@ export interface Sufficiency {
  * fail-closed the same way identity used to be — the flag it depends on is
  * `verification.property_documents` (renamed from the identity one in
  * 0018, since collecting property documents is a different, unblocked
- * question — see LEGAL-004 in LEGAL_RISK_REGISTER.md).
+ * question — see LEGAL-004 in docs/LEGAL.md).
  */
 export function evidenceSufficiency(e: EvidenceInputs): Sufficiency {
   if (e.kind === 'IDENTITY') {

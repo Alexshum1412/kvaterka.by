@@ -11,7 +11,7 @@
  * cannot prove version compatibility either — that is what the real-PG10 suite
  * is for (tests/pg10-compatibility.test.ts and the postgres:10.23 CI job).
  *
- * LIMITATION (recorded honestly, see REPO_AUDIT.md): PGlite serialises all work
+ * LIMITATION (recorded honestly): PGlite serialises all work
  * onto a single connection, so it cannot exercise *simultaneous* transactions.
  * Constraint enforcement is fully testable here; true concurrency races are
  * covered by the same suite run against a real server via TEST_DATABASE_URL.

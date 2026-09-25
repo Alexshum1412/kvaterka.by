@@ -1,6 +1,6 @@
 # CLAUDE.md — kvaterka.by
 
-Memory file for coding agents. Caveman-compressed on purpose (JuliusBrussee/caveman `caveman-compress` rules): terse, every fact kept. Full reasoning lives in `DECISIONS.md` (DEC-001…DEC-085) — read the matching DEC before changing a decided behavior.
+Memory file for coding agents. Caveman-compressed on purpose (JuliusBrussee/caveman `caveman-compress` rules): terse, every fact kept. Full reasoning lives in `DECISIONS.md` (DEC-001…DEC-086) — read the matching DEC before changing a decided behavior.
 
 ## Product
 
@@ -18,6 +18,7 @@ Next.js 15 App Router + React 19, TypeScript, Tailwind v4 (mostly raw CSS in per
 - `npm test` — vitest on PGlite. `TEST_DATABASE_URL=postgres://kvaterka:kvaterka@localhost:55432/kvaterka_test npm test` for real PG 10 (`docker compose up -d postgres`, image `postgres:10.23-bullseye` — bare `10.23` tag gone from Docker Hub).
 - `npm run contrast` — reads `--gradient-brand` stops from `globals.css`, fails below AA.
 - `npm run telegram:webhook` — registers webhook WITH secret. Required after DEC-085 or bot stops working.
+- `npm run e2e` — Playwright vs running prod build (`E2E_BASE_URL`, default :3100; `E2E_DATABASE_URL` for DB asserts; `PW_CHROMIUM_PATH` for preinstalled chrome). Needs migrated+seeded PG + `next start`. CI job `e2e` does it all.
 
 Demo logins (local PGlite only): `landlord1@demo.kvaterka.by`, `tenant@demo.kvaterka.by`, `admin@demo.kvaterka.by` / password in `src/server/db/seed.ts`. Staff roles withheld until TOTP.
 
@@ -28,6 +29,8 @@ Demo logins (local PGlite only): `landlord1@demo.kvaterka.by`, `tenant@demo.kvat
 - `src/server/domain` pure logic, no I/O. `src/server/services` transactions. Arrow: services → domain.
 - `src/ui` components. `src/app/globals.css` tokens + primitives.
 - `messages/{ru,be,en}/*.json` — every key in all three locales.
+- `e2e/` — browser specs + `support.ts` (signIn, signInStaff w/ real TOTP, freeStay, fillStay, axe).
+- Docs: root = README, CLAUDE, DECISIONS, MVP_RELEASE_CHECKLIST, HOW_TO_UPDATE_THE_SITE (owner, ru), SECURITY (+privacy). `docs/` = ARCHITECTURE (+schema, flows), PRODUCT (reqs + original spec §N), LEGAL, OPERATIONS. Don't add new .md files; extend these.
 
 ## Invariants — do not break
 
@@ -38,6 +41,9 @@ Demo logins (local PGlite only): `landlord1@demo.kvaterka.by`, `tenant@demo.kvat
 - Telegram webhook: require `X-Telegram-Bot-Api-Secret-Token` (`telegramWebhookSecret`), contact must be sender's own.
 - Upload handlers: sniff bytes (`sniffImage`), strip metadata, delete file if DB row not written.
 - Mail-sending public routes: per-IP AND per-recipient limits (`bucketForRecipient`). IP from `X-Real-IP` is spoofable unless proxy overwrites it.
+- Applied migrations are checksummed: never edit one, not even a comment. New change = next `NNNN_*.sql`.
+- New table → entry in `domain/retention.ts` catalogue or the catalogue test fails.
+- Watchdog (`services/watchdog.ts`) runs at end of lifecycle sweep; new invariant worth alerting = new check there. Errors → `error_event` via `recordError` (never throws, no user data).
 
 ## UI rules (learned the hard way)
 
@@ -47,8 +53,10 @@ Demo logins (local PGlite only): `landlord1@demo.kvaterka.by`, `tenant@demo.kvat
 - White text only on `--primary`/`--primary-hover`/gradient; `--accent` never text.
 - Header text nav breakpoint depends on link count: `data-nav` = anon 900px / member 1024px / staff 1180px. Adding a nav link → remeasure overlap in ru/be/en.
 - Motion: `--ease-out` token, press `scale(0.97)`, entrances via `@starting-style`, UI < 300ms, add every new animated selector to `prefers-reduced-motion` block.
-- No side-stripe `border-left` callouts, no icon-in-circle feature grids (impeccable/taste bans).
+- No side-stripe `border-left` callouts, no icon-in-circle feature grids, no glassmorphism, parallax/scroll-jacking, grain overlays, external stock images (impeccable/taste bans + CSP).
+- Touch targets ≥ 44px on coarse pointers (`e2e/mobile.spec.ts` checks).
 - Unknown routes → `[locale]/[...rest]` → localized 404. Keep it.
+- No `loading.tsx` at `[locale]` (or any segment with in-place actions): it made `router.refresh()` after an action get lost — POST committed, old panel stayed (DEC-086). Search keeps its own.
 - Verify UI in a real browser at 390 and 1440 wide before claiming done; static review missed every layout bug in DEC-085.
 
 ## Skills in `.claude/skills`
@@ -59,4 +67,6 @@ impeccable (engine binary: `sh .claude/skills/impeccable/scripts/impeccable dete
 
 - Log each batch as next DEC-NNN in `DECISIONS.md`: Question / what found / why / verification with real numbers.
 - Commits: long explanatory prose body (why + evidence), not caveman. Prove a fix by reverting it and watching its test fail.
+- New endpoint = authorization tests incl. negative cases (DEC-083/084 audited all).
+- E2E flake is never "flake": so far it was hydration (wait `networkidle`), reload mid-`router.refresh()`, date collision in reused DB, or a real bug (root loading.tsx).
 - Checklist of launch gates: `MVP_RELEASE_CHECKLIST.md`.

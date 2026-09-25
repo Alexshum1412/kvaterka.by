@@ -299,7 +299,7 @@ curl -s -o /dev/null -w "HTTP:%{http_code}\n" https://kvaterka.by/
 | `/home/kvaterk1/kvaterka` | Корень приложения (= `~/kvaterka` в Terminal) |
 | `/home/kvaterk1/kvaterka/.next` | Собранное приложение — то, что реально обслуживает запросы |
 | `/home/kvaterk1/kvaterka/tmp/restart.txt` | Файл-триггер перезапуска (просто `touch` его) |
-| `/home/kvaterk1/kvaterka/.media` | Загруженные пользователями фото (локальный диск, не облако — см. `DEPLOYMENT.md` §8) |
+| `/home/kvaterk1/kvaterka/.media` | Загруженные пользователями фото (локальный диск, не облако — см. `docs/OPERATIONS.md` §8) |
 | `/home/kvaterk1/kvaterka/src`, `messages`, и т.д. | Исходный код — обновляется через `git pull`, отдельно от `.next` |
 | `~/.cl.selector/node-selector.json` | Переменные окружения приложения (DATABASE_URL и т.п.) — cPanel хранит их тут, а не в `.env` |
 
