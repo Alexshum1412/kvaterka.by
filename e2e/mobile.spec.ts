@@ -18,11 +18,11 @@ test('search switches between list and map from the bottom dock', async ({ page 
 });
 
 test('the listing page keeps a booking entry point under the thumb', async ({ page }) => {
-  const id = (await db.query(`SELECT id FROM property WHERE status='PUBLISHED' LIMIT 1`)).rows[0].id;
+  // Ordered: an unordered LIMIT 1 picked a request-mode listing in CI, whose
+  // dock says «Отправить запрос». Either label is the entry point under test.
+  const id = (await db.query(`SELECT id FROM property WHERE status='PUBLISHED' ORDER BY id LIMIT 1`)).rows[0].id;
   await page.goto(`/listing/${id}`, { waitUntil: 'networkidle' });
-  const book = page.locator('.lst__dock').getByRole('link', { name: 'Забронировать' }).or(
-    page.locator('.lst__dock').getByRole('button', { name: 'Забронировать' }),
-  );
+  const book = page.locator('.lst__dock').getByRole('link', { name: /^(Забронировать|Отправить запрос)$/ });
   await expect(book).toBeVisible();
   await book.click();
   await expect(page.locator('.bp__dates')).toBeInViewport();
