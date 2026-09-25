@@ -28,7 +28,8 @@ vi.mock('@/i18n/navigation.ts', async () => {
 });
 vi.mock('next-intl/server', () => ({
   getLocale: async () => 'ru',
-  getTranslations: async () => (key: string, values?: Record<string, unknown>) => `${key}${values ? JSON.stringify(values) : ''}`,
+  getTranslations: async () => (key: string, values?: Record<string, unknown>) =>
+    `${key}${values ? JSON.stringify(values) : ''}`,
 }));
 vi.mock('@/server/session.ts', () => ({ currentUser: async () => null }));
 vi.mock('@/ui/search-form.tsx', () => ({}));
@@ -74,7 +75,10 @@ beforeEach(async () => {
   await db.truncateAll();
   runtime.indexable = true;
   owner = uuidv7();
-  await db.query(`INSERT INTO app_user (id, email, display_name) VALUES ($1,$2,'Сэо')`, [owner, `${owner}@example.by`]);
+  await db.query(`INSERT INTO app_user (id, email, display_name) VALUES ($1,$2,'Сэо')`, [
+    owner,
+    `${owner}@example.by`,
+  ]);
   published = await addListing('Минск', 'PUBLISHED');
   draft = await addListing('Минск', 'DRAFT');
 });
@@ -155,7 +159,9 @@ describe('city landing pages', () => {
     for (const city of CITIES) if (city !== 'Минск') await addListing(city, 'PUBLISHED');
     const entries = await sitemap();
     for (const city of CITIES) {
-      const entry = entries.find((e) => e.url === `https://kvaterka.by/search?city=${encodeURIComponent(city)}`)!;
+      const entry = entries.find(
+        (e) => e.url === `https://kvaterka.by/search?city=${encodeURIComponent(city)}`,
+      )!;
       const { alternates } = await meta('ru', { city });
       const pageLanguages = Object.entries((alternates?.languages ?? {}) as Record<string, string>)
         .filter(([l]) => l !== 'x-default')
@@ -181,7 +187,12 @@ describe('city landing pages', () => {
   });
 
   it('a city with any filter is a result list, not a landing page: canonical is the city page, no hreflang', async () => {
-    for (const extra of [{ guests: '2' }, { from: '2026-10-01' }, { sort: 'PRICE_ASC' }, { amenities: ['wifi', 'tv'] }]) {
+    for (const extra of [
+      { guests: '2' },
+      { from: '2026-10-01' },
+      { sort: 'PRICE_ASC' },
+      { amenities: ['wifi', 'tv'] },
+    ]) {
       const { alternates } = await meta('be', { city: 'Минск', ...extra });
       expect(alternates).toEqual({ canonical: languagesFor('Минск').be });
     }

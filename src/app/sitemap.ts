@@ -31,14 +31,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const base = env().PUBLIC_BASE_URL.replace(/\/$/, '');
   const now = new Date();
-  const entry = (path: string, priority: number, changeFrequency: Entry['changeFrequency'], lastModified = now): Entry => ({
+  const entry = (
+    path: string,
+    priority: number,
+    changeFrequency: Entry['changeFrequency'],
+    lastModified = now,
+  ): Entry => ({
     url: `${base}${path}`,
     lastModified,
     changeFrequency,
     priority,
     alternates: {
       languages: Object.fromEntries(
-        routing.locales.map((l) => [l, `${base}${l === routing.defaultLocale ? '' : `/${l}`}${path === '/' && l !== routing.defaultLocale ? '' : path}`]),
+        routing.locales.map((l) => [
+          l,
+          `${base}${l === routing.defaultLocale ? '' : `/${l}`}${path === '/' && l !== routing.defaultLocale ? '' : path}`,
+        ]),
       ),
     },
   });
@@ -57,7 +65,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ['/privacy', 0.2, 'yearly'],
   ];
 
-  const { rows } = await (await ready()).query<{ id: string; city: string; updated_at: Date }>(
+  const { rows } = await (
+    await ready()
+  ).query<{ id: string; city: string; updated_at: Date }>(
     `SELECT id, city, updated_at FROM property WHERE status = 'PUBLISHED' AND deleted_at IS NULL
       ORDER BY updated_at DESC LIMIT $1`,
     [MAX_LISTINGS],

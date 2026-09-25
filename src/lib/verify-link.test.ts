@@ -3,12 +3,21 @@ import { parseVerifyLink } from './verify-link.ts';
 
 describe('parseVerifyLink', () => {
   it('accepts what a mailed link really carries', () => {
-    expect(parseVerifyLink('anna@example.by', '123456')).toEqual({ identifier: 'anna@example.by', code: '123456' });
-    expect(parseVerifyLink('+375291234567', '004512')).toEqual({ identifier: '+375291234567', code: '004512' });
+    expect(parseVerifyLink('anna@example.by', '123456')).toEqual({
+      identifier: 'anna@example.by',
+      code: '123456',
+    });
+    expect(parseVerifyLink('+375291234567', '004512')).toEqual({
+      identifier: '+375291234567',
+      code: '004512',
+    });
   });
 
   it('trims stray whitespace around either value', () => {
-    expect(parseVerifyLink('  anna@example.by ', ' 123456 ')).toEqual({ identifier: 'anna@example.by', code: '123456' });
+    expect(parseVerifyLink('  anna@example.by ', ' 123456 ')).toEqual({
+      identifier: 'anna@example.by',
+      code: '123456',
+    });
   });
 
   it('refuses text that would read as the site speaking, or as markup', () => {
