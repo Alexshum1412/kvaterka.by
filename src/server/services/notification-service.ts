@@ -68,6 +68,9 @@ export const NOTIFICATION_CATEGORIES = [
    * conversation is not money owed or an account-security event, so a
    * person may switch it off like any other product notification. */
   'SUPPORT',
+  /** The watchdog found a broken invariant (DEC-086). Administrators only —
+   * the account page lists it for ADMIN and nobody else. */
+  'OPERATIONS',
 ] as const;
 
 export type NotificationCategory = (typeof NOTIFICATION_CATEGORIES)[number];
@@ -95,6 +98,7 @@ export const NOTIFICATION_CATEGORY_TITLE: Record<string, string> = {
   SECURITY: 'Безопасность аккаунта',
   MODERATION: 'Решение модерации',
   SUPPORT: 'Обновление по обращению в поддержку',
+  OPERATIONS: 'Нужна проверка команды: сторож нашёл сбой',
 };
 
 const NOTIFICATION_CATEGORY_TITLE_BE: Record<string, string> = {
@@ -113,6 +117,7 @@ const NOTIFICATION_CATEGORY_TITLE_BE: Record<string, string> = {
   SECURITY: 'Бяспека акаунта',
   MODERATION: 'Рашэнне мадэрацыі',
   SUPPORT: 'Абнаўленне па зваротах у падтрымку',
+  OPERATIONS: 'Патрэбна праверка каманды: вартаўнік знайшоў збой',
 };
 
 const NOTIFICATION_CATEGORY_TITLE_EN: Record<string, string> = {
@@ -131,6 +136,7 @@ const NOTIFICATION_CATEGORY_TITLE_EN: Record<string, string> = {
   SECURITY: 'Account security',
   MODERATION: 'Moderation decision',
   SUPPORT: 'Support ticket update',
+  OPERATIONS: 'Team check needed: the watchdog found a fault',
 };
 
 /** Locale-aware sibling of `NOTIFICATION_CATEGORY_TITLE` — same fixed,

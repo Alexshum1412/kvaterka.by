@@ -1,4 +1,5 @@
 import { db, env, PGLITE_URL, ready } from '@/server/runtime.ts';
+import { checkOperations } from '@/server/services/watchdog.ts';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -77,6 +78,11 @@ export async function GET(): Promise<Response> {
           WHERE status IN ('PENDING','SENDING') GROUP BY channel`,
       );
       checks['notificationBacklog'] = Object.fromEntries(backlog.map((r) => [r.channel, Number(r.c)]));
+
+      // What the lifecycle watchdog would alert on right now (DEC-086), so an
+      // external uptime monitor polling this URL sees it too. Kinds and counts
+      // only — nothing identifying.
+      checks['alerts'] = await checkOperations(connection);
     } catch {
       // A failure here is not a reason to report the platform unhealthy: the
       // database answered, so the site works. It is a reason to say nothing

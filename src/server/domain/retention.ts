@@ -450,6 +450,16 @@ export const RETENTION_CATALOGUE: readonly TablePolicy[] = [
     note: 'Хранятся только хэши: платформа не может показать их повторно, и в этом их смысл.',
   },
   { table: 'idempotency_record', dataClass: 'OPERATIONAL', subject: 'user_id', purpose: 'Защита от повторов; хранит копию ответа', onErasure: 'HARD_DELETE', window: { kind: 'TECHNICAL', why: 'Есть expires_at' }, enforced: true },
+  {
+    table: 'error_event',
+    dataClass: 'OPERATIONAL',
+    subject: null,
+    purpose: 'Трекер ошибок: сообщение, страница, число повторов (DEC-086)',
+    onErasure: 'HARD_DELETE',
+    window: { kind: 'TECHNICAL', why: 'Удаляется через 90 дней после последнего появления' },
+    note: 'Без тела запроса, без идентификатора пользователя, без IP.',
+    enforced: true,
+  },
   { table: 'rate_limit_counter', dataClass: 'OPERATIONAL', subject: null, purpose: 'Счётчики ограничений', onErasure: 'HARD_DELETE', window: { kind: 'TECHNICAL', why: 'Окно закрылось' }, enforced: true },
 ];
 

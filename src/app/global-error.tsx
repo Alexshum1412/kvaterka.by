@@ -1,5 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
+import { reportClientError } from '@/lib/report-error.ts';
+
 /**
  * The boundary above the one in `[locale]/error.tsx`.
  *
@@ -28,6 +31,8 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => reportClientError(error), [error]);
+
   return (
     <html lang="ru">
       <body

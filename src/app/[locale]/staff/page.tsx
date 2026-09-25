@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { Link, redirect } from '@/i18n/navigation.ts';
 import { currentUser, signInUrl } from '@/server/session.ts';
-import { readyServices } from '@/server/runtime.ts';
+import { ready, readyServices } from '@/server/runtime.ts';
+import { checkOperations } from '@/server/services/watchdog.ts';
 import { can } from '@/server/auth/rbac.ts';
 import { StaffShell } from '@/ui/staff-shell.tsx';
 import { Icon, type IconName } from '@/ui/icons.tsx';
@@ -163,6 +164,19 @@ export default async function StaffOverviewPage() {
     },
   ] satisfies Card[]).filter((c) => c.visible);
 
+  /* The watchdog's view (DEC-086), for administrators: the same checks the
+     lifecycle job alerts on, and what the error tracker has recorded. */
+  const isAdmin = user!.roles.includes('ADMIN');
+  const sql = await ready();
+  const alerts = isAdmin ? await checkOperations(sql) : [];
+  const errors = isAdmin
+    ? (
+        await sql.query<{ fingerprint: string; source: string; message: string; path: string | null; count: number; last_seen: Date }>(
+          `SELECT fingerprint, source, message, path, count, last_seen FROM error_event ORDER BY last_seen DESC LIMIT 10`,
+        )
+      ).rows
+    : [];
+
   const pressing = cards.filter((c) => c.tone === 'urgent' && c.count > 0);
   const rest = cards.filter((c) => !pressing.includes(c));
 
@@ -209,7 +223,60 @@ export default async function StaffOverviewPage() {
         })}
       </div>
 
+      {isAdmin && (
+        <section className="ov__watch" aria-labelledby="ov-watch">
+          <h2 id="ov-watch" className="ov__watchTitle">{t('watchdogTitle')}</h2>
+          {alerts.length === 0 ? (
+            <p className="ov__calm">
+              <Icon name="checkCircle" size={17} />
+              {t('watchdogCalm')}
+            </p>
+          ) : (
+            <ul className="ov__alerts">
+              {alerts.map((a) => (
+                <li key={a.kind} className="ov__alert">
+                  <Icon name="alert" size={16} />
+                  <span>{t(`alert_${a.kind}`)}</span>
+                  <strong className="numeric">{a.count}</strong>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <h3 className="ov__watchSub">{t('errorsTitle')}</h3>
+          {errors.length === 0 ? (
+            <p className="ov__muted">{t('errorsEmpty')}</p>
+          ) : (
+            <ul className="ov__errors">
+              {errors.map((e) => (
+                <li key={e.fingerprint} className="ov__error">
+                  <code className="ov__errorMsg">{e.message}</code>
+                  <span className="ov__muted">
+                    {e.source} · {e.path ?? '—'} · {t('errorsTimes', { count: e.count })} ·{' '}
+                    {new Date(e.last_seen).toLocaleString(locale)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
       <style>{`
+        .ov__watch { margin-top: var(--space-6); display: grid; gap: var(--space-3); }
+        .ov__watchTitle { font-size: var(--text-xl); font-weight: 600; }
+        .ov__watchSub { font-size: var(--text-base); font-weight: 600; margin-top: var(--space-3); }
+        .ov__muted { font-size: var(--text-sm); color: var(--text-secondary); }
+        .ov__alerts, .ov__errors { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+        .ov__alert {
+          display: flex; align-items: center; gap: var(--space-2);
+          padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm);
+          background: var(--warning-soft); font-size: var(--text-sm);
+        }
+        .ov__alert > svg { color: var(--warning); flex: 0 0 auto; }
+        .ov__alert strong { margin-left: auto; }
+        .ov__error { display: grid; gap: 0.2rem; padding-block: var(--space-2); border-top: 1px solid var(--border); }
+        .ov__errorMsg { font-family: ui-monospace, monospace; font-size: var(--text-xs); overflow-wrap: anywhere; }
         .ov__calm {
           display: flex; align-items: center; gap: 0.45rem;
           margin-bottom: var(--space-4); font-size: var(--text-sm);

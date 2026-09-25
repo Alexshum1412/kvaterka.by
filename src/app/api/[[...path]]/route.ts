@@ -11,6 +11,7 @@
 import { dispatch } from '../../../server/api/router.ts';
 import type { ApiRequest, Method } from '../../../server/api/http.ts';
 import { env, ready, readyServices, router } from '../../../server/runtime.ts';
+import { recordError } from '@/server/services/error-log.ts';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -74,6 +75,14 @@ async function handle(request: Request): Promise<Response> {
           method: apiRequest.method,
           message: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
+        }),
+      );
+      // Into the error tracker too (DEC-086); never awaited into the response.
+      void ready().then((sql) =>
+        recordError(sql, {
+          source: 'API',
+          message: `${apiRequest.method}: ${error instanceof Error ? error.message : String(error)}`,
+          path: apiRequest.path,
         }),
       );
     },

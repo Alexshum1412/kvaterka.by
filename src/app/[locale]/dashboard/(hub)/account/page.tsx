@@ -84,7 +84,11 @@ export default async function AccountPage() {
   const describe = services.delivery.describeChannels();
   const configured = services.delivery.liveChannels();
 
-  const preferenceRows: PreferenceRow[] = NOTIFICATION_CATEGORIES.map((category) => ({
+  // OPERATIONS is the watchdog's channel to administrators (DEC-086); nobody
+  // else ever receives it, so nobody else is offered a switch for it.
+  const preferenceRows: PreferenceRow[] = NOTIFICATION_CATEGORIES.filter(
+    (category) => category !== 'OPERATIONS' || user!.roles.includes('ADMIN'),
+  ).map((category) => ({
     category,
     title: notificationCategoryTitle(category, locale) ?? category,
     mandatoryInApp: MANDATORY_IN_APP.includes(category),
