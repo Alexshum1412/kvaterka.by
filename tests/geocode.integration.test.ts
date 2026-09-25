@@ -23,6 +23,13 @@ vi.mock('@/server/session.ts', () => ({
   currentUser: async () => session.current,
 }));
 
+/* The per-account lookup limit counts in the database; a stand-in answers
+   the one upsert it makes with however many hits this window already has. */
+const hits = vi.hoisted(() => ({ current: 1 }));
+vi.mock('@/server/runtime.ts', () => ({
+  ready: async () => ({ query: async () => ({ rows: [{ hits: hits.current }] }) }),
+}));
+
 const { GET } = await import('@/app/api/geocode/route.ts');
 
 function request(q: string): Request {
@@ -31,6 +38,7 @@ function request(q: string): Request {
 
 beforeEach(() => {
   session.current = { userId: 'u1', displayName: 'Тэставы Гаспадар' };
+  hits.current = 1;
 });
 
 afterEach(() => {
@@ -143,6 +151,21 @@ describe('refused before ever calling Nominatim', () => {
 
     const response = await GET(request('м'));
     expect(response.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses an essay instead of forwarding it to Nominatim', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch');
+    const response = await GET(request('Минск, '.repeat(40)));
+    expect(response.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('stops one account from hammering Nominatim, before any network call', async () => {
+    hits.current = 31;
+    const fetchMock = vi.spyOn(global, 'fetch');
+    const response = await GET(request('Минск, Немига 3'));
+    expect(response.status).toBe(429);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

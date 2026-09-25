@@ -62,6 +62,62 @@ export function exceedsPixelBudget(width: number | null, height: number | null):
   return width * height > MAX_PIXELS;
 }
 
+export interface SniffedImage {
+  readonly ext: ImageKind;
+  readonly mime: string;
+  readonly width: number | null;
+  readonly height: number | null;
+}
+
+/**
+ * Identify an upload by its first bytes, never by the content type it claims.
+ * Returns null for anything that is not a JPEG, PNG or WebP — an SVG (a script
+ * that renders as a picture) included. Used by both upload routes, which had
+ * each carried a verbatim copy of this function.
+ */
+export function sniffImage(buf: Bytes): SniffedImage | null {
+  if (buf.length > 24 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return { ext: 'jpg', mime: 'image/jpeg', ...jpegSize(buf) };
+  }
+  if (
+    buf.length > 24 &&
+    buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  ) {
+    // IHDR is always the first chunk, so the dimensions sit at a fixed offset.
+    return { ext: 'png', mime: 'image/png', width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  }
+  if (
+    buf.length > 16 &&
+    buf.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buf.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    // WebP has three sub-formats with different headers; the dimensions are
+    // not worth three parsers, and the column is nullable.
+    return { ext: 'webp', mime: 'image/webp', width: null, height: null };
+  }
+  return null;
+}
+
+/** Walk JPEG segments to the first start-of-frame, which carries the size. */
+function jpegSize(buf: Bytes): { width: number | null; height: number | null } {
+  let offset = 2;
+  while (offset + 9 < buf.length) {
+    if (buf[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = buf[offset + 1]!;
+    // SOF0..SOF15, excluding the DHT/JPG/DAC markers interleaved in that range.
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+      return { height: buf.readUInt16BE(offset + 5), width: buf.readUInt16BE(offset + 7) };
+    }
+    const length = buf.readUInt16BE(offset + 2);
+    if (length <= 0) break;
+    offset += 2 + length;
+  }
+  return { width: null, height: null };
+}
+
 /* ------------------------------------------------------------------ *
  * JPEG
  * ------------------------------------------------------------------ */

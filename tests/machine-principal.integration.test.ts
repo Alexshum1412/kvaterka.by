@@ -85,6 +85,15 @@ describe('the credential is not a skeleton key', () => {
     },
   );
 
+  it.each([
+    ['GET', '/me/account/closure'],
+    ['POST', '/me/account/close'],
+    ['GET', '/auth/me'],
+  ] as const)('is nobody on a user-scoped route: %s %s answers 401, not a 500', async (method, path) => {
+    const response = method === 'GET' ? await api.get(path, asScheduler()) : await api.post(path, {}, asScheduler());
+    expect(response.status).toBe(401);
+  });
+
   it('holds exactly the three job permissions', () => {
     expect([...MACHINE_PERMISSIONS].sort()).toEqual(
       ['lifecycle.run', 'notifications.run', 'retention.run'].sort(),

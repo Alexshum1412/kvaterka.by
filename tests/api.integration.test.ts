@@ -217,6 +217,22 @@ describe('authentication', () => {
     expect(JSON.stringify(known.body)).toBe(JSON.stringify(unknown.body));
   });
 
+  it('sends one mailbox at most three reset emails an hour, however many IPs ask', async () => {
+    const user = await api.signUp();
+    // Five different claimed addresses: exactly what a proxy that passes
+    // X-Real-IP through would let one stranger present.
+    for (const ip of ['203.0.113.1', '203.0.113.2', '203.0.113.3', '203.0.113.4', '203.0.113.5']) {
+      const res = await api.post('/auth/password-reset/request', { identifier: user.email }, { ip });
+      expect(res.status).toBe(200);
+    }
+    const { rows } = await db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM notification
+        WHERE user_id=$1 AND payload->>'kind'='PASSWORD_RESET'`,
+      [user.userId],
+    );
+    expect(Number(rows[0]!.c)).toBe(3);
+  });
+
   it('resets a password end-to-end over HTTP and refuses to let the token be reused', async () => {
     const user = await api.signUp();
 
@@ -352,25 +368,23 @@ describe('session management', () => {
   });
 
   /**
-   * Both routes carry a defensive `if (!token) return ok({ ok: false }, 401)`
-   * (refresh) / no-op (logout) for a caller that is authenticated but
-   * presents no session token — unreachable through an ordinary request,
-   * since `auth: 'required'` already refuses anyone the router could not
-   * resolve a caller OR a machine for. The one principal that reaches the
-   * handler that way is a scheduler: a valid job token with no session
-   * cookie at all. Exercised directly so that line is provably live code,
-   * not dead defensiveness nobody ever runs.
+   * A scheduler's job token is a credential for the three job routes and
+   * nothing else. It used to authenticate on every `auth: 'required'` route,
+   * which is how it reached these two session handlers with no session behind
+   * it — and how the same token crashed retention.ts's closure routes with a
+   * 500 (DEC-084). The router now treats a machine as nobody on any route
+   * that names no permission, so both answer exactly as an anonymous call does.
    */
-  it('a scheduler with a job token but no session gets the defensive fallback, not a crash', async () => {
+  it('refuses a scheduler on the session routes, as it would an anonymous caller', async () => {
     const scheduler = { jobToken: 'z'.repeat(32), headers: { 'x-job-token': 'z'.repeat(32) } };
 
     const refreshed = await api.post('/auth/refresh', {}, scheduler);
     expect(refreshed.status).toBe(401);
-    expect(refreshed.body).toEqual({ ok: false });
+    expect(refreshed.errorCode).toBe('UNAUTHENTICATED');
 
     const loggedOut = await api.post('/auth/logout', {}, scheduler);
-    expect(loggedOut.status).toBe(200);
-    expect(loggedOut.body).toEqual({ ok: true });
+    expect(loggedOut.status).toBe(401);
+    expect(loggedOut.errorCode).toBe('UNAUTHENTICATED');
   });
 
   describe('GET /auth/sessions', () => {

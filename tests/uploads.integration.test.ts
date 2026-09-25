@@ -15,7 +15,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readFile, rm } from 'node:fs/promises';
+import { readdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { createTestDb, type TestDb } from '@/server/db/testing.ts';
 import { ListingService } from '@/server/services/listing-service.ts';
@@ -25,7 +25,7 @@ import { uuidv7 } from '@/lib/id.ts';
    runtime. Both are replaced here so the handler under test is the real one
    while its two ambient dependencies point at this suite's database. */
 const session = vi.hoisted(() => ({ current: null as { userId: string; displayName: string } | null }));
-const runtime = vi.hoisted(() => ({ services: null as unknown }));
+const runtime = vi.hoisted(() => ({ services: null as unknown, db: null as unknown }));
 
 vi.mock('@/server/session.ts', () => ({
   currentUser: async () => session.current,
@@ -34,7 +34,7 @@ vi.mock('@/server/session.ts', () => ({
 
 vi.mock('@/server/runtime.ts', () => ({
   readyServices: async () => runtime.services,
-  ready: async () => undefined,
+  ready: async () => runtime.db,
 }));
 
 const MEDIA_ROOT = path.join(process.cwd(), '.media-test-uploads');
@@ -51,6 +51,7 @@ beforeAll(async () => {
   db = await createTestDb();
   listings = new ListingService(db);
   runtime.services = { listings };
+  runtime.db = db;
 }, 120_000);
 
 afterAll(async () => {
@@ -156,6 +157,11 @@ async function upload(
     return POST(new Request('http://localhost/api/uploads', { method: 'POST', body: form, headers }));
   }
   return POST(request);
+}
+
+/** Files on disk under this suite's listing, whatever the database says. */
+async function filesOnDisk(): Promise<string[]> {
+  return readdir(path.join(MEDIA_ROOT, 'listings', propertyId)).catch(() => []);
 }
 
 /* ================================================================== */
@@ -266,6 +272,33 @@ describe('what is refused', () => {
       [propertyId],
     );
     expect(Number(rows[0]!.c)).toBe(0);
+    // The row was never the whole story: the bytes were written before the
+    // ownership check and stayed behind, so any account could fill the disk
+    // with refused uploads aimed at somebody else's listing.
+    expect(await filesOnDisk()).toEqual([]);
+  });
+
+  it('leaves no file behind when the 30-photo cap refuses the upload', async () => {
+    for (let i = 0; i < 30; i += 1) {
+      await db.query(
+        `INSERT INTO property_photo (id, property_id, storage_key, sort_order) VALUES ($1,$2,$3,$4)`,
+        [uuidv7(), propertyId, `listings/${propertyId}/seed-${i}.jpg`, i],
+      );
+    }
+    const response = await upload(jpegWithGps());
+    expect(response.status).toBe(422);
+    expect(await filesOnDisk()).toEqual([]);
+  });
+
+  it('caps one account at 60 uploads an hour', async () => {
+    const windowStart = new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000);
+    await db.query(`INSERT INTO rate_limit_counter (bucket, window_start, hits) VALUES ($1,$2,60)`, [
+      `upload:photo:user:${ownerId}`,
+      windowStart.toISOString(),
+    ]);
+    const response = await upload(jpegWithGps());
+    expect(response.status).toBe(429);
+    expect(await filesOnDisk()).toEqual([]);
   });
 
   it('refuses a malformed property id without touching the disk', async () => {

@@ -24,6 +24,21 @@ export const bucketForIp = (name: string, ip: string | null): string =>
 
 export const bucketForUser = (name: string, userId: string): string => `${name}:user:${userId}`;
 
+/**
+ * A mailbox (or phone) as a bucket key — hashed like an IP, never stored raw.
+ *
+ * The public routes that send mail limit by IP, and an IP limit is only as
+ * good as the proxy that sets X-Real-IP: behind one that passes the header
+ * through, every request can claim a fresh address. Counting per recipient
+ * as well bounds how much mail one stranger can make this platform send to
+ * one person, whatever the network in between does.
+ */
+export const bucketForRecipient = (name: string, recipient: string): string =>
+  `${name}:to:${createHash('sha256').update(recipient.trim().toLowerCase()).digest('hex').slice(0, 32)}`;
+
+/** Messages of one kind that one recipient may be sent per hour. */
+export const MAIL_PER_RECIPIENT_PER_HOUR = 3;
+
 export async function checkRateLimit(
   sql: Sql,
   bucket: string,

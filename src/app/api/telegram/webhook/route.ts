@@ -70,6 +70,7 @@
 import { env, readyServices } from '@/server/runtime.ts';
 import { DomainError } from '@/server/services/errors.ts';
 import type { Services } from '@/server/services/container.ts';
+import { isAuthenticTelegramWebhook } from '@/server/delivery/telegram.ts';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -78,7 +79,7 @@ interface TelegramUpdate {
   readonly message?: {
     readonly text?: string;
     readonly chat?: { readonly id?: number };
-    readonly from?: { readonly username?: string };
+    readonly from?: { readonly id?: number; readonly username?: string };
     readonly contact?: { readonly phone_number?: string; readonly user_id?: number };
   };
 }
@@ -215,12 +216,25 @@ async function replyHelp(botToken: string, chatId: number, publicBaseUrl: string
 }
 
 export async function POST(request: Request): Promise<Response> {
+  /* Only Telegram may speak here. This endpoint used to accept any POST from
+   * anyone, and it is where a phone number becomes "verified": two forged
+   * requests — a /start carrying the caller's own verification token, then a
+   * "contact" with any +375 number — marked that number verified on the
+   * caller's account without Telegram ever being involved, which is the gate
+   * listing publication stands on (DEC-076). The same hole let anyone unlink
+   * another user's chat, or point their own notifications at a stranger's.
+   * Telegram sends the secret registered with setWebhook in this header;
+   * without a bot token there is no bot, and nothing to accept. */
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken || !isAuthenticTelegramWebhook(botToken, request.headers.get('x-telegram-bot-api-secret-token'))) {
+    return new Response(null, { status: 401 });
+  }
+
   try {
     const update = (await request.json()) as TelegramUpdate;
     const chatId = update.message?.chat?.id;
     const text = update.message?.text;
     const contact = update.message?.contact;
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
     if (typeof chatId === 'number' && typeof text === 'string' && text.startsWith(START_PREFIX)) {
       const token = text.slice(START_PREFIX.length).trim();
@@ -233,56 +247,61 @@ export async function POST(request: Request): Promise<Response> {
       // and the other always throws UNAUTHENTICATED for it.
       try {
         await services.notifications.beginTelegramPhoneLink(token, chatId, update.message?.from?.username);
-        if (botToken) await requestContact(botToken, chatId);
+        await requestContact(botToken, chatId);
       } catch {
         try {
           await services.notifications.completeTelegramLink(token, chatId, update.message?.from?.username);
-          if (botToken) {
-            // Telegram defaults ON the moment this link exists (DEC-070) —
-            // there is no separate opt-in step left to explain, so this reply
-            // says what actually happens next instead, and points at /help
-            // now that there is more than one command worth knowing about.
-            await replyWithLink(
-              botToken,
-              chatId,
-              'Готово — Telegram привязан к вашему аккаунту Кватэрка.by. Уведомления о бронированиях и сообщениях теперь будут приходить в этот чат. Список команд — /help.',
-              'Открыть кабинет',
-              `${publicBaseUrl}/dashboard`,
-            );
-          }
+          // Telegram defaults ON the moment this link exists (DEC-070) —
+          // there is no separate opt-in step left to explain, so this reply
+          // says what actually happens next instead, and points at /help
+          // now that there is more than one command worth knowing about.
+          await replyWithLink(
+            botToken,
+            chatId,
+            'Готово — Telegram привязан к вашему аккаунту Кватэрка.by. Уведомления о бронированиях и сообщениях теперь будут приходить в этот чат. Список команд — /help.',
+            'Открыть кабинет',
+            `${publicBaseUrl}/dashboard`,
+          );
         } catch (error) {
           // Both calls already validate their own token and throw a
           // DomainError with a message safe to show; anything else is
           // unexpected and gets a generic line rather than an internal string.
           const message =
             error instanceof DomainError ? error.message : 'Ссылка недействительна или устарела. Попробуйте снова.';
-          if (botToken) await reply(botToken, chatId, message);
+          await reply(botToken, chatId, message);
         }
       }
     } else if (typeof chatId === 'number' && contact?.phone_number) {
+      /* A contact card is not proof of a number unless it is the sender's own.
+         Telegram lets anyone forward any contact from their address book; only
+         the request_contact button shares the sender's, and Telegram marks that
+         by setting contact.user_id to the sender's id. Anything else would let
+         a person verify a number that belongs to somebody else. */
+      if (!contact.user_id || contact.user_id !== update.message?.from?.id) {
+        await reply(botToken, chatId, 'Нужен ваш собственный номер — нажмите кнопку «Поделиться номером телефона» под сообщением бота.');
+        return new Response(null, { status: 200 });
+      }
       const services = await readyServices();
       const linked = await services.notifications.completePhoneVerificationTelegramContact(
         chatId,
         contact.phone_number,
       );
-      if (botToken) {
-        await reply(
-          botToken,
-          chatId,
-          linked
-            ? 'Готово — номер телефона подтверждён.'
-            : 'Не нашли ожидающую привязку для этого чата. Начните подтверждение заново на сайте.',
-        );
-      }
-    } else if (typeof chatId === 'number' && text === '/status' && botToken) {
+      await reply(
+        botToken,
+        chatId,
+        linked
+          ? 'Готово — номер телефона подтверждён.'
+          : 'Не нашли ожидающую привязку для этого чата. Начните подтверждение заново на сайте.',
+      );
+    } else if (typeof chatId === 'number' && text === '/status') {
       const services = await readyServices();
       await replyStatus(botToken, chatId, services, env().PUBLIC_BASE_URL.replace(/\/$/, ''));
-    } else if (typeof chatId === 'number' && text === '/unlink' && botToken) {
+    } else if (typeof chatId === 'number' && text === '/unlink') {
       const services = await readyServices();
       await replyUnlink(botToken, chatId, services);
-    } else if (typeof chatId === 'number' && text === '/help' && botToken) {
+    } else if (typeof chatId === 'number' && text === '/help') {
       await replyHelp(botToken, chatId, env().PUBLIC_BASE_URL.replace(/\/$/, ''));
-    } else if (typeof chatId === 'number' && botToken) {
+    } else if (typeof chatId === 'number') {
       // Anything else a person sends the bot: one fixed, unhelpful-on-purpose
       // reply. Building out a real conversation here is explicitly out of
       // scope — the bot exists to deliver one-way pings and answer its own

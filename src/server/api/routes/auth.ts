@@ -3,6 +3,8 @@ import { defineRoute, ok, type AnyRoute } from '../http.ts';
 import { SESSION_COOKIE, readSessionToken } from '../router.ts';
 import { SESSION_TTL_DAYS } from '../../auth/auth-service.ts';
 import { permissionsFor } from '../../auth/rbac.ts';
+import type { Sql } from '../../db/sql.ts';
+import { MAIL_PER_RECIPIENT_PER_HOUR, bucketForRecipient, checkRateLimit } from '../rate-limit.ts';
 
 const email = z.string().trim().toLowerCase().email('Некорректный email').max(200);
 const phone = z
@@ -24,6 +26,12 @@ export function sessionCookie(token: string, maxAgeSeconds: number): string {
 
 const clearedCookie = (): string =>
   `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+
+/** Whether this recipient is still inside its hourly budget for this kind of mail. */
+async function mayMail(db: Sql, kind: string, recipient: string): Promise<boolean> {
+  const result = await checkRateLimit(db, bucketForRecipient(kind, recipient), MAIL_PER_RECIPIENT_PER_HOUR, 3600);
+  return result.allowed;
+}
 
 export const authRoutes: AnyRoute[] = [
   defineRoute({
@@ -60,7 +68,7 @@ export const authRoutes: AnyRoute[] = [
       // never built (see `PHONE_OTP` sitting unused in auth_token's purpose
       // list). That gap predates this flow; it is not widened here, only
       // left exactly where it was rather than silently crashing on it.
-      if (body.email) {
+      if (body.email && (await mayMail(ctx.db, 'mail:registration-code', body.email))) {
         await ctx.services.delivery.sendRegistrationCode(body.email, result.code, result.identifier);
       }
       return ok({ identifier: result.identifier, verificationRequired: true }, 201);
@@ -111,7 +119,11 @@ export const authRoutes: AnyRoute[] = [
     body: z.object({ identifier: z.string().trim().min(3).max(200) }),
     async handler({ body, ctx }) {
       const code = await ctx.services.auth.resendRegistrationCode(body.identifier);
-      if (code && email.safeParse(body.identifier).success) {
+      if (
+        code &&
+        email.safeParse(body.identifier).success &&
+        (await mayMail(ctx.db, 'mail:registration-code', body.identifier))
+      ) {
         await ctx.services.delivery.sendRegistrationCode(body.identifier, code, body.identifier);
       }
       // Identical response either way: this must not reveal whether a
@@ -223,6 +235,8 @@ export const authRoutes: AnyRoute[] = [
     rateLimit: { limit: 5, windowSeconds: 3600, by: 'ip', bucket: 'auth:reset-request' },
     body: z.object({ identifier: z.string().trim().min(3).max(200) }),
     async handler({ body, ctx }) {
+      // Over the per-recipient budget: same answer, no token, no mail.
+      if (!(await mayMail(ctx.db, 'mail:password-reset', body.identifier))) return { ok: true };
       const token = await ctx.services.auth.requestPasswordReset(body.identifier);
       if (token) {
         await ctx.services.notifications.enqueue({

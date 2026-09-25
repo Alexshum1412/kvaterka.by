@@ -31,7 +31,7 @@ import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { currentUser } from '@/server/session.ts';
 import { ready } from '@/server/runtime.ts';
-import { exceedsPixelBudget, stripMetadata } from '@/server/domain/image.ts';
+import { exceedsPixelBudget, sniffImage, stripMetadata } from '@/server/domain/image.ts';
 import { DEV_MEDIA_ROOT } from '@/app/api/uploads/route.ts';
 
 export const runtime = 'nodejs';
@@ -42,56 +42,6 @@ const MAX_BYTES = 3 * 1024 * 1024;
 
 /** Multipart framing around the file itself: boundaries, headers, field names. */
 const FORM_OVERHEAD = 64 * 1024;
-
-interface Sniffed {
-  readonly ext: 'jpg' | 'png' | 'webp';
-  readonly mime: string;
-  readonly width: number | null;
-  readonly height: number | null;
-}
-
-/** Identify by content, not by claim. Returns null for anything unknown.
- *  Duplicated from `uploads/route.ts` rather than imported: that module
- *  keeps it private, and the two sniffers must never drift by sharing a
- *  mutable dependency neither route asked for. */
-function sniff(buf: Buffer): Sniffed | null {
-  if (buf.length > 24 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
-    return { ext: 'jpg', mime: 'image/jpeg', ...jpegSize(buf) };
-  }
-  if (
-    buf.length > 24 &&
-    buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
-  ) {
-    return { ext: 'png', mime: 'image/png', width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
-  }
-  if (
-    buf.length > 16 &&
-    buf.subarray(0, 4).toString('ascii') === 'RIFF' &&
-    buf.subarray(8, 12).toString('ascii') === 'WEBP'
-  ) {
-    return { ext: 'webp', mime: 'image/webp', width: null, height: null };
-  }
-  return null;
-}
-
-/** Walk JPEG segments to the first start-of-frame, which carries the size. */
-function jpegSize(buf: Buffer): { width: number | null; height: number | null } {
-  let offset = 2;
-  while (offset + 9 < buf.length) {
-    if (buf[offset] !== 0xff) {
-      offset += 1;
-      continue;
-    }
-    const marker = buf[offset + 1]!;
-    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
-      return { height: buf.readUInt16BE(offset + 5), width: buf.readUInt16BE(offset + 7) };
-    }
-    const length = buf.readUInt16BE(offset + 2);
-    if (length <= 0) break;
-    offset += 2 + length;
-  }
-  return { width: null, height: null };
-}
 
 function fail(status: number, message: string): Response {
   return Response.json({ error: { code: 'UPLOAD_FAILED', message } }, { status });
@@ -121,7 +71,7 @@ export async function POST(request: Request): Promise<Response> {
   if (file.size > MAX_BYTES) return fail(413, 'Файл больше 3 МБ — уменьшите его и попробуйте снова');
 
   const original = Buffer.from(await file.arrayBuffer());
-  const kind = sniff(original);
+  const kind = sniffImage(original);
   if (!kind) return fail(415, 'Поддерживаются только JPEG, PNG и WebP');
 
   if (exceedsPixelBudget(kind.width, kind.height)) {
