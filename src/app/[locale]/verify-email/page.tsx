@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/navigation.ts';
 import { VerifyEmail } from '@/ui/verify-email.tsx';
+import { parseVerifyLink } from '@/lib/verify-link.ts';
 import { CornflowerMark } from '@/ui/brand.tsx';
 
 export const dynamic = 'force-dynamic';
@@ -18,16 +19,17 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * Where the link in the "confirm your email" message lands.
  *
- * There is no form here — clicking the link already proved intent, so the
- * page's only job is to hand the identifier/code to the backend and report
- * what happened. See ui/verify-email.tsx for the three states that follow.
+ * The link proves the reader can open the inbox, not that they chose the
+ * password, so the form asks for it before anything is sent. See
+ * ui/verify-email.tsx.
  */
 export default async function VerifyEmailPage({
   searchParams,
 }: {
-  searchParams: Promise<{ identifier?: string; code?: string }>;
+  searchParams: Promise<{ identifier?: string | string[]; code?: string | string[] }>;
 }) {
   const { identifier, code } = await searchParams;
+  const link = parseVerifyLink(identifier, code);
   const t = await getTranslations('VerifyEmail');
 
   return (
@@ -40,8 +42,8 @@ export default async function VerifyEmailPage({
       </header>
 
       <section className="card ve__card">
-        {identifier && code ? (
-          <VerifyEmail identifier={identifier} code={code} />
+        {link ? (
+          <VerifyEmail identifier={link.identifier} code={link.code} />
         ) : (
           <div className="ve__missing">
             <p>{t('missingToken')}</p>

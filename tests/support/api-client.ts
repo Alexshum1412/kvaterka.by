@@ -115,10 +115,9 @@ export class ApiTestClient {
    * caller of this helper only has the listing to hand.
    */
   async attachPhoto(propertyId: string, name = 'a.jpg'): Promise<string> {
-    const { rows } = await this.db.query<{ owner_id: string }>(
-      `SELECT owner_id FROM property WHERE id=$1`,
-      [propertyId],
-    );
+    const { rows } = await this.db.query<{ owner_id: string }>(`SELECT owner_id FROM property WHERE id=$1`, [
+      propertyId,
+    ]);
     const { ListingService } = await import('@/server/services/listing-service.ts');
     const result = await new ListingService(this.db).addPhoto(propertyId, rows[0]!.owner_id, {
       storageKey: `listings/${propertyId}/${name}`,
@@ -144,17 +143,19 @@ export class ApiTestClient {
    * this client makes) still goes through the real dispatcher on the
    * resulting session token.
    */
-  async signUp(overrides: Record<string, unknown> = {}): Promise<{ token: string; userId: string; email: string }> {
+  async signUp(
+    overrides: Record<string, unknown> = {},
+  ): Promise<{ token: string; userId: string; email: string }> {
     const email = `u-${Math.random().toString(36).slice(2)}-${Date.now()}@example.by`;
     const password = 'karotkaja-vulica-2026';
 
-    const { identifier, code } = await this.services.auth.beginRegistration({
-      email,
-      password,
-      displayName: 'Тэставы Карыстальнік',
-      ...overrides,
-    });
-    const { session, context } = await this.services.auth.confirmRegistration(identifier, code);
+    const input = { email, password, displayName: 'Тэставы Карыстальнік', ...overrides };
+    const { identifier, code } = await this.services.auth.beginRegistration(input);
+    const { session, context } = await this.services.auth.confirmRegistration(
+      identifier,
+      code,
+      input.password,
+    );
 
     return { token: session.token, userId: context.userId, email };
   }

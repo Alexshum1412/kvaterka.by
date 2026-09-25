@@ -4,11 +4,16 @@
     "heading": "Email confirmation",
     "missingToken": "The link is missing a confirmation code. Check that you followed the full link from the email, or enter the code by hand on the sign-in page.",
     "backToLogin": "Back to sign in",
+    "lede": "Enter the password you chose when you signed up to confirm {identifier}.",
+    "passwordLabel": "Password you chose at sign-up",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "submit": "Confirm email",
+    "notYou": "If this wasn't you, just close this page: no account is created without the password.",
     "busy": "Confirming your email…",
     "successTitle": "Email confirmed",
     "successBody": "Your account is set up and you're already signed in.",
     "continueButton": "Go to your dashboard",
-    "errorTitle": "Couldn't confirm",
     "genericError": "Couldn't confirm your email. Please try again later."
   }
 }

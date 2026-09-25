@@ -13,7 +13,7 @@ import { looksLikeLeak } from '@/server/api/problem.ts';
 import { generateOpenApi } from '@/server/api/openapi.ts';
 import { allRoutes } from '@/server/api/routes/index.ts';
 import { Router } from '@/server/api/router.ts';
-import { AuthService } from '@/server/auth/auth-service.ts';
+import { AuthService, MAX_REGISTRATION_CODE_ATTEMPTS } from '@/server/auth/auth-service.ts';
 import { DeliveryService } from '@/server/services/delivery-service.ts';
 import { MAIL_PER_RECIPIENT_PER_HOUR } from '@/server/api/rate-limit.ts';
 
@@ -304,7 +304,7 @@ describe('registration confirmation over HTTP', () => {
     const email = `confirm-http-${Date.now()}@example.by`;
     const { identifier, code } = await beginPending({ email, displayName: 'HTTP Подтверждение' });
 
-    const res = await api.post('/auth/register/confirm', { identifier, code });
+    const res = await api.post('/auth/register/confirm', { identifier, code, password: GOOD_PASSWORD });
     expect(res.status).toBe(200);
     expect(res.body.user.emailVerified).toBe(true);
     expect(res.body.user.roles).toContain('TENANT');
@@ -319,7 +319,11 @@ describe('registration confirmation over HTTP', () => {
     const email = `confirm-http-wrong-${Date.now()}@example.by`;
     const { identifier } = await beginPending({ email, displayName: 'Скептык HTTP' });
 
-    const res = await api.post('/auth/register/confirm', { identifier, code: '000000' });
+    const res = await api.post('/auth/register/confirm', {
+      identifier,
+      code: '000000',
+      password: GOOD_PASSWORD,
+    });
     expect(res.status).toBe(401);
     expect(res.errorCode).toBe('UNAUTHENTICATED');
     expect(res.headers?.['set-cookie']).toBeUndefined();
@@ -329,6 +333,76 @@ describe('registration confirmation over HTTP', () => {
       [email],
     );
     expect(rows[0]!.c).toBe('0');
+  });
+
+  const usersFor = async (email: string) =>
+    Number(
+      (
+        await db.query<{ c: string }>(
+          `SELECT count(*)::text AS c FROM app_user WHERE lower(email)=lower($1)`,
+          [email],
+        )
+      ).rows[0]!.c,
+    );
+  const attemptsFor = async (email: string) =>
+    (
+      await db.query<{ attempts: number }>(
+        `SELECT attempts FROM pending_registration WHERE lower(email)=lower($1)`,
+        [email],
+      )
+    ).rows[0]?.attempts;
+
+  it('rejects the right code with the wrong password over HTTP, counting the attempt and setting no cookie', async () => {
+    const email = `confirm-http-badpw-${Date.now()}@example.by`;
+    const { identifier, code } = await beginPending({ email, displayName: 'Няправільны пароль' });
+
+    const res = await api.post('/auth/register/confirm', {
+      identifier,
+      code,
+      password: 'some-other-password-1',
+    });
+    expect(res.status).toBe(401);
+    expect(res.errorCode).toBe('UNAUTHENTICATED');
+    expect(res.body.error.message).toBe('Пароль не совпадает с указанным при регистрации.');
+    expect(res.headers?.['set-cookie']).toBeUndefined();
+    expect(await usersFor(email)).toBe(0);
+    expect(await attemptsFor(email)).toBe(1);
+  });
+
+  it('locks the registration after too many wrong passwords, even for the right code and password', async () => {
+    const email = `confirm-http-pwlock-${Date.now()}@example.by`;
+    const { identifier, code } = await beginPending({ email, displayName: 'Упарты пароль' });
+
+    for (let i = 0; i < MAX_REGISTRATION_CODE_ATTEMPTS; i += 1) {
+      const res = await api.post('/auth/register/confirm', {
+        identifier,
+        code,
+        password: 'some-other-password-1',
+      });
+      expect(res.status).toBe(401);
+    }
+    const locked = await api.post('/auth/register/confirm', { identifier, code, password: GOOD_PASSWORD });
+    expect(locked.status).toBe(429);
+    expect(locked.errorCode).toBe('RATE_LIMITED');
+    expect(await usersFor(email)).toBe(0);
+  });
+
+  it('requires a password in the body: 422, nothing counted, nothing created', async () => {
+    const email = `confirm-http-nopw-${Date.now()}@example.by`;
+    const { identifier, code } = await beginPending({ email, displayName: 'Без пароля' });
+
+    for (const body of [
+      { identifier, code },
+      { identifier, code, password: '' },
+    ]) {
+      const res = await api.post('/auth/register/confirm', body);
+      expect(res.status).toBe(422);
+      expect(res.errorCode).toBe('VALIDATION_FAILED');
+      expect(res.body.error.details.fields.map((f: { field: string }) => f.field)).toContain('password');
+      expect(res.headers?.['set-cookie']).toBeUndefined();
+    }
+    expect(await usersFor(email)).toBe(0);
+    expect(await attemptsFor(email)).toBe(0);
   });
 
   it('gives the same answer over HTTP whether or not a registration is pending (resend)', async () => {
@@ -393,7 +467,11 @@ describe('registration mail budget', () => {
     expect(mailed).toHaveLength(MAIL_PER_RECIPIENT_PER_HOUR);
     expect(await codeHash(email)).toBe(before);
 
-    const confirm = await api.post('/auth/register/confirm', { identifier: email, code: lastMailed });
+    const confirm = await api.post('/auth/register/confirm', {
+      identifier: email,
+      code: lastMailed,
+      password: GOOD_PASSWORD,
+    });
     expect(confirm.status).toBe(200);
   });
 
@@ -413,7 +491,11 @@ describe('registration mail budget', () => {
     expect(mailed).toHaveLength(MAIL_PER_RECIPIENT_PER_HOUR);
     expect(await codeHash(email)).toBe(before);
 
-    const confirm = await api.post('/auth/register/confirm', { identifier: email, code: lastMailed });
+    const confirm = await api.post('/auth/register/confirm', {
+      identifier: email,
+      code: lastMailed,
+      password: GOOD_PASSWORD,
+    });
     expect(confirm.status).toBe(200);
   });
 
@@ -425,6 +507,76 @@ describe('registration mail budget', () => {
     const unknown = await api.post('/auth/register/resend', { identifier: 'nobody-budget@example.by' }, at);
     expect(spent.status).toBe(unknown.status);
     expect(JSON.stringify(spent.body)).toBe(JSON.stringify(unknown.body));
+  });
+});
+
+/* ================================================================== */
+
+describe('registration cannot be hijacked by whoever submits an address first', () => {
+  const ATTACKER_PASSWORD = 'hitry-sused-parol-2026';
+  let mailed: { address: string; code: string }[];
+
+  beforeEach(() => {
+    mailed = [];
+    vi.spyOn(DeliveryService.prototype, 'sendRegistrationCode').mockImplementation(async (address, code) => {
+      mailed.push({ address, code });
+      return true;
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('a victim holding the attacker-initiated code is refused, then registers and confirms for themselves', async () => {
+    const email = `victim-${Date.now()}@example.by`;
+
+    // The attacker registers the victim's address with a password of their own.
+    const attack = await api.post('/auth/register', {
+      email,
+      password: ATTACKER_PASSWORD,
+      displayName: 'Падман',
+    });
+    expect(attack.status).toBe(201);
+    const victimSees = mailed.at(-1)!;
+    expect(victimSees.address).toBe(email);
+
+    // The victim types the emailed code with the only password they know.
+    const refused = await api.post('/auth/register/confirm', {
+      identifier: email,
+      code: victimSees.code,
+      password: GOOD_PASSWORD,
+    });
+    expect(refused.status).toBe(401);
+    expect(refused.errorCode).toBe('UNAUTHENTICATED');
+    expect(refused.body.error.message).toBe('Пароль не совпадает с указанным при регистрации.');
+    expect(refused.headers?.['set-cookie']).toBeUndefined();
+    const users = () =>
+      db.query<{ c: string }>(`SELECT count(*)::text AS c FROM app_user WHERE lower(email)=lower($1)`, [
+        email,
+      ]);
+    expect((await users()).rows[0]!.c).toBe('0');
+
+    // Registering for themselves replaces the attacker's pending row.
+    const own = await api.post('/auth/register', {
+      email,
+      password: GOOD_PASSWORD,
+      displayName: 'Сапраўдны',
+    });
+    expect(own.status).toBe(201);
+    const confirmed = await api.post('/auth/register/confirm', {
+      identifier: email,
+      code: mailed.at(-1)!.code,
+      password: GOOD_PASSWORD,
+    });
+    expect(confirmed.status).toBe(200);
+    expect(confirmed.body.user.displayName).toBe('Сапраўдны');
+    expect((await users()).rows[0]!.c).toBe('1');
+
+    // The account answers to the victim's password and not the attacker's.
+    expect((await api.post('/auth/login', { identifier: email, password: GOOD_PASSWORD })).status).toBe(200);
+    expect((await api.post('/auth/login', { identifier: email, password: ATTACKER_PASSWORD })).status).toBe(
+      401,
+    );
   });
 });
 

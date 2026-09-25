@@ -111,13 +111,21 @@ export const authRoutes: AnyRoute[] = [
     body: z.object({
       identifier: z.string().trim().min(3).max(200),
       code: z.string().trim().min(4).max(10),
+      // Only compared against the hash chosen at registration; the strength
+      // rules already ran there.
+      password: z.string().min(1).max(256),
     }),
     async handler({ body, ctx }) {
-      const { session, context } = await ctx.services.auth.confirmRegistration(body.identifier, body.code, {
-        ip: ctx.ip,
-        userAgent: ctx.userAgent,
-        correlationId: ctx.correlationId,
-      });
+      const { session, context } = await ctx.services.auth.confirmRegistration(
+        body.identifier,
+        body.code,
+        body.password,
+        {
+          ip: ctx.ip,
+          userAgent: ctx.userAgent,
+          correlationId: ctx.correlationId,
+        },
+      );
       return ok(
         {
           user: {

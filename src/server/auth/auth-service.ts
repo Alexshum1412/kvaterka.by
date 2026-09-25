@@ -187,17 +187,29 @@ export class AuthService {
   /**
    * Step 2: spend the code, create the real account, and log it straight in.
    *
-   * Auto-login is deliberate, not a shortcut — the person just proved control
-   * of the address AND typed the password that will protect the account, in
-   * the same breath a login normally happens in. Asking them to now log in
-   * separately would be a second form for no safety gained.
+   * The code alone is not enough: the caller must also present the password
+   * chosen at registration. Whoever submits an address first picks the password
+   * the emailed code will confirm, so the code proves only that somebody can
+   * read the inbox. Without this check, an attacker could register a victim's
+   * address with a password of their own and let the victim confirm the mail
+   * they received, handing them a session in an account the attacker can sign
+   * in to. The real registrant knows the password; the victim of that attack
+   * does not, and cannot finish.
+   *
+   * Auto-login is then deliberate, not a shortcut — the person proved control
+   * of the address AND knows the password that protects the account, so asking
+   * them to log in separately would be a second form for no safety gained.
+   * A wrong password is decided exactly like a wrong code, including the
+   * attempt counter, so the password cannot be guessed past the lockout.
    */
   async confirmRegistration(
     identifier: string,
     code: string,
+    password: string,
     meta: RequestMeta = {},
   ): Promise<{ session: IssuedSession; context: SessionContext }> {
     const GENERIC = 'Код неверен или устарел';
+    const WRONG_PASSWORD = 'Пароль не совпадает с указанным при регистрации.';
 
     /* THE ATTEMPT COUNTER IS WRITTEN OUTSIDE THE TRANSACTION THAT DECIDED IT,
        AND THAT IS THE WHOLE POINT OF THIS SHAPE — same reasoning, and the
@@ -241,7 +253,10 @@ export class AuthService {
         return { kind: 'LOCKED' as const };
       }
       if (!tokensMatch(hashToken(code.trim()), pending.code_hash)) {
-        return { kind: 'WRONG' as const, pendingId: pending.id };
+        return { kind: 'WRONG' as const, pendingId: pending.id, message: GENERIC };
+      }
+      if (!(await verifyPassword(pending.password_hash, password))) {
+        return { kind: 'WRONG' as const, pendingId: pending.id, message: WRONG_PASSWORD };
       }
 
       const userId = uuidv7();
@@ -318,6 +333,7 @@ export class AuthService {
       await this.db.query(`UPDATE pending_registration SET attempts = attempts + 1 WHERE id = $1`, [
         outcome.pendingId,
       ]);
+      throw new DomainError('UNAUTHENTICATED', outcome.message);
     }
 
     throw new DomainError('UNAUTHENTICATED', GENERIC);

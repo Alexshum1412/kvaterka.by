@@ -1,8 +1,22 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '@/server/db/testing.ts';
-import { AuthService } from '@/server/auth/auth-service.ts';
-import { assertPasswordAcceptable, hashPassword, hashToken, verifyPassword, WeakPasswordError } from '@/server/auth/credentials.ts';
-import { can, isStaff, permissionsFor, requiresReason, requiresTwoFactor, ROLES } from '@/server/auth/rbac.ts';
+import { AuthService, MAX_REGISTRATION_CODE_ATTEMPTS } from '@/server/auth/auth-service.ts';
+import type { DomainError } from '@/server/services/errors.ts';
+import {
+  assertPasswordAcceptable,
+  hashPassword,
+  hashToken,
+  verifyPassword,
+  WeakPasswordError,
+} from '@/server/auth/credentials.ts';
+import {
+  can,
+  isStaff,
+  permissionsFor,
+  requiresReason,
+  requiresTwoFactor,
+  ROLES,
+} from '@/server/auth/rbac.ts';
 
 let db: TestDb;
 let auth: AuthService;
@@ -32,13 +46,14 @@ const GOOD_PASSWORD = 'karotkaja-vulica-2026';
  * gets its own tests in the `registration` block.
  */
 const register = async (over: Partial<Parameters<AuthService['beginRegistration']>[0]> = {}) => {
-  const { identifier, code } = await auth.beginRegistration({
+  const input = {
     email: `user-${Math.random().toString(36).slice(2)}@example.by`,
     password: GOOD_PASSWORD,
     displayName: 'Ірына Арандатар',
     ...over,
-  });
-  const { session, context } = await auth.confirmRegistration(identifier, code);
+  };
+  const { identifier, code } = await auth.beginRegistration(input);
+  const { session, context } = await auth.confirmRegistration(identifier, code, input.password);
   return { userId: context.userId, identifier, session };
 };
 
@@ -95,10 +110,16 @@ describe('registration', () => {
     const email = `pending-${Math.random().toString(36).slice(2)}@example.by`;
     await auth.beginRegistration({ email, password: GOOD_PASSWORD, displayName: 'Прэтэндэнт' });
 
-    const users = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM app_user WHERE lower(email)=lower($1)`, [email]);
+    const users = await db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM app_user WHERE lower(email)=lower($1)`,
+      [email],
+    );
     expect(users.rows[0]!.c).toBe('0');
 
-    const pending = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM pending_registration WHERE lower(email)=lower($1)`, [email]);
+    const pending = await db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM pending_registration WHERE lower(email)=lower($1)`,
+      [email],
+    );
     expect(pending.rows[0]!.c).toBe('1');
   });
 
@@ -117,10 +138,17 @@ describe('registration', () => {
 
   it('deletes the pending row once confirmed', async () => {
     const email = `confirmed-${Math.random().toString(36).slice(2)}@example.by`;
-    const { identifier, code } = await auth.beginRegistration({ email, password: GOOD_PASSWORD, displayName: 'Гаспадар' });
-    await auth.confirmRegistration(identifier, code);
+    const { identifier, code } = await auth.beginRegistration({
+      email,
+      password: GOOD_PASSWORD,
+      displayName: 'Гаспадар',
+    });
+    await auth.confirmRegistration(identifier, code, GOOD_PASSWORD);
 
-    const { rows } = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM pending_registration WHERE lower(email)=lower($1)`, [email]);
+    const { rows } = await db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM pending_registration WHERE lower(email)=lower($1)`,
+      [email],
+    );
     expect(rows[0]!.c).toBe('0');
   });
 
@@ -130,7 +158,7 @@ describe('registration', () => {
       password: GOOD_PASSWORD,
       displayName: 'Наведнік',
     });
-    const { context } = await auth.confirmRegistration(identifier, code);
+    const { context } = await auth.confirmRegistration(identifier, code, GOOD_PASSWORD);
     expect(context.userId).toBeTruthy();
     expect(context.roles).toContain('TENANT');
   });
@@ -159,9 +187,14 @@ describe('registration', () => {
       password: GOOD_PASSWORD,
       displayName: 'Скептык',
     });
-    await expect(auth.confirmRegistration(identifier, '000000')).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    await expect(auth.confirmRegistration(identifier, '000000', GOOD_PASSWORD)).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+    });
 
-    const { rows } = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM app_user WHERE lower(email)=lower($1)`, [identifier]);
+    const { rows } = await db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM app_user WHERE lower(email)=lower($1)`,
+      [identifier],
+    );
     expect(rows[0]!.c).toBe('0');
   });
 
@@ -172,9 +205,11 @@ describe('registration', () => {
       displayName: 'Упарты',
     });
     for (let i = 0; i < 6; i += 1) {
-      await expect(auth.confirmRegistration(identifier, '000000')).rejects.toThrow();
+      await expect(auth.confirmRegistration(identifier, '000000', GOOD_PASSWORD)).rejects.toThrow();
     }
-    await expect(auth.confirmRegistration(identifier, '000000')).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+    await expect(auth.confirmRegistration(identifier, '000000', GOOD_PASSWORD)).rejects.toMatchObject({
+      code: 'RATE_LIMITED',
+    });
   });
 
   it('rejects an expired code', async () => {
@@ -184,7 +219,124 @@ describe('registration', () => {
       displayName: 'Спазніўся',
     });
     await db.query(`UPDATE pending_registration SET expires_at = now() - interval '1 minute'`);
-    await expect(auth.confirmRegistration(identifier, '000000')).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    await expect(auth.confirmRegistration(identifier, '000000', GOOD_PASSWORD)).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+    });
+  });
+
+  describe('confirming needs the password chosen at registration', () => {
+    const WRONG_PASSWORD_MESSAGE = 'Пароль не совпадает с указанным при регистрации.';
+    const ATTACKER_PASSWORD = 'hitry-sused-parol-2026';
+
+    const begin = (label: string) =>
+      auth.beginRegistration({
+        email: `${label}-${Math.random().toString(36).slice(2)}@example.by`,
+        password: GOOD_PASSWORD,
+        displayName: 'Уладальнік пароля',
+      });
+    const failure = (attempt: Promise<unknown>) =>
+      attempt.then(
+        () => null,
+        (e: unknown) => e as DomainError,
+      );
+    const usersFor = async (email: string) =>
+      Number(
+        (
+          await db.query<{ c: string }>(
+            `SELECT count(*)::text AS c FROM app_user WHERE lower(email)=lower($1)`,
+            [email],
+          )
+        ).rows[0]!.c,
+      );
+    const pendingFor = async (email: string) =>
+      (
+        await db.query<{ attempts: number }>(
+          `SELECT attempts FROM pending_registration WHERE lower(email)=lower($1)`,
+          [email],
+        )
+      ).rows[0];
+
+    it.each([
+      ['a different password', ATTACKER_PASSWORD],
+      ['an empty password', ''],
+      ['the right password with a trailing space', `${GOOD_PASSWORD} `],
+      ['the right password in another case', GOOD_PASSWORD.toUpperCase()],
+    ])('refuses the right code with %s and creates no account', async (_label, wrong) => {
+      const { identifier, code } = await begin('wrongpw');
+
+      const error = await failure(auth.confirmRegistration(identifier, code, wrong));
+      expect(error).toMatchObject({ code: 'UNAUTHENTICATED', status: 401 });
+      expect(error!.message).toBe(WRONG_PASSWORD_MESSAGE);
+
+      expect(await usersFor(identifier)).toBe(0);
+      expect((await pendingFor(identifier))?.attempts).toBe(1);
+    });
+
+    it('does not burn the code: the right password still confirms afterwards', async () => {
+      const { identifier, code } = await begin('retry');
+      await expect(auth.confirmRegistration(identifier, code, ATTACKER_PASSWORD)).rejects.toThrow();
+
+      const { context } = await auth.confirmRegistration(identifier, code, GOOD_PASSWORD);
+      expect(context.roles).toContain('TENANT');
+      expect(await usersFor(identifier)).toBe(1);
+      expect(await pendingFor(identifier)).toBeUndefined();
+    });
+
+    it('creates the account with the password chosen at registration', async () => {
+      const { identifier, code } = await begin('ownpw');
+      await auth.confirmRegistration(identifier, code, GOOD_PASSWORD);
+
+      await expect(auth.login(identifier, GOOD_PASSWORD)).resolves.toBeTruthy();
+    });
+
+    it('checks the code before the password, so a wrong code learns nothing about the password', async () => {
+      const { identifier } = await begin('order');
+
+      const error = await failure(auth.confirmRegistration(identifier, '000000', ATTACKER_PASSWORD));
+      expect(error).toMatchObject({ code: 'UNAUTHENTICATED' });
+      expect(error!.message).toBe('Код неверен или устарел');
+      expect((await pendingFor(identifier))?.attempts).toBe(1);
+    });
+
+    it('counts wrong passwords toward the lockout, even for the right code and password afterwards', async () => {
+      const { identifier, code } = await begin('pwlock');
+      for (let i = 0; i < MAX_REGISTRATION_CODE_ATTEMPTS; i += 1) {
+        await expect(auth.confirmRegistration(identifier, code, ATTACKER_PASSWORD)).rejects.toMatchObject({
+          code: 'UNAUTHENTICATED',
+        });
+      }
+      expect((await pendingFor(identifier))?.attempts).toBe(MAX_REGISTRATION_CODE_ATTEMPTS);
+
+      await expect(auth.confirmRegistration(identifier, code, GOOD_PASSWORD)).rejects.toMatchObject({
+        code: 'RATE_LIMITED',
+      });
+      expect(await usersFor(identifier)).toBe(0);
+    });
+
+    it('a victim handed an attacker-initiated code cannot finish, and can register for themselves', async () => {
+      const email = `victim-${Math.random().toString(36).slice(2)}@example.by`;
+
+      // The attacker submits the victim's address first with a password of their own…
+      const attacker = await auth.beginRegistration({
+        email,
+        password: ATTACKER_PASSWORD,
+        displayName: 'Падман',
+      });
+      // …and the victim, holding the genuine-looking mail, types its code with
+      // the only password they know.
+      await expect(auth.confirmRegistration(email, attacker.code, GOOD_PASSWORD)).rejects.toThrow(
+        WRONG_PASSWORD_MESSAGE,
+      );
+      expect(await usersFor(email)).toBe(0);
+
+      // Registering for themselves replaces the attacker's pending row.
+      const own = await auth.beginRegistration({ email, password: GOOD_PASSWORD, displayName: 'Сапраўдны' });
+      const { context } = await auth.confirmRegistration(email, own.code, GOOD_PASSWORD);
+      expect(context.displayName).toBe('Сапраўдны');
+
+      await expect(auth.login(email, GOOD_PASSWORD)).resolves.toBeTruthy();
+      await expect(auth.login(email, ATTACKER_PASSWORD)).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    });
   });
 
   it('resending replaces the code and resets the attempt counter', async () => {
@@ -197,8 +349,8 @@ describe('registration', () => {
     expect(secondCode).toBeTruthy();
     expect(secondCode).not.toBe(firstCode);
 
-    await expect(auth.confirmRegistration(identifier, firstCode)).rejects.toThrow();
-    await expect(auth.confirmRegistration(identifier, secondCode!)).resolves.toBeTruthy();
+    await expect(auth.confirmRegistration(identifier, firstCode, GOOD_PASSWORD)).rejects.toThrow();
+    await expect(auth.confirmRegistration(identifier, secondCode!, GOOD_PASSWORD)).resolves.toBeTruthy();
   });
 
   it('resend returns null rather than revealing that nothing is pending', async () => {
@@ -207,17 +359,27 @@ describe('registration', () => {
 
   it('registering again with the same address replaces the old pending attempt', async () => {
     const email = `retry-${Math.random().toString(36).slice(2)}@example.by`;
-    const first = await auth.beginRegistration({ email, password: GOOD_PASSWORD, displayName: 'Першая спроба' });
-    const second = await auth.beginRegistration({ email, password: GOOD_PASSWORD, displayName: 'Другая спроба' });
+    const first = await auth.beginRegistration({
+      email,
+      password: GOOD_PASSWORD,
+      displayName: 'Першая спроба',
+    });
+    const second = await auth.beginRegistration({
+      email,
+      password: GOOD_PASSWORD,
+      displayName: 'Другая спроба',
+    });
 
-    await expect(auth.confirmRegistration(email, first.code)).rejects.toThrow();
-    await expect(auth.confirmRegistration(email, second.code)).resolves.toBeTruthy();
+    await expect(auth.confirmRegistration(email, first.code, GOOD_PASSWORD)).rejects.toThrow();
+    await expect(auth.confirmRegistration(email, second.code, GOOD_PASSWORD)).resolves.toBeTruthy();
   });
 
   it('does not reveal that an email already holds a real account', async () => {
     const email = 'taken@example.by';
     await register({ email });
-    await expect(auth.beginRegistration({ email, password: GOOD_PASSWORD, displayName: 'Хтосьці' })).rejects.toMatchObject({
+    await expect(
+      auth.beginRegistration({ email, password: GOOD_PASSWORD, displayName: 'Хтосьці' }),
+    ).rejects.toMatchObject({
       code: 'ALREADY_EXISTS',
     });
     // The message must not confirm the address exists.
@@ -227,12 +389,14 @@ describe('registration', () => {
   });
 
   it('rejects a company account with no company name', async () => {
-    await expect(auth.beginRegistration({
-      email: `company-${Math.random().toString(36).slice(2)}@example.by`,
-      password: GOOD_PASSWORD,
-      displayName: 'Кампанія',
-      accountKind: 'COMPANY',
-    })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    await expect(
+      auth.beginRegistration({
+        email: `company-${Math.random().toString(36).slice(2)}@example.by`,
+        password: GOOD_PASSWORD,
+        displayName: 'Кампанія',
+        accountKind: 'COMPANY',
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
   });
 
   it('rejects an account with neither email nor phone', async () => {
@@ -290,7 +454,10 @@ describe('sign in with Google', () => {
     const second = await auth.continueWithGoogle(g);
     expect(second.context.userId).toBe(first.context.userId);
 
-    const { rows } = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM app_user WHERE google_sub=$1`, [g.sub]);
+    const { rows } = await db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM app_user WHERE google_sub=$1`,
+      [g.sub],
+    );
     expect(rows[0]!.c).toBe('1');
   });
 
@@ -301,7 +468,10 @@ describe('sign in with Google', () => {
     const { context } = await auth.continueWithGoogle(google({ email }));
     expect(context.userId).toBe(userId);
 
-    const { rows } = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM app_user WHERE lower(email)=lower($1)`, [email]);
+    const { rows } = await db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM app_user WHERE lower(email)=lower($1)`,
+      [email],
+    );
     expect(rows[0]!.c).toBe('1');
   });
 

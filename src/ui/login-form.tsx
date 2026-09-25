@@ -23,7 +23,14 @@ function GoogleMark() {
   // Google's own four-color "G" — a brand mark, not part of this app's
   // single-color icon family, so it keeps its own fixed colors on purpose.
   return (
-    <svg width={18} height={18} viewBox="0 0 18 18" aria-hidden="true" focusable="false" style={{ flex: '0 0 auto' }}>
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 18 18"
+      aria-hidden="true"
+      focusable="false"
+      style={{ flex: '0 0 auto' }}
+    >
       <path
         fill="#4285F4"
         d="M17.6 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.66-3.87 2.66-6.62Z"
@@ -119,7 +126,11 @@ export function LoginForm({ next = '/dashboard', googleError }: { next?: string;
     setError(null);
     setBusy(true);
     try {
-      await api.post('/auth/register/confirm', { identifier: pendingIdentifier, code: code.trim() });
+      await api.post('/auth/register/confirm', {
+        identifier: pendingIdentifier,
+        code: code.trim(),
+        password,
+      });
       window.location.assign(next);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('networkError'));
@@ -177,12 +188,21 @@ export function LoginForm({ next = '/dashboard', googleError }: { next?: string;
               </p>
             )}
 
-            <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={busy || code.length < 6}>
+            <button
+              type="submit"
+              className="btn btn-primary btn-lg btn-block"
+              disabled={busy || code.length < 6}
+            >
               {busy ? t('submitBusy') : t('code.submit')}
             </button>
           </form>
 
-          <button type="button" className="link lf__resend" onClick={resendCode} disabled={resendStatus === 'busy'}>
+          <button
+            type="button"
+            className="link lf__resend"
+            onClick={resendCode}
+            disabled={resendStatus === 'busy'}
+          >
             {resendStatus === 'sent' ? t('code.resent') : t('code.resend')}
           </button>
         </div>
