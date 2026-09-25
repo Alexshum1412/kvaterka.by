@@ -27,10 +27,12 @@ test('the language can be changed from the menu, where the bar has no room for t
 
   const pills = page.locator('#sh-mobile-nav .lsw__pill');
   await expect(pills).toHaveCount(3);
+  // A 44px box at Pixel 7's fractional device scale is measured as 43.99998 (CI
+  // failed on exactly that), and it is still a 44px target: compare rounded sizes.
   for (const pill of await pills.all()) {
     const box = (await pill.boundingBox())!;
-    expect(box.height).toBeGreaterThanOrEqual(44);
-    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(Math.round(box.height)).toBeGreaterThanOrEqual(44);
+    expect(Math.round(box.width)).toBeGreaterThanOrEqual(44);
   }
 
   await pills.filter({ hasText: 'EN' }).click();
@@ -63,7 +65,7 @@ test('the language pills in the bar have a 44px touch area without widening the 
   const pills = page.locator('.sh__prefs .lsw__pill');
   await expect(pills).toHaveCount(3);
   for (const pill of await pills.all()) {
-    expect((await pill.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect(Math.round((await pill.boundingBox())!.height)).toBeGreaterThanOrEqual(44);
   }
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
@@ -74,7 +76,7 @@ test('text links in the page body and footer are at least 44px tall on a touchsc
   await page.goto('/', { waitUntil: 'networkidle' });
   const small = await page.evaluate(() =>
     [...document.querySelectorAll('.home-more, .ftr__link')]
-      .filter((e) => e.getBoundingClientRect().height < 44)
+      .filter((e) => Math.round(e.getBoundingClientRect().height) < 44)
       .map((e) => `${e.textContent?.trim().slice(0, 30)} ${Math.round(e.getBoundingClientRect().height)}`),
   );
   expect(small).toEqual([]);
@@ -85,7 +87,7 @@ test('the dashboard section links are at least 44px tall on a touchscreen', asyn
   await page.goto('/dashboard', { waitUntil: 'networkidle' });
   const small = await page.evaluate(() =>
     [...document.querySelectorAll('.dsh__navLink')]
-      .filter((e) => e.getBoundingClientRect().height < 44)
+      .filter((e) => Math.round(e.getBoundingClientRect().height) < 44)
       .map((e) => `${e.textContent?.trim()} ${Math.round(e.getBoundingClientRect().height)}`),
   );
   expect(small).toEqual([]);

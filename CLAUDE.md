@@ -69,5 +69,5 @@ impeccable (engine binary: `sh .claude/skills/impeccable/scripts/impeccable dete
 - Log each batch as next DEC-NNN in `DECISIONS.md`: Question / what found / why / verification with real numbers.
 - Commits: long explanatory prose body (why + evidence), not caveman. Prove a fix by reverting it and watching its test fail.
 - New endpoint = authorization tests incl. negative cases (DEC-083/084 audited all).
-- E2E flake is never "flake": so far it was hydration (wait `networkidle`), reload mid-`router.refresh()`, date collision in reused DB, or a real bug (root loading.tsx).
+- E2E flake is never "flake": so far it was hydration (wait `networkidle`), reload mid-`router.refresh()`, date collision in reused DB, a 44px box measured as 43.99998 at Pixel 7's fractional scale (`Math.round` sizes before comparing), or a real bug (root loading.tsx).
 - Checklist of launch gates: `MVP_RELEASE_CHECKLIST.md`.

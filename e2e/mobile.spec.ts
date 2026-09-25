@@ -45,7 +45,9 @@ test('every control on the main pages is at least 44px on a touchscreen', async 
             .filter((e) => {
               const r = e.getBoundingClientRect();
               return (
-                r.width > 0 && getComputedStyle(e).visibility !== 'hidden' && (r.width < 44 || r.height < 44)
+                r.width > 0 &&
+                getComputedStyle(e).visibility !== 'hidden' &&
+                (Math.round(r.width) < 44 || Math.round(r.height) < 44)
               );
             })
             .map((e) => {
@@ -70,7 +72,11 @@ test('a signed-in header keeps every control at least 44px on a touchscreen', as
     [...document.querySelectorAll('.sh a, .sh button')]
       .filter((e) => {
         const r = e.getBoundingClientRect();
-        return r.width > 0 && getComputedStyle(e).visibility !== 'hidden' && (r.width < 44 || r.height < 44);
+        return (
+          r.width > 0 &&
+          getComputedStyle(e).visibility !== 'hidden' &&
+          (Math.round(r.width) < 44 || Math.round(r.height) < 44)
+        );
       })
       .map((e) => {
         const r = e.getBoundingClientRect();
