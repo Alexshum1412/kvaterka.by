@@ -16,7 +16,14 @@ import { hasErrorCode, PG_ERROR } from '../db/sql.ts';
 import { uuidv7 } from '../../lib/id.ts';
 import { DomainError, invalid, notFound as notFoundError } from '../services/errors.ts';
 import { writeAudit } from '../services/audit.ts';
-import { generateNumericCode, generateToken, hashPassword, hashToken, tokensMatch, verifyPassword } from './credentials.ts';
+import {
+  generateNumericCode,
+  generateToken,
+  hashPassword,
+  hashToken,
+  tokensMatch,
+  verifyPassword,
+} from './credentials.ts';
 import type { Role } from './rbac.ts';
 import {
   effectiveRoles,
@@ -98,8 +105,7 @@ export interface RequestMeta {
   readonly correlationId?: string | null;
 }
 
-const hashIp = (ip?: string | null): Buffer | null =>
-  ip ? createHash('sha256').update(ip).digest() : null;
+const hashIp = (ip?: string | null): Buffer | null => (ip ? createHash('sha256').update(ip).digest() : null);
 
 export class AuthService {
   constructor(private readonly db: Db) {}
@@ -113,7 +119,10 @@ export class AuthService {
    * of squatting a hundred addresses is zero. `pending_registration` is the
    * holding area; `confirmRegistration` is the only door out of it.
    */
-  async beginRegistration(input: RegisterInput, meta: RequestMeta = {}): Promise<{ identifier: string; code: string }> {
+  async beginRegistration(
+    input: RegisterInput,
+    meta: RequestMeta = {},
+  ): Promise<{ identifier: string; code: string }> {
     if (!input.email && !input.phone) throw invalid('Укажите email или номер телефона');
     if (input.displayName.trim().length < 2) throw invalid('Укажите имя');
     if (input.accountKind === 'COMPANY' && !input.companyName?.trim()) {
@@ -589,10 +598,9 @@ export class AuthService {
         authLevel: current.auth_level,
         stepUpAt: current.step_up_at,
       });
-      await tx.query(
-        `UPDATE user_session SET revoked_at = now(), revoked_reason = 'ROTATED' WHERE id = $1`,
-        [current.id],
-      );
+      await tx.query(`UPDATE user_session SET revoked_at = now(), revoked_reason = 'ROTATED' WHERE id = $1`, [
+        current.id,
+      ]);
       return issued;
     });
   }
@@ -802,7 +810,10 @@ export class AuthService {
     if (!reason?.trim()) throw invalid('Укажите причину отзыва роли');
     if (role === 'TENANT') throw invalid('Роль TENANT нельзя отозвать — для этого есть закрытие аккаунта');
     await this.db.transaction(async (tx) => {
-      const { rowCount } = await tx.query(`DELETE FROM user_role WHERE user_id=$1 AND role=$2`, [userId, role]);
+      const { rowCount } = await tx.query(`DELETE FROM user_role WHERE user_id=$1 AND role=$2`, [
+        userId,
+        role,
+      ]);
       if (rowCount === 0) return;
       await writeAudit(tx, {
         actorUserId: revokedBy,
@@ -819,9 +830,10 @@ export class AuthService {
 
   /** Every role currently held, for the admin user-detail screen. */
   async listRoles(userId: string): Promise<Role[]> {
-    const { rows } = await this.db.query<{ role: Role }>(`SELECT role FROM user_role WHERE user_id=$1 ORDER BY role`, [
-      userId,
-    ]);
+    const { rows } = await this.db.query<{ role: Role }>(
+      `SELECT role FROM user_role WHERE user_id=$1 ORDER BY role`,
+      [userId],
+    );
     return rows.map((r) => r.role);
   }
 
@@ -855,7 +867,13 @@ export class AuthService {
         await tx.query(
           `INSERT INTO app_user (id, email, phone, password_hash, display_name, account_kind, locale)
            VALUES ($1,$2,$3,$4,$5,'PRIVATE','ru')`,
-          [userId, input.email?.trim() ?? null, input.phone?.trim() ?? null, passwordHash, input.displayName.trim()],
+          [
+            userId,
+            input.email?.trim() ?? null,
+            input.phone?.trim() ?? null,
+            passwordHash,
+            input.displayName.trim(),
+          ],
         );
       } catch (e) {
         if (hasErrorCode(e, PG_ERROR.UNIQUE_VIOLATION)) {
@@ -867,14 +885,18 @@ export class AuthService {
       await tx.query(`INSERT INTO user_role (user_id, role) VALUES ($1,'TENANT')`, [userId]);
       for (const role of input.roles) {
         if (role === 'TENANT') continue;
-        await tx.query(`INSERT INTO user_role (user_id, role, granted_by) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [
-          userId,
-          role,
-          createdBy,
-        ]);
+        await tx.query(
+          `INSERT INTO user_role (user_id, role, granted_by) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
+          [userId, role, createdBy],
+        );
       }
 
-      const resetToken = await this.issueAuthToken(tx, userId, 'PASSWORD_RESET', STAFF_ACCOUNT_SETUP_TTL_HOURS);
+      const resetToken = await this.issueAuthToken(
+        tx,
+        userId,
+        'PASSWORD_RESET',
+        STAFF_ACCOUNT_SETUP_TTL_HOURS,
+      );
 
       await writeAudit(tx, {
         actorUserId: createdBy,
@@ -963,16 +985,16 @@ export class AuthService {
 
       const codes = generateRecoveryCodes();
       for (const plain of codes) {
-        await tx.query(
-          `INSERT INTO two_factor_recovery_code (id, user_id, code_hash) VALUES ($1,$2,$3)`,
-          [uuidv7(), userId, hashToken(normaliseRecoveryCode(plain))],
-        );
+        await tx.query(`INSERT INTO two_factor_recovery_code (id, user_id, code_hash) VALUES ($1,$2,$3)`, [
+          uuidv7(),
+          userId,
+          hashToken(normaliseRecoveryCode(plain)),
+        ]);
       }
 
-      await tx.query(
-        `UPDATE user_session SET auth_level='TWO_FACTOR', step_up_at=now() WHERE id=$1`,
-        [sessionId],
-      );
+      await tx.query(`UPDATE user_session SET auth_level='TWO_FACTOR', step_up_at=now() WHERE id=$1`, [
+        sessionId,
+      ]);
 
       await writeAudit(tx, {
         actorUserId: userId,
@@ -1071,10 +1093,9 @@ export class AuthService {
           WHERE user_id=$1`,
         [userId, totpResult.step],
       );
-      await tx.query(
-        `UPDATE user_session SET auth_level='TWO_FACTOR', step_up_at=now() WHERE id=$1`,
-        [sessionId],
-      );
+      await tx.query(`UPDATE user_session SET auth_level='TWO_FACTOR', step_up_at=now() WHERE id=$1`, [
+        sessionId,
+      ]);
       await writeAudit(tx, {
         actorUserId: userId,
         action: matchedRecoveryId ? 'auth.2fa.recovery_used' : 'auth.2fa.passed',
@@ -1171,7 +1192,11 @@ export class AuthService {
    * It does not enrol a replacement. The person re-enrols themselves, so the
    * administrator never sees a secret.
    */
-  async resetTotpFor(targetUserId: string, actor: { userId: string; role: string }, reason: string): Promise<void> {
+  async resetTotpFor(
+    targetUserId: string,
+    actor: { userId: string; role: string },
+    reason: string,
+  ): Promise<void> {
     await this.db.transaction(async (tx) => {
       await tx.query(`DELETE FROM two_factor_recovery_code WHERE user_id=$1`, [targetUserId]);
       await tx.query(`DELETE FROM user_totp WHERE user_id=$1`, [targetUserId]);
