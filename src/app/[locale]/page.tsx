@@ -3,7 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { SearchForm } from '@/ui/search-form.tsx';
 import { ListingCard, type ListingCardData } from '@/ui/listing-card.tsx';
 import { EmptyState } from '@/ui/primitives.tsx';
-import { Icon, type IconName } from '@/ui/icons.tsx';
+import { Icon } from '@/ui/icons.tsx';
 import { CornflowerField, CornflowerMark } from '@/ui/brand.tsx';
 import { Reveal } from '@/ui/reveal.tsx';
 import { ready } from '@/server/runtime.ts';
@@ -24,12 +24,7 @@ const CITIES = [
   { value: 'Могилёв', key: 'mogilev' },
 ] as const;
 
-const TRUST_ICONS: { icon: IconName; key: 'price' | 'identity' | 'reviews' | 'history' }[] = [
-  { icon: 'eye', key: 'price' },
-  { icon: 'shieldCheck', key: 'identity' },
-  { icon: 'star', key: 'reviews' },
-  { icon: 'message', key: 'history' },
-];
+const TRUST_KEYS = ['price', 'identity', 'reviews', 'history'] as const;
 
 /**
  * Home.
@@ -38,15 +33,14 @@ const TRUST_ICONS: { icon: IconName; key: 'price' | 'identity' | 'reviews' | 'hi
  * the search module, and then inventory. Everything that explains the product
  * sits *below* the evidence rather than in place of it.
  *
- * The hero deliberately has no ground of its own. On the near-white page the
- * only lifted object above the fold is the search form, which is what makes it
- * read as the entry point without a coloured band doing the shouting.
+ * The hero band is the page's one coloured ground; the search form floats half
+ * over its lower edge and is the only lifted object above the fold, which is
+ * what makes it read as the entry point.
  */
 export default async function HomePage() {
   const t = await getTranslations('Home');
 
-  const TRUST: { icon: IconName; title: string; body: string }[] = TRUST_ICONS.map(({ icon, key }) => ({
-    icon,
+  const TRUST = TRUST_KEYS.map((key) => ({
     title: t(`trust.${key}.title`),
     body: t(`trust.${key}.body`),
   }));
@@ -137,21 +131,26 @@ export default async function HomePage() {
       </section>
 
       <Reveal as="section" className="container home-trust">
-        <hr className="hairline" />
-        <h2 id="trust-heading" className="title-lg">
-          {t('trustHeading')}
-        </h2>
-        <div className="home-trust__grid">
-          {TRUST.map((item) => (
-            <article key={item.title} className="home-trust__item">
-              <span className="home-trust__glyph">
-                <Icon name={item.icon} size={20} />
+        <div className="home-trust__intro">
+          <h2 id="trust-heading" className="title-lg">
+            {t('trustHeading')}
+          </h2>
+          <Link href="/trust" className="link home-more">
+            <span>{t('trustMore')}</span>
+            <Icon name="arrowRight" size={16} />
+          </Link>
+        </div>
+        <ol className="home-trust__list" aria-labelledby="trust-heading">
+          {TRUST.map((item, index) => (
+            <li key={item.title} className="home-trust__item">
+              <span className="home-trust__num numeric" aria-hidden="true">
+                {String(index + 1).padStart(2, '0')}
               </span>
               <h3 className="home-trust__title">{item.title}</h3>
               <p className="home-trust__body">{item.body}</p>
-            </article>
+            </li>
           ))}
-        </div>
+        </ol>
       </Reveal>
 
       <Reveal as="section" className="home-host">
@@ -174,24 +173,30 @@ export default async function HomePage() {
            lower edge. That overlap is the one deliberate elevation above the
            grid on this page: everything else still sits flat. */
         .home-hero { padding-bottom: var(--space-4); }
+        /* The radial is a light source, not decoration: it lifts the corner the
+           eye enters from so the band stops reading as one flat 160deg fade.
+           Its colour is the sky-cornflower itself, never a new hue. */
         .home-hero__band {
           position: relative;
           overflow: hidden;
-          background: var(--gradient-hero);
+          background:
+            radial-gradient(90% 120% at 88% -10%, rgb(77 163 255 / 0.32), transparent 62%),
+            var(--gradient-hero);
           padding-block: var(--space-6) var(--space-7);
         }
         .home-hero__field { z-index: 0; }
         .home-hero__inner { position: relative; z-index: 1; display: flex; flex-direction: column; }
+        /* An eyebrow, not a pill: the translucent capsule-above-the-H1 is the
+           most copied hero trope there is, and the mark already does the job
+           of making this line feel like ours. */
         .home-hero__kicker {
-          display: inline-flex; align-items: center; gap: 0.4rem;
+          display: inline-flex; align-items: center; gap: 0.45rem;
           align-self: flex-start;
           margin-bottom: var(--space-3);
-          padding: 0.3rem 0.7rem 0.3rem 0.55rem;
-          border-radius: var(--radius-full);
-          background: rgb(255 255 255 / 0.12);
-          color: var(--color-corn-100);
-          font-size: var(--text-xs);
-          font-weight: 600;
+          color: var(--color-corn-200);
+          font-size: var(--text-sm);
+          font-weight: 500;
+          letter-spacing: 0.01em;
         }
         .home-hero__title { max-width: 40rem; color: #fff; }
         .home-hero__sub {
@@ -240,26 +245,47 @@ export default async function HomePage() {
         }
         @media (max-width: 560px) { .home-grid { grid-template-columns: 1fr; } }
 
-        /* Plain columns of text. Four boxes here would turn the reasons to
-           trust us into an advertisement; a glyph and whitespace are enough. */
-        .home-trust { margin-top: var(--space-7); }
-        .home-trust hr { margin-bottom: var(--space-6); }
-        .home-trust h2 { margin-bottom: var(--space-5); }
-        .home-trust__grid {
-          display: grid;
-          gap: var(--space-5) var(--space-6);
-          grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        /* Four promises, read in order, so they are an ordered list with the
+           number doing what an icon-in-a-circle used to pretend to: an eye, a
+           shield, a star and a speech bubble said nothing the titles did not.
+           Desktop splits the heading off into its own narrower column so the
+           block reads as an argument, not as the four-equal-tiles feature row
+           every template ships. Hairlines, not boxes, separate the points. */
+        .home-trust {
+          display: grid; gap: var(--space-5);
+          margin-top: var(--space-7);
+          padding-top: var(--space-6);
+          border-top: 1px solid var(--border);
         }
-        .home-trust__glyph {
-          display: inline-flex; align-items: center; justify-content: center;
-          width: 2.75rem; height: 2.75rem;
-          margin-bottom: var(--space-3);
-          border-radius: var(--radius-full);
-          background: var(--primary-soft);
+        .home-trust__intro { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+        .home-trust__intro .link { font-weight: 500; font-size: var(--text-sm); min-height: 2.5rem; }
+        .home-trust__list {
+          display: grid; gap: 0 var(--space-6);
+          margin: 0; padding: 0; list-style: none;
+        }
+        .home-trust__item {
+          display: grid; grid-template-columns: 2.5rem minmax(0, 1fr);
+          align-content: start;
+          column-gap: var(--space-3); row-gap: var(--space-1);
+          padding-block: var(--space-4);
+          border-top: 1px solid var(--border);
+        }
+        .home-trust__item:first-child { border-top: 0; padding-top: 0; }
+        .home-trust__num {
+          grid-row: span 2;
+          font-size: var(--text-xl); font-weight: 600; line-height: 1.2;
+          letter-spacing: -0.02em;
           color: var(--primary);
         }
-        .home-trust__title { font-size: var(--text-base); font-weight: 600; margin-bottom: var(--space-2); }
-        .home-trust__body { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; }
+        .home-trust__title { font-size: var(--text-base); font-weight: 600; line-height: 1.35; }
+        .home-trust__body { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; max-width: 46ch; }
+
+        @media (min-width: 900px) {
+          .home-trust { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-7); }
+          .home-trust__intro { position: sticky; top: calc(var(--header-height) + var(--space-5)); align-self: start; }
+          .home-trust__list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .home-trust__item:nth-child(2) { border-top: 0; padding-top: 0; }
+        }
 
         .home-host {
           margin-top: var(--space-7);

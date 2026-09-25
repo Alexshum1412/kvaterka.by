@@ -78,24 +78,23 @@
   --color-info-700: #14509b;
 
   /* --- typography -------------------------------------------------
-   * A system stack. Belarusian needs ў and і; every system UI face on
-   * every target platform covers them, a fashionable webfont often does
-   * not, and it costs a round trip on the mobile connections this
-   * product has to be fast on. Distinctiveness comes from the scale.  */
+   * One family, Onest, self-hosted by `next/font` in `layout.tsx` and exposed
+   * as --font-brand on <html>. It replaced a split setup — Inter for H1s, the
+   * OS system stack for everything else — that rendered as two unrelated
+   * faces on one screen (Segoe on Windows, Roboto on Android, DejaVu on
+   * Linux) and gave the site no typographic voice of its own. Onest is a
+   * Cyrillic-first grotesque: its letterforms were drawn for Russian and
+   * Belarusian rather than retrofitted, ў and і included, and the whole
+   * variable cyrillic file costs ~16 KB from this origin. The system stack
+   * stays as the fallback until the font variable lands.  */
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
-    'Noto Sans', 'Liberation Sans', Arial, sans-serif;
+    var(--font-brand, ui-sans-serif), system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', 'Noto Sans', 'Liberation Sans', Arial, sans-serif;
 
-  /* Display face for the handful of large-scale headings that carry a
-     page's whole first impression (H1s, the hero, section openers) — self-
-     hosted by `next/font` in `layout.tsx`, which resolves the original
-     objection to a webfont here: no runtime request leaves the origin, so
-     there is no round trip to pay for, and Inter's Cyrillic Extended subset
-     covers ў and і the same as the system stack does. Falls back to
-     `--font-sans` until the font variable lands on `<html>`, and body copy
-     stays on the system stack everywhere — this is a display treatment,
-     not a face change for reading. */
-  --font-display: var(--font-display-loaded, var(--font-sans));
+  /* Kept as its own token so a future display face is a one-line change;
+     today display type is the same family pushed to a heavier weight and
+     tighter tracking (see .display). */
+  --font-display: var(--font-sans);
 
   /* One hierarchy, deliberately far apart at the top and tight at the
      bottom. H1 40 / H2 28 / H3 20 / body 16 / small 14, per the brief. */
@@ -234,10 +233,21 @@ body {
   font-size: var(--text-base);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+  /* Not optimizeLegibility. Both turn kerning and ligatures on, but only
+     geometricPrecision also tells Chromium on Linux to stop snapping glyph
+     advances to the hinted pixel grid — with Onest's TrueType hints that
+     snapping opened a visible gap after Cyrillic т at 16px ("Прост орная",
+     "Кват эрка"), reproduced in headless Chromium and gone with this value.
+     Windows, macOS, iOS and Android already position subpixel-exact, so for
+     them the two values render identically. */
+  text-rendering: geometricPrecision;
   overflow-wrap: break-word;
   overscroll-behavior-y: none;
 }
+
+/* Chromium's UA sheet resets form controls to text-rendering: auto, which
+   brings the hinted-advance gap back on every button label ("Войт и"). */
+button, input, select, textarea { text-rendering: inherit; }
 
 /* Native-feeling touch: no 300ms tap delay, no accidental text selection
    on repeated/long taps against a control. */

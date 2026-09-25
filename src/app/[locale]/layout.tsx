@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Onest } from 'next/font/google';
 import { NextIntlClientProvider, hasLocale } from 'next-intl';
 import { getMessages, getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
@@ -12,17 +12,17 @@ import { currentUser } from '@/server/session.ts';
 import { routing, type AppLocale } from '@/i18n/routing.ts';
 
 /**
- * Display face for large headings only (see the `--font-display` comment in
- * globals.css). `next/font` downloads and self-hosts the files at BUILD
- * time and serves them from this origin — the "costs a round trip" concern
- * that originally kept every face on the system stack does not apply to a
- * font that never asks fonts.googleapis.com for anything at runtime.
- * `cyrillic` + `cyrillic-ext` cover ў and і the same as the system stack.
+ * The one typeface, for body and display alike (see the `--font-sans` comment
+ * in globals.css). `next/font` downloads and self-hosts the files at BUILD
+ * time and serves them from this origin — nothing asks fonts.googleapis.com
+ * for anything at runtime. Onest is a variable font (100–900 in one file per
+ * subset); its `cyrillic` file is ~16 KB and was checked glyph by glyph for
+ * ў Ў і І ё № before it replaced Inter, which had been loaded for headings
+ * only and left body copy on whatever the visitor's OS happened to ship.
  */
-const displayFont = Inter({
-  subsets: ['latin', 'cyrillic', 'cyrillic-ext'],
-  weight: ['600', '700', '800'],
-  variable: '--font-display-loaded',
+const brandFont = Onest({
+  subsets: ['latin', 'cyrillic'],
+  variable: '--font-brand',
   display: 'swap',
 });
 
@@ -94,7 +94,7 @@ export default async function LocaleLayout({
   const [messages, t] = await Promise.all([getMessages(), getTranslations({ locale, namespace: 'Layout' })]);
 
   return (
-    <html lang={locale} className={displayFont.variable} data-theme={theme === 'dark' ? 'dark' : undefined}>
+    <html lang={locale} className={brandFont.variable} data-theme={theme === 'dark' ? 'dark' : undefined}>
       <body data-auth={viewer ? 'user' : 'anon'}>
         <NextIntlClientProvider messages={messages}>
           <ConsoleEasterEgg />
