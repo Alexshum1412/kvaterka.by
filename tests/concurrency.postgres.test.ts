@@ -365,6 +365,15 @@ describe('the service fee under simultaneous completion', () => {
     // openCompletionWindow again would be an illegal transition, which is
     // itself a small proof that the FSM refuses a duplicated system sweep.
     await bookings.checkOut(booking.id, tenantA);
+    // The stay above is a fixed calendar week, so its completion deadline
+    // is a fixed date too — and once real time passed it, the first
+    // confirmation resolved the booking on its own (post-deadline rule) and
+    // the second met ILLEGAL_TRANSITION. The same time bomb DEC-082 defused
+    // in booking-lifecycle; this file only runs against real PostgreSQL, so
+    // that pass never saw it. Keep the window explicitly open.
+    await db.query(`UPDATE booking SET completion_deadline_at = now() + interval '1 day' WHERE id=$1`, [
+      booking.id,
+    ]);
 
     // The dangerous moment: the second confirmation is what triggers accrual,
     // and both arriving together is precisely when a check-then-insert fails.

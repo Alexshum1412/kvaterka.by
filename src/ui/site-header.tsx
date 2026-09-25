@@ -42,7 +42,8 @@ export async function SiteHeader() {
 
   // How many links the text nav will carry decides where it can fit (see the
   // data-nav rules at the bottom of the style block): three signed out, five
-  // signed in, six once a staff entry joins them.
+  // signed in, six once a staff entry joins them. Keep this condition in step
+  // with the staff-link chain in the <nav> below — it is the same question.
   const staffLink =
     !!user &&
     (can(user.roles, 'case.view') ||

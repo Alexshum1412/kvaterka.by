@@ -173,15 +173,14 @@ export default async function HomePage() {
            lower edge. That overlap is the one deliberate elevation above the
            grid on this page: everything else still sits flat. */
         .home-hero { padding-bottom: var(--space-4); }
-        /* The radial is a light source, not decoration: it lifts the corner the
-           eye enters from so the band stops reading as one flat 160deg fade.
-           Its colour is the sky-cornflower itself, never a new hue. */
+        /* One flat gradient and the scattered marks, nothing more. A sky-blue
+           radial "light source" was tried here (DEC-085) and impeccable's
+           detector rejected it as the stock spotlight-glow decoration; the
+           cornflower field already gives the band its texture. */
         .home-hero__band {
           position: relative;
           overflow: hidden;
-          background:
-            radial-gradient(90% 120% at 88% -10%, rgb(77 163 255 / 0.32), transparent 62%),
-            var(--gradient-hero);
+          background: var(--gradient-hero);
           padding-block: var(--space-6) var(--space-7);
         }
         .home-hero__field { z-index: 0; }

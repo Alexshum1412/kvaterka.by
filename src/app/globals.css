@@ -458,7 +458,9 @@ img { max-width: 100%; }
   .btn-ghost:hover:not(:disabled) { background: var(--surface-sunken); color: var(--text-primary); }
 }
 
-.btn-danger { background: var(--error); color: #fff; }
+/* The token, not #fff: in the dark theme --error is a light red that
+   white text fails on, and --text-on-primary flips to navy with it. */
+.btn-danger { background: var(--error); color: var(--text-on-primary); }
 
 .btn-sm { min-height: 2.75rem; padding: 0.375rem 0.75rem; font-size: var(--text-xs); }
 .btn-lg { min-height: 3rem; font-size: var(--text-base); padding-inline: 1.5rem; }
