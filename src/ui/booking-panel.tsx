@@ -442,11 +442,14 @@ function PanelStyles() {
         min-width: 0;
         opacity: 0;
         transform: translateY(6px);
+        /* Both panes briefly share one cell mid-swap; a 2px blur blends the
+           overlap into one changing surface instead of two stacked ones. */
+        filter: blur(2px);
         pointer-events: none;
-        transition: opacity 200ms cubic-bezier(0.23, 1, 0.32, 1), transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+        transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out), filter 200ms var(--ease-out);
         transition-delay: 40ms;
       }
-      .bp__pane--active { opacity: 1; transform: none; pointer-events: auto; }
+      .bp__pane--active { opacity: 1; transform: none; filter: none; pointer-events: auto; }
       /* A pane that is neither on screen nor fading out gives up its row
          height. Both panes share one grid cell, so without this the hidden
          (taller) confirm step held the cell open and left ~400px of blank
@@ -455,7 +458,8 @@ function PanelStyles() {
       .bp__pane--exiting {
         opacity: 0;
         transform: translateY(-6px);
-        transition: opacity 120ms ease-out, transform 120ms ease-out;
+        filter: blur(2px);
+        transition: opacity 120ms ease-out, transform 120ms ease-out, filter 120ms ease-out;
         transition-delay: 0ms;
       }
 

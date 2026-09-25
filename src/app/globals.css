@@ -202,6 +202,11 @@
   --gradient-hero: linear-gradient(160deg, var(--color-corn-700) 0%, var(--color-corn-900) 78%);
 
   --header-height: 4rem;
+
+  /* Motion. One strong ease-out for anything entering or responding
+     (Emil Kowalski's UI curve); CSS's built-in `ease` starts too slowly to
+     read as a response to the finger that caused it. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 /* ==================================================================== *
@@ -336,6 +341,14 @@ img { max-width: 100%; }
   .faq-item::details-content {
     transition-duration: 0.01ms !important;
   }
+  .home-trust__item,
+  #sh-mobile-nav,
+  .sh__menuScrim {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
 }
 
 .numeric { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
@@ -405,11 +418,13 @@ img { max-width: 100%; }
   cursor: pointer; text-align: center;
   white-space: nowrap;
   transition: background-color 140ms ease, border-color 140ms ease,
-              color 140ms ease, transform 90ms ease;
+              color 140ms ease, transform 160ms var(--ease-out);
 }
 /* Physical press feedback. GPU-only, and the difference between an
-   interface that responds and one that merely changes. */
-.btn:active:not(:disabled) { transform: translateY(1px); }
+   interface that responds and one that merely changes. A slight shrink
+   rather than the old 1px drop: it reads on a full-width button too, where
+   a single pixel of travel was invisible under a thumb. */
+.btn:active:not(:disabled) { transform: scale(0.97); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* Every stop of --gradient-brand sits between --primary and --primary-hover
@@ -582,8 +597,11 @@ input[type='date']::-webkit-calendar-picker-indicator {
   border-radius: var(--radius-full);
   font: inherit; font-size: var(--text-sm); font-weight: 500;
   cursor: pointer; white-space: nowrap;
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease,
+              transform 160ms var(--ease-out);
 }
+/* Chips are pressable too, and are pressed far more often than buttons. */
+.chip:active { transform: scale(0.97); }
 @media (hover: hover) and (pointer: fine) {
   .chip:hover { border-color: var(--border-control); background: var(--surface-sunken); }
 }

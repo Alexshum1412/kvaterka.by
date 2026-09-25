@@ -271,6 +271,15 @@ export default async function HomePage() {
           border-top: 1px solid var(--border);
         }
         .home-trust__item:first-child { border-top: 0; padding-top: 0; }
+        /* The four points arrive in reading order, 60ms apart, when the
+           section scrolls in (<Reveal> swaps .reveal-init for .reveal-in).
+           Order is the content here — 01 before 04 — so the stagger says
+           something; it never delays anything a visitor could act on. */
+        .home-trust__item { transition: opacity 360ms var(--ease-out), transform 360ms var(--ease-out); }
+        .home-trust.reveal-init:not(.reveal-in) .home-trust__item { opacity: 0; transform: translateY(8px); }
+        .home-trust.reveal-in .home-trust__item:nth-child(2) { transition-delay: 60ms; }
+        .home-trust.reveal-in .home-trust__item:nth-child(3) { transition-delay: 120ms; }
+        .home-trust.reveal-in .home-trust__item:nth-child(4) { transition-delay: 180ms; }
         .home-trust__num {
           grid-row: span 2;
           font-size: var(--text-xl); font-weight: 600; line-height: 1.2;

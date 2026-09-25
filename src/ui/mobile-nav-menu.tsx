@@ -89,7 +89,9 @@ export function MobileNavMenu({
           position: fixed; inset: 0; z-index: 1;
           background: rgb(11 37 69 / 0.25);
           border: 0; padding: 0; cursor: default;
+          transition: opacity 180ms var(--ease-out);
         }
+        @starting-style { .sh__menuScrim { opacity: 0; } }
         /* An open panel turns the same <nav> the desktop bar uses into a
            full-width dropdown. Not width-gated: the panel can only be open
            while the toggle is showing (the resize effect above closes it
@@ -111,6 +113,14 @@ export function MobileNavMenu({
           border-bottom: 1px solid var(--border);
           box-shadow: var(--shadow-overlay);
           padding: var(--space-3) var(--space-4) var(--space-4);
+          /* Drops out of the bar it belongs to instead of appearing whole:
+             origin at the top edge, a short fall, no scale — it is full
+             width, and a scaling full-width panel reads as a zoom. */
+          transform-origin: top;
+          transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out);
+        }
+        @starting-style {
+          .sh__mobileNav[data-open='true'] #sh-mobile-nav { opacity: 0; transform: translateY(-6px); }
         }
         .sh__mobileNav[data-open='true'] #sh-mobile-nav .sh__link {
           display: flex;
