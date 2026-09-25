@@ -157,12 +157,12 @@ export async function ListingCard({
               not a headline rate nobody actually pays. */}
           {stayTotal ? (
             <>
-              <span className="lc__amount numeric">{priceLabel(stayTotal)}</span>
+              <span className="lc__amount">{priceLabel(stayTotal)}</span>
               <span className="lc__per">{stayNote}</span>
             </>
           ) : (
             <>
-              <span className="lc__amount numeric">{priceLabel(listing.basePriceMinor)}</span>
+              <span className="lc__amount">{priceLabel(listing.basePriceMinor)}</span>
               <span className="lc__per">
                 {listing.priceUnit === 'MONTH' ? t('card.perMonth') : t('card.perNight')}
               </span>

@@ -204,6 +204,7 @@ export default async function FaqPage() {
         .faq-item::details-content {
           height: 0;
           overflow: hidden;
+          /* impeccable-disable-next-line layout-transition -- ::details-content has no transform path; height is the only way to animate a native disclosure */
           transition: height 200ms ease-out, content-visibility 200ms allow-discrete;
         }
         .faq-item[open]::details-content { height: auto; }

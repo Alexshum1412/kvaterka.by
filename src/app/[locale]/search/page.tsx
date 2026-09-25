@@ -203,6 +203,10 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         <EmptyState title={t('emptyTitle')} description={t('emptyDescription')} />
       )}
 
+      {/* Cards title themselves with <h3>; without this the outline jumps
+          from the page's <h1> straight to them. */}
+      {result.items.length > 0 && <h2 className="sr-only">{t('resultsHeading')}</h2>}
+
       {result.items.length > 0 && (
         <SearchMobileView
           mapAriaLabel={t('mapAria')}
@@ -216,17 +220,19 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             title: i.title,
           }))}
         >
-          <div className="srch__results">
-            {result.items.map((item, index) => (
-              <ListingCard
-                key={item.id}
-                listing={item as unknown as ListingCardData}
-                nights={nights}
-                initialFavourite={viewer ? saved.has(item.id) : undefined}
-                eager={index < 4}
-              />
-            ))}
-          </div>
+          {/* SearchMobileView supplies the .srch__results grid itself. Wrapping
+              the cards in a second one here nested a whole grid inside a
+              single 300px cell of the outer grid — one card per row on
+              desktop, beside two columns of empty space. */}
+          {result.items.map((item, index) => (
+            <ListingCard
+              key={item.id}
+              listing={item as unknown as ListingCardData}
+              nights={nights}
+              initialFavourite={viewer ? saved.has(item.id) : undefined}
+              eager={index < 4}
+            />
+          ))}
         </SearchMobileView>
       )}
 

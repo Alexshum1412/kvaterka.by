@@ -293,10 +293,15 @@ export default async function DashboardPage() {
           margin-top: var(--space-5);
         }
         @media (min-width: 640px) { .dash-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        /* .card is only a surface (globals.css gives it no padding by
+           design); without its own padding the icon and figures sat flush
+           against the white edge. */
         .dash-summary__card {
           display: flex; align-items: flex-start; gap: var(--space-3);
           flex-wrap: wrap;
+          padding: var(--space-4);
         }
+        @media (min-width: 640px) { .dash-summary__card { padding: var(--space-5); } }
         .dash-summary__icon {
           display: inline-flex; align-items: center; justify-content: center;
           flex: 0 0 auto; width: 2.5rem; height: 2.5rem;
@@ -330,14 +335,15 @@ export default async function DashboardPage() {
         /* --- требует внимания ---------------------------------------- *
          * One white surface holding hairline-separated rows, rather than
          * a stack of separate cards: the block reads as a single list of
-         * decisions instead of six competing boxes. Severity is a 3px
-         * rule and a tinted glyph — never a wash behind the text. */
+         * decisions instead of six competing boxes. Severity is the tinted
+         * glyph alone — never a wash behind the text, and no side stripe:
+         * the grey 3px left rule it used to carry said nothing (it was the
+         * same colour at every severity) and is the stock AI-dashboard tell. */
         .dash-att { list-style: none; margin: 0; padding: 0; overflow: hidden; }
         .dash-att__item + .dash-att__item { border-top: 1px solid var(--border); }
         .dash-att__row {
           display: flex; align-items: flex-start; gap: var(--space-3);
           padding: var(--space-4);
-          border-left: 3px solid var(--border-strong);
           transition: background-color 140ms ease;
         }
         @media (hover: hover) and (pointer: fine) {

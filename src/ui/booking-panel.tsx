@@ -399,6 +399,14 @@ function PanelStyles() {
       }
 
       .bp__dates { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: var(--space-2); }
+      /* Two date fields share a ~290px panel, and at 16px the date mask ran
+         under the calendar glyph and lost its last digit. Tighter padding
+         everywhere, and 14px on a fine pointer only: the 16px floor exists
+         to stop iOS zooming on focus, which a mouse-driven desktop never
+         does. */
+      .bp__dates .input { padding-inline: 0.625rem; }
+      .bp__dates .input::-webkit-calendar-picker-indicator { margin-inline-start: 0.25rem; padding: 0; }
+      @media (pointer: fine) { .bp__dates .input { font-size: var(--text-sm); } }
 
       .bp__quote {
         display: flex;
@@ -439,6 +447,11 @@ function PanelStyles() {
         transition-delay: 40ms;
       }
       .bp__pane--active { opacity: 1; transform: none; pointer-events: auto; }
+      /* A pane that is neither on screen nor fading out gives up its row
+         height. Both panes share one grid cell, so without this the hidden
+         (taller) confirm step held the cell open and left ~400px of blank
+         card under the two booking buttons. */
+      .bp__pane:not(.bp__pane--active):not(.bp__pane--exiting) { visibility: hidden; height: 0; overflow: hidden; }
       .bp__pane--exiting {
         opacity: 0;
         transform: translateY(-6px);

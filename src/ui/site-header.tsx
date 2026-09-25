@@ -40,8 +40,19 @@ export async function SiteHeader() {
      without touching the database, and asking would undo that. */
   const unread = user ? await (await readyServices()).notifications.unreadCount(user.userId) : 0;
 
+  // How many links the text nav will carry decides where it can fit (see the
+  // data-nav rules at the bottom of the style block): three signed out, five
+  // signed in, six once a staff entry joins them.
+  const staffLink =
+    !!user &&
+    (can(user.roles, 'case.view') ||
+      can(user.roles, 'listing.moderate') ||
+      can(user.roles, 'verification.review') ||
+      user.withheldRoles.length > 0);
+  const navKind = !user ? undefined : staffLink ? 'staff' : 'member';
+
   return (
-    <header className="sh">
+    <header className="sh" data-nav={navKind}>
       <div className="container sh__bar">
         <Link href="/" className="sh__brand" aria-label={t('brandAria')}>
           <CornflowerMark size={26} className="sh__mark" />
@@ -234,7 +245,7 @@ export async function SiteHeader() {
         .sh__tld { font-weight: 500; color: var(--text-secondary); }
 
         .sh__nav { display: none; }
-        .sh__link--staff { color: var(--primary); font-weight: 600; }
+        .sh__link.sh__link--staff { color: var(--primary); font-weight: 600; }
         .sh__link {
           display: inline-flex;
           align-items: center;
@@ -411,6 +422,31 @@ export async function SiteHeader() {
         @media (min-width: 1080px) {
           .sh__nav { gap: var(--space-5); }
           .sh__name { display: block; }
+        }
+
+        /* Where the text nav fits depends on how many links it carries, so
+         * the breakpoint does too. Measured in Chromium against the 1200px
+         * container, not guessed: with five signed-in links the right-hand
+         * cluster overlapped the nav by up to 65px between 900 and 1024, and
+         * by 25px at 1080 once the name appeared; with six (staff) the
+         * overlap was 80-216px at EVERY width, 1600 included, because the
+         * container stops growing at 1200. Below each threshold the bar stays
+         * in its compact form — the same menu button and dropdown phones use.
+         * The name beside the monogram is the one element that gives way:
+         * members get it back at 1280, staff never have room for it. */
+        @media (min-width: 900px) and (max-width: 1023.98px) {
+          .sh[data-nav='member'] .sh__nav { display: none; }
+          .sh[data-nav='member'] .sh__menuBtn { display: inline-flex; }
+        }
+        @media (min-width: 900px) and (max-width: 1179.98px) {
+          .sh[data-nav='staff'] .sh__nav { display: none; }
+          .sh[data-nav='staff'] .sh__menuBtn { display: inline-flex; }
+        }
+        @media (min-width: 1080px) and (max-width: 1279.98px) {
+          .sh[data-nav='member'] .sh__name { display: none; }
+        }
+        @media (min-width: 900px) {
+          .sh[data-nav='staff'] .sh__name { display: none; }
         }
       `}</style>
     </header>

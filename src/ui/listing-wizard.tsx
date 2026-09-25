@@ -432,7 +432,7 @@ export function ListingWizard({
           aria-valuemax={STEPS.length}
           aria-label={t('stepAriaLabel', { step: step + 1, total: STEPS.length })}
         >
-          <span className="wz__progressFill" style={{ width: `${progress}%` }} />
+          <span className="wz__progressFill" style={{ transform: `scaleX(${progress / 100})` }} />
         </div>
         <p className="wz__stepLabel">
           {t('stepLabel', { step: step + 1, total: STEPS.length, name: STEPS[step] ?? '' })}
@@ -971,7 +971,7 @@ export function ListingWizard({
           .wz__back:hover { color: var(--text-primary); }
         }
         .wz__progress { height: 4px; border-radius: var(--radius-full); background: var(--surface-sunken); overflow: hidden; margin-top: var(--space-3); }
-        .wz__progressFill { display: block; height: 100%; background: var(--primary); border-radius: inherit; transition: width 240ms ease; }
+        .wz__progressFill { display: block; height: 100%; background: var(--primary); transform-origin: left; transition: transform 240ms cubic-bezier(0.23, 1, 0.32, 1); }
         .wz__stepLabel { margin-top: var(--space-2); font-size: var(--text-xs); color: var(--text-tertiary); }
 
         .wz__body { display: grid; gap: var(--space-5); padding-top: var(--space-4); }
@@ -1026,6 +1026,7 @@ export function ListingWizard({
         .wz__details::details-content {
           height: 0;
           overflow: hidden;
+          /* impeccable-disable-next-line layout-transition -- ::details-content has no transform path; height is the only way to animate a native disclosure */
           transition: height 200ms ease-out, content-visibility 200ms allow-discrete;
         }
         .wz__details[open]::details-content { height: auto; }

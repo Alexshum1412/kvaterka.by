@@ -50,7 +50,7 @@ export default async function SecurityPage() {
       </header>
 
       {withheld.length > 0 && (
-        <section className="card tfa__withheld">
+        <section className="panel tfa__withheld">
           <Icon name="shield" size={20} />
           <div>
             <h2>{t('withheldTitle')}</h2>

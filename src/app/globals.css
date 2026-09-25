@@ -194,9 +194,12 @@
   /* --- gradients ---------------------------------------------------
    * Two, and both stay inside the AA-checked range above: every stop of
    * --gradient-brand falls between --primary (5.28:1) and --primary-hover
-   * (7.06:1), so white text laid over any part of it still passes. Used
+   * (7.06:1), so white text laid over any part of it still passes. It used
+   * to start at corn-500 (3.5:1, an AA failure on every primary button)
+   * while this comment said otherwise; scripts/contrast.mjs now checks
+   * both stops so the claim cannot drift from the value again. Used
    * sparingly — the primary button and the hero band, not general wallpaper. */
-  --gradient-brand: linear-gradient(135deg, var(--color-corn-500) 0%, var(--color-corn-700) 100%);
+  --gradient-brand: linear-gradient(135deg, var(--color-corn-600) 0%, var(--color-corn-700) 100%);
   --gradient-hero: linear-gradient(160deg, var(--color-corn-700) 0%, var(--color-corn-900) 78%);
 
   --header-height: 4rem;

@@ -64,6 +64,7 @@ export default async function FavoritesPage() {
         />
       ) : (
         <>
+          <h2 className="sr-only">{t('listHeading')}</h2>
           <div className="fav-grid">
             {items.map((listing) => (
               <ListingCard key={listing.id} listing={listing} initialFavourite />

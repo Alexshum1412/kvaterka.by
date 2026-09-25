@@ -32,7 +32,7 @@ export function CloseAccount() {
 
   if (!open) {
     return (
-      <section className="card acc__danger">
+      <section className="panel acc__danger">
         <h2 className="acc__h2">{t('closeAccount.collapsedTitle')}</h2>
         <p className="acc__muted">{t('closeAccount.collapsedBody')}</p>
         <button type="button" className="btn btn-secondary" onClick={() => setOpen(true)}>
@@ -43,7 +43,7 @@ export function CloseAccount() {
   }
 
   return (
-    <section className="card acc__danger">
+    <section className="panel acc__danger">
       <h2 className="acc__h2">{t('closeAccount.confirmTitle')}</h2>
       <form
         onSubmit={async (e) => {

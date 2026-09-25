@@ -515,9 +515,11 @@ export default async function ListingPage({ params }: { params: Promise<{ locale
         .lst__h2 { font-size: var(--text-xl); font-weight: 600; margin-bottom: var(--space-4); }
         .lst__muted { color: var(--text-secondary); font-size: var(--text-sm); }
 
+        /* At most three per row: six facts (the full set the wizard asks
+           for) then land as 3 + 3 instead of auto-fit's 5 + a lone orphan. */
         .lst__facts {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(max(8.5rem, calc(33.333% - var(--space-4))), 1fr));
           gap: var(--space-4);
         }
         .lst__fact { display: grid; gap: 0.1rem; }
@@ -665,7 +667,7 @@ function Gallery({
   const shown = photos.slice(0, 5);
 
   return (
-    <div className="gal">
+    <div className="gal" data-count={shown.length}>
       {shown.map((photo, index) => (
         <span
           key={photo.id}
@@ -717,10 +719,17 @@ function Gallery({
           font-size: var(--text-xs); font-weight: 600;
           box-shadow: var(--shadow-subtle);
         }
+        /* The 2fr/1fr/1fr mosaic assumes five photos. With fewer it left
+           empty cells — three photos drew two thumbnails over a blank
+           quarter of the frame — so the grid is shaped to the count. */
         @media (min-width: 760px) {
           .gal { grid-template-columns: 2fr 1fr 1fr; grid-template-rows: 1fr 1fr; height: 26rem; }
           .gal__mainWrap { grid-row: span 2; height: 100%; aspect-ratio: auto; }
           .gal__thumbWrap { display: block; }
+          .gal[data-count='1'] { grid-template-columns: 1fr; }
+          .gal[data-count='2'], .gal[data-count='3'] { grid-template-columns: 2fr 1fr; }
+          .gal[data-count='2'] .gal__thumbWrap { grid-row: span 2; }
+          .gal[data-count='4'] .gal__thumbWrap:nth-child(2) { grid-column: span 2; }
         }
       `}</style>
     </div>

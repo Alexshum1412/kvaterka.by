@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/i18n/navigation.ts';
 import { Icon, type IconName } from '@/ui/icons.tsx';
@@ -59,9 +60,21 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     .filter(({ m }) => pathname === m || pathname.startsWith(`${m}/`))
     .sort((a, b) => b.m.length - a.m.length)[0]?.href;
 
+  // On a phone the section row scrolls sideways (see .dsh__nav below), so a
+  // section near the end — Account, Support — would otherwise be selected
+  // but off-screen. Centre it horizontally; scrollLeft, not scrollIntoView,
+  // so this can never nudge the page's own vertical scroll.
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = navRef.current;
+    const active = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !active || nav.scrollWidth <= nav.clientWidth) return;
+    nav.scrollLeft = active.offsetLeft - (nav.clientWidth - active.offsetWidth) / 2;
+  }, [activeHref]);
+
   return (
     <>
-      <nav className="dsh__nav container" aria-label={t('navAria')}>
+      <nav ref={navRef} className="dsh__nav container" aria-label={t('navAria')}>
         {SECTIONS.map((s) => (
           <Link
             key={s.href}
@@ -95,6 +108,19 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         .dsh__navLink[aria-current='page'] { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
         .dsh__navLink > svg { flex: 0 0 auto; }
 
+        /* Seven sections wrapped into three rows of chips on a phone —
+           ~300px of navigation before the page began. One scrolling row
+           instead, faded at the right edge so the cut reads as "more". */
+        @media (max-width: 767.98px) {
+          .dsh__nav {
+            flex-wrap: nowrap; overflow-x: auto;
+            scrollbar-width: none; overscroll-behavior-x: contain;
+            -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+          }
+          .dsh__nav::-webkit-scrollbar { display: none; }
+          .dsh__navLink { flex: 0 0 auto; white-space: nowrap; }
+        }
         @media (max-width: 480px) {
           .dsh__navLink { padding-inline: 0.6rem; font-size: var(--text-xs); }
         }

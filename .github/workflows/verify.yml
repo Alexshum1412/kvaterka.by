@@ -40,6 +40,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Contrast
+        # Reads the button gradient straight from globals.css, so a palette
+        # edit that drops white-on-blue text below AA fails here.
+        run: npm run contrast
+
       - name: Test
         run: npm test
 
