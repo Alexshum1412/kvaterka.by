@@ -4,6 +4,15 @@ import { checkOperations } from '@/server/services/watchdog.ts';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+/** One part of the report: null when it cannot be collected, so it cannot take the others down. */
+async function section<T>(collect: () => Promise<T>): Promise<T | null> {
+  try {
+    return await collect();
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Liveness and readiness, in one endpoint that answers honestly.
  *
@@ -56,9 +65,12 @@ export async function GET(): Promise<Response> {
   }
 
   if (healthy) {
-    try {
-      const connection = db();
-      const { rows } = await connection.query<{
+    /* A failure in one section is not a reason to report the platform
+       unhealthy — the database answered, so the site works — and not a reason
+       to lose the other sections either. It is a reason to say nothing about
+       that one section rather than to guess. */
+    checks['jobs'] = await section(async () => {
+      const { rows } = await db().query<{
         job_name: string;
         status: string;
         finished_at: string | null;
@@ -67,28 +79,25 @@ export async function GET(): Promise<Response> {
         `SELECT DISTINCT ON (job_name) job_name, status, started_at, finished_at
            FROM job_run ORDER BY job_name, started_at DESC`,
       );
-      checks['jobs'] = rows.map((r) => ({
+      return rows.map((r) => ({
         job: r.job_name,
         status: r.status,
         lastRunAt: r.finished_at ?? r.started_at,
       }));
+    });
 
-      const { rows: backlog } = await connection.query<{ channel: string; c: string }>(
+    checks['notificationBacklog'] = await section(async () => {
+      const { rows } = await db().query<{ channel: string; c: string }>(
         `SELECT channel, count(*)::text AS c FROM notification
           WHERE status IN ('PENDING','SENDING') GROUP BY channel`,
       );
-      checks['notificationBacklog'] = Object.fromEntries(backlog.map((r) => [r.channel, Number(r.c)]));
+      return Object.fromEntries(rows.map((r) => [r.channel, Number(r.c)]));
+    });
 
-      // What the lifecycle watchdog would alert on right now (DEC-086), so an
-      // external uptime monitor polling this URL sees it too. Kinds and counts
-      // only — nothing identifying.
-      checks['alerts'] = await checkOperations(connection);
-    } catch {
-      // A failure here is not a reason to report the platform unhealthy: the
-      // database answered, so the site works. It is a reason to say nothing
-      // rather than to guess.
-      checks['jobs'] = null;
-    }
+    // What the lifecycle watchdog would alert on right now (DEC-086), so an
+    // external uptime monitor polling this URL sees it too. Kinds and counts
+    // only — nothing identifying.
+    checks['alerts'] = await section(() => checkOperations(db()));
   }
 
   return Response.json(

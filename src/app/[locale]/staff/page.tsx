@@ -5,6 +5,7 @@ import { Link, redirect } from '@/i18n/navigation.ts';
 import { currentUser, signInUrl } from '@/server/session.ts';
 import { ready, readyServices } from '@/server/runtime.ts';
 import { checkOperations } from '@/server/services/watchdog.ts';
+import { listRecentErrors } from '@/server/services/error-log.ts';
 import { can } from '@/server/auth/rbac.ts';
 import { StaffShell } from '@/ui/staff-shell.tsx';
 import { Icon, type IconName } from '@/ui/icons.tsx';
@@ -169,13 +170,7 @@ export default async function StaffOverviewPage() {
   const isAdmin = user!.roles.includes('ADMIN');
   const sql = await ready();
   const alerts = isAdmin ? await checkOperations(sql) : [];
-  const errors = isAdmin
-    ? (
-        await sql.query<{ fingerprint: string; source: string; message: string; path: string | null; count: number; last_seen: Date }>(
-          `SELECT fingerprint, source, message, path, count, last_seen FROM error_event ORDER BY last_seen DESC LIMIT 10`,
-        )
-      ).rows
-    : [];
+  const errors = isAdmin ? await listRecentErrors(sql) : [];
 
   const pressing = cards.filter((c) => c.tone === 'urgent' && c.count > 0);
   const rest = cards.filter((c) => !pressing.includes(c));

@@ -32,6 +32,14 @@ export function errorFingerprint(source: ErrorSource, message: string, path: str
     .slice(0, 40);
 }
 
+/**
+ * How many new CLIENT fingerprints a rolling day may add. The endpoint is
+ * anonymous and its rate limits are only as good as a client-supplied header,
+ * so what one visitor can write must not be unbounded. API errors are not held
+ * to it, and neither are repeats of a failure already on file.
+ */
+export const MAX_NEW_CLIENT_ERRORS_PER_DAY = 200;
+
 /** Never throws: recording a failure must not become a second failure. */
 export async function recordError(
   sql: Sql,
@@ -42,12 +50,47 @@ export async function recordError(
   try {
     await sql.query(
       `INSERT INTO error_event (fingerprint, source, message, path)
-       VALUES ($1,$2,$3,$4)
+       SELECT $1::text, $2::text, $3::text, $4::text
+        WHERE $2::text <> 'CLIENT'
+           OR EXISTS (SELECT 1 FROM error_event WHERE fingerprint = $1::text)
+           OR (SELECT count(*) FROM error_event
+                WHERE source = 'CLIENT' AND first_seen > now() - interval '1 day') < $5::int
        ON CONFLICT (fingerprint) DO UPDATE
          SET count = error_event.count + 1, last_seen = now(), message = EXCLUDED.message`,
-      [errorFingerprint(input.source, message, path), input.source, message, path],
+      [errorFingerprint(input.source, message, path), input.source, message, path, MAX_NEW_CLIENT_ERRORS_PER_DAY],
     );
   } catch {
     // The database being the thing that failed is exactly when this runs.
   }
+}
+
+export interface RecentError {
+  readonly fingerprint: string;
+  readonly source: ErrorSource;
+  readonly message: string;
+  readonly path: string | null;
+  readonly count: number;
+  readonly last_seen: Date;
+}
+
+/**
+ * What the staff overview shows: the most recent `perSource` rows of each
+ * source, server errors first. One list ordered by recency alone let a burst of
+ * browser reports push every server error off the page. Within CLIENT the
+ * ranking is by count first — a crash many visitors hit outranks a pile of
+ * one-off reports.
+ */
+export async function listRecentErrors(sql: Sql, perSource = 10): Promise<RecentError[]> {
+  const { rows } = await sql.query<RecentError>(
+    `SELECT fingerprint, source, message, path, count, last_seen FROM (
+        SELECT *, row_number() OVER (
+                 PARTITION BY source
+                 ORDER BY CASE WHEN source = 'CLIENT' THEN count ELSE 0 END DESC, last_seen DESC) AS rn
+          FROM error_event
+      ) ranked
+      WHERE rn <= $1
+      ORDER BY (source = 'API') DESC, last_seen DESC`,
+    [perSource],
+  );
+  return rows;
 }

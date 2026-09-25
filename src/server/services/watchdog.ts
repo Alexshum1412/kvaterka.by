@@ -10,6 +10,7 @@
  */
 
 import type { Sql } from '../db/sql.ts';
+import { DELIVERY_JOB } from './delivery-service.ts';
 import type { NotificationService } from './notification-service.ts';
 
 export type AlertKind =
@@ -70,13 +71,24 @@ const CHECKS: readonly [AlertKind, string][] = [
          WHERE status = 'FAILED' AND coalesce(claimed_at, created_at) > now() - interval '1 day'
       ) failed`,
   ],
-  // The latest run of each job: failed outright, or still "running" an hour on.
+  // A job whose latest FINISHED run failed or was abandoned, or one "running"
+  // for over an hour. The run in progress is not the latest run: the lifecycle
+  // sweep calls this from inside itself, so its own fresh RUNNING row would
+  // hide every earlier failure — and a sweep that died is reclaimed
+  // (ABANDONED) by the next one just before this looks. A delivery run is
+  // FAILED when a single recipient bounced, which, like one blocked bot, is
+  // not an alert: NOTIFICATION_FAILURES is the check for that.
   [
     'JOB_FAILED',
-    `SELECT count(*)::int AS c FROM (
-        SELECT DISTINCT ON (job_name) status, started_at FROM job_run ORDER BY job_name, started_at DESC
-      ) latest
-      WHERE status = 'FAILED' OR (status = 'RUNNING' AND started_at < now() - interval '1 hour')`,
+    `SELECT count(DISTINCT job_name)::int AS c FROM (
+        SELECT job_name FROM (
+          SELECT DISTINCT ON (job_name) job_name, status FROM job_run
+           WHERE status <> 'RUNNING' ORDER BY job_name, started_at DESC
+        ) finished
+         WHERE status = 'ABANDONED' OR (status = 'FAILED' AND job_name <> '${DELIVERY_JOB}')
+        UNION ALL
+        SELECT job_name FROM job_run WHERE status = 'RUNNING' AND started_at < now() - interval '1 hour'
+      ) bad`,
   ],
   [
     'NEW_ERRORS',
@@ -95,6 +107,17 @@ export async function checkOperations(sql: Sql): Promise<OpsAlert[]> {
 }
 
 /**
+ * The alerts that count events over a rolling day, and when the newest such
+ * event happened. Such a window straddles two calendar days, so keying on
+ * today's date announced a single event on both; keyed on the newest event's
+ * day, one event is one key for as long as it is counted.
+ */
+const NEWEST_EVENT: Partial<Record<AlertKind, string>> = {
+  NOTIFICATION_FAILURES: `SELECT max(coalesce(claimed_at, created_at)) AS at FROM notification WHERE status = 'FAILED'`,
+  NEW_ERRORS: `SELECT max(first_seen) AS at FROM error_event`,
+};
+
+/**
  * One notification per alert kind per administrator per day — a stuck state
  * nobody fixes must not become a notification every tick. The payload carries
  * only the kind and a count (notifications leave the platform, LEGAL-015);
@@ -111,14 +134,19 @@ export async function notifyAdministrators(
     `SELECT DISTINCT r.user_id FROM user_role r JOIN app_user u ON u.id = r.user_id
       WHERE r.role = 'ADMIN' AND u.deleted_at IS NULL`,
   );
-  const day = now.toISOString().slice(0, 10);
+  const days = new Map<AlertKind, string>();
+  for (const { kind } of alerts) {
+    const query = NEWEST_EVENT[kind];
+    const newest = query ? (await sql.query<{ at: Date | string | null }>(query)).rows[0]?.at : null;
+    days.set(kind, (newest ? new Date(newest) : now).toISOString().slice(0, 10));
+  }
   let sent = 0;
   for (const { user_id } of admins) {
     for (const alert of alerts) {
       await notifications.enqueue({
         userId: user_id,
         category: 'OPERATIONS',
-        dedupeKey: `ops:${alert.kind}:${day}:${user_id}`,
+        dedupeKey: `ops:${alert.kind}:${days.get(alert.kind)}:${user_id}`,
         payload: { alert: alert.kind, count: alert.count },
       });
       sent += 1;
