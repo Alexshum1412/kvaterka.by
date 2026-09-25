@@ -227,7 +227,7 @@ export default async function HomePage() {
         }
         /* The heading owns the weight in this row; the link is a way out, not a
            second headline. */
-        .home-head .link { font-weight: 500; font-size: var(--text-sm); min-height: 2.5rem; }
+        .home-head .link { font-weight: 500; font-size: var(--text-sm); min-height: 2.75rem; }
         @media (hover: hover) and (pointer: fine) {
           .home-head .link:hover { text-decoration: none; }
           .home-head .link:hover span { text-decoration: underline; text-underline-offset: 3px; }
@@ -257,7 +257,7 @@ export default async function HomePage() {
           border-top: 1px solid var(--border);
         }
         .home-trust__intro { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
-        .home-trust__intro .link { font-weight: 500; font-size: var(--text-sm); min-height: 2.5rem; }
+        .home-trust__intro .link { font-weight: 500; font-size: var(--text-sm); min-height: 2.75rem; }
         .home-trust__list {
           display: grid; gap: 0 var(--space-6);
           margin: 0; padding: 0; list-style: none;

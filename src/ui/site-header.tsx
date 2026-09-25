@@ -135,6 +135,12 @@ export async function SiteHeader() {
                 </Link>
               </>
             )}
+            {/* The bar's own switcher is hidden on phones (see the
+                max-width: 560px rule below); this copy is the way to a
+                language there. It is display:none everywhere else. */}
+            <div className="sh__navLang">
+              <LanguageSwitcher ariaLabel={t('languageAria')} />
+            </div>
           </nav>
         </MobileNavMenu>
 
@@ -277,12 +283,38 @@ export async function SiteHeader() {
           align-items: center;
           gap: 0.125rem;
         }
-        /* On the narrowest phones, two extra controls plus search/bell/logout/
-           identity is too much for one row — the language pills are the one
-           part that also lives reachably inside the footer's reach on mobile
-           (the header's own icon row still carries the theme toggle). */
-        @media (max-width: 420px) {
+        /* On phones (up to 560px) the language pills do not fit in the bar
+           beside the bell, logout and identity controls without squeezing
+           those below a tappable size. They move into the menu panel — the
+           footer no longer offers a switcher, so without this copy a phone
+           visitor had no way to change language. Both halves live in this one
+           query so the two can never disagree about where the pills are. */
+        .sh__navLang { display: none; }
+        @media (max-width: 560px) {
           .sh__prefs .lsw { display: none; }
+          .sh__navLang {
+            display: block;
+            margin-top: var(--space-2);
+            padding-top: var(--space-2);
+            border-top: 1px solid var(--border);
+          }
+          .sh__navLang .lsw { gap: var(--space-2); }
+          .sh__navLang .lsw__pill {
+            min-width: 2.75rem;
+            min-height: 2.75rem;
+            font-size: var(--text-sm);
+          }
+          .sh__navLang .lsw__pill::before { inset-block: 0; }
+        }
+        /* Signed in, the bar carries four 44px controls beside the hamburger
+           and there is no arrangement of them plus the wordmark that fits a
+           phone: at 360px the bell and logout icons were squeezed to 20px
+           wide, under even the WCAG 2.5.8 floor of 24. The mark alone still
+           names the site (the link keeps its aria-label); signed out there is
+           room for the wordmark, so it stays. */
+        @media (max-width: 560px) {
+          .sh[data-nav] .sh__word { display: none; }
+          .sh[data-nav] .sh__brand { min-width: 2.75rem; justify-content: center; padding-right: 0; }
         }
 
         .sh__icon-link {
@@ -290,6 +322,7 @@ export async function SiteHeader() {
           align-items: center;
           justify-content: center;
           width: 2.75rem;
+          min-width: 2rem;
           height: 2.75rem;
           border-radius: var(--radius-sm);
           color: var(--text-secondary);
@@ -330,7 +363,7 @@ export async function SiteHeader() {
           flex-shrink: 0;
           min-width: 0;
           min-height: 2.75rem;
-          padding-inline: 0.25rem;
+          padding-inline: 0.375rem;
           border-radius: var(--radius-full);
           color: var(--text-secondary);
         }

@@ -44,7 +44,12 @@ const SECTIONS: Section[] = [
   { href: '/dashboard/bookings', labelKey: 'bookings', icon: 'calendar', match: ['/dashboard/bookings'] },
   { href: '/dashboard/finance', labelKey: 'finance', icon: 'wallet', match: ['/dashboard/finance'] },
   { href: '/dashboard/chat', labelKey: 'messages', icon: 'message', match: ['/dashboard/chat'] },
-  { href: '/dashboard/verification', labelKey: 'verification', icon: 'shieldCheck', match: ['/dashboard/verification'] },
+  {
+    href: '/dashboard/verification',
+    labelKey: 'verification',
+    icon: 'shieldCheck',
+    match: ['/dashboard/verification'],
+  },
   { href: '/dashboard/support', labelKey: 'support', icon: 'phone', match: ['/dashboard/support'] },
   { href: '/dashboard/account', labelKey: 'account', icon: 'user', match: ['/dashboard/account'] },
 ];
@@ -55,8 +60,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   // Longest match wins, so /dashboard/bookings does not also light up
   // /dashboard — the same rule StaffShell uses for the same reason.
-  const activeHref = SECTIONS
-    .flatMap((s) => s.match.map((m) => ({ href: s.href, m })))
+  const activeHref = SECTIONS.flatMap((s) => s.match.map((m) => ({ href: s.href, m })))
     .filter(({ m }) => pathname === m || pathname.startsWith(`${m}/`))
     .sort((a, b) => b.m.length - a.m.length)[0]?.href;
 
@@ -98,7 +102,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         }
         .dsh__navLink {
           display: inline-flex; align-items: center; gap: 0.4rem;
-          min-height: 2.5rem; padding: 0.4rem 0.8rem;
+          min-height: 2.75rem; padding: 0.4rem 0.8rem;
           border-radius: var(--radius-sm);
           font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary);
         }

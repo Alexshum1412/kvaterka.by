@@ -157,6 +157,11 @@ export async function SiteFooter() {
             text-underline-offset: 3px;
           }
         }
+        /* Ten stacked links: 44px on a mouse would loosen the columns for
+           nothing, so the full touch height is for touch screens only. */
+        @media (pointer: coarse) {
+          .ftr__link { min-height: 2.75rem; }
+        }
 
         .ftr__legal {
           max-width: 72ch;

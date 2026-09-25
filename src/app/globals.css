@@ -728,6 +728,13 @@ input[type='date']::-webkit-calendar-picker-indicator {
   --focus: var(--color-corn-300);
   --brand-mark-gap: #141e33;
 
+  /* --text-on-primary flips to navy above, so the light gradient (corn-600 to
+     corn-700, built for white text) would leave navy on mid-blue at 3.4:1 and
+     2.5:1 on every resting primary button. These stops are corn-300 to
+     corn-200, the same pair --primary and --primary-hover use in this theme:
+     9.9:1 and 12.9:1 under navy. */
+  --gradient-brand: linear-gradient(135deg, var(--color-corn-300) 0%, var(--color-corn-200) 100%);
+
   --shadow-subtle: 0 1px 2px rgb(0 0 0 / 0.4);
   --shadow-raised: 0 4px 14px rgb(0 0 0 / 0.45), 0 16px 36px rgb(0 0 0 / 0.35);
   --shadow-overlay: 0 8px 32px rgb(0 0 0 / 0.6);

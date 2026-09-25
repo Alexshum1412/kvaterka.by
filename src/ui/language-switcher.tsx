@@ -55,6 +55,24 @@ export function LanguageSwitcher({ ariaLabel }: { ariaLabel: string }) {
         @media (hover: hover) and (pointer: fine) {
           .lsw__pill--active:hover { background: var(--primary-soft-hover, var(--primary-soft)); }
         }
+        /* A thumb needs 44px, the header has room for a 24px pill. The link
+           itself is 44px tall and the pill is painted by ::before at its
+           old height, so the touch area grows and the bar does not. Last in
+           the block: it has to come after the rules whose background it
+           moves onto the pseudo-element. */
+        @media (pointer: coarse) {
+          .lsw__pill { position: relative; isolation: isolate; min-height: 2.75rem; }
+          .lsw__pill::before {
+            content: '';
+            position: absolute;
+            z-index: -1;
+            inset-block: 0.625rem;
+            inset-inline: 0;
+            border-radius: inherit;
+          }
+          .lsw__pill--active { background: transparent; }
+          .lsw__pill--active::before { background: var(--primary-soft); }
+        }
       `}</style>
     </div>
   );

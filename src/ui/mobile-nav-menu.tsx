@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { usePathname } from '@/i18n/navigation.ts';
 import { Icon } from '@/ui/icons.tsx';
 
@@ -39,6 +39,16 @@ export function MobileNavMenu({
     setOpen(false);
   }, [pathname]);
 
+  // The pathname effect above never fires for a link to the page already on
+  // screen, or for a language pill (the locale is not part of the pathname),
+  // so a click on any link in the panel closes it directly as well.
+  function closeOnLinkClick(e: MouseEvent<HTMLDivElement>) {
+    if (!(e.target as Element).closest('#sh-mobile-nav a')) return;
+    setOpen(false);
+    // Same reason as Escape below: the focused link is about to disappear.
+    buttonRef.current?.focus();
+  }
+
   // Where the bar switches to its text nav depends on how many links the
   // header carries (site-header.tsx's data-nav rules), so this component
   // cannot know the breakpoint. It does not need to: once a resize hides
@@ -47,7 +57,12 @@ export function MobileNavMenu({
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      // The panel is about to be display:none, and a focused link inside it
+      // would drop keyboard focus to <body>. It goes back to the toggle that
+      // opened the panel instead.
+      buttonRef.current?.focus();
     }
     function onResize() {
       if (buttonRef.current?.offsetParent === null) setOpen(false);
@@ -61,7 +76,7 @@ export function MobileNavMenu({
   }, [open]);
 
   return (
-    <div className="sh__mobileNav" data-open={open}>
+    <div className="sh__mobileNav" data-open={open} onClick={closeOnLinkClick}>
       <button
         ref={buttonRef}
         type="button"

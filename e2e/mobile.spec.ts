@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { db } from './support.ts';
+import { DEMO, db, signIn } from './support.ts';
 
 /**
  * MVP_RELEASE_CHECKLIST: "Mobile viewport tests" — the phone-only affordances
@@ -20,7 +20,8 @@ test('search switches between list and map from the bottom dock', async ({ page 
 test('the listing page keeps a booking entry point under the thumb', async ({ page }) => {
   // Ordered: an unordered LIMIT 1 picked a request-mode listing in CI, whose
   // dock says «Отправить запрос». Either label is the entry point under test.
-  const id = (await db.query(`SELECT id FROM property WHERE status='PUBLISHED' ORDER BY id LIMIT 1`)).rows[0].id;
+  const id = (await db.query(`SELECT id FROM property WHERE status='PUBLISHED' ORDER BY id LIMIT 1`)).rows[0]
+    .id;
   await page.goto(`/listing/${id}`, { waitUntil: 'networkidle' });
   const book = page.locator('.lst__dock').getByRole('link', { name: /^(Забронировать|Отправить запрос)$/ });
   await expect(book).toBeVisible();
@@ -36,10 +37,16 @@ test('every control on the main pages is at least 44px on a touchscreen', async 
     small.push(
       ...(await page.evaluate(
         (p) =>
-          [...document.querySelectorAll('button, [role=button], input:not([type=hidden]), select, a.btn, a.chip, .leaflet-bar a')]
+          [
+            ...document.querySelectorAll(
+              'button, [role=button], input:not([type=hidden]), select, a.btn, a.chip, .leaflet-bar a',
+            ),
+          ]
             .filter((e) => {
               const r = e.getBoundingClientRect();
-              return r.width > 0 && getComputedStyle(e).visibility !== 'hidden' && (r.width < 44 || r.height < 44);
+              return (
+                r.width > 0 && getComputedStyle(e).visibility !== 'hidden' && (r.width < 44 || r.height < 44)
+              );
             })
             .map((e) => {
               const r = e.getBoundingClientRect();
@@ -50,4 +57,28 @@ test('every control on the main pages is at least 44px on a touchscreen', async 
     );
   }
   expect([...new Set(small)]).toEqual([]);
+});
+
+// The test above only ever loads signed-out pages, so it never saw the header a
+// member actually gets: bell, logout, theme, avatar and the menu button beside
+// the brand. There is no room for all of that at 44px plus the wordmark on a
+// phone, and flex-shrink quietly squeezed the bell and logout to ~20px wide.
+test('a signed-in header keeps every control at least 44px on a touchscreen', async ({ page }) => {
+  await signIn(page, DEMO.tenant);
+  await page.goto('/', { waitUntil: 'networkidle' });
+  const small = await page.evaluate(() =>
+    [...document.querySelectorAll('.sh a, .sh button')]
+      .filter((e) => {
+        const r = e.getBoundingClientRect();
+        return r.width > 0 && getComputedStyle(e).visibility !== 'hidden' && (r.width < 44 || r.height < 44);
+      })
+      .map((e) => {
+        const r = e.getBoundingClientRect();
+        return `${e.getAttribute('aria-label') ?? e.textContent?.trim().slice(0, 30)} ${Math.round(r.width)}x${Math.round(r.height)}`;
+      }),
+  );
+  expect(small).toEqual([]);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+  ).toBe(true);
 });
