@@ -22,7 +22,7 @@
 
 services:
   postgres:
-    image: postgres:10.23
+    image: postgres:10.23-bullseye
     container_name: kvaterka-pg10
     environment:
       POSTGRES_PASSWORD: postgres
