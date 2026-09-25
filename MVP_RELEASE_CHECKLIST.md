@@ -20,7 +20,7 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 
 - [x] Test suite passes — 1034 tests (`npm test` is the source of truth for the number)
 - [x] Typecheck clean
-- [x] **Suite run against a real PostgreSQL server** — 1135 tests pass on **PostgreSQL 10.23**, the version production runs, under a `NOSUPERUSER` role with **zero extensions installed**; 1134 pass on PGlite with one skipped. Includes 20 genuine-concurrency assertions that cannot run under PGlite. The harness needed a schema per test file before this was possible at all, and CI now runs `postgres:10.23` rather than `postgres:18` — testing against something more capable than production proves the wrong thing
+- [x] **Suite run against a real PostgreSQL server** — 1391 tests pass on **PostgreSQL 10.23**, the version production runs, under a `NOSUPERUSER` role with **zero extensions installed**; 1390 pass on PGlite with one skipped (DEC-085). CI's image is `postgres:10.23-bullseye` — the bare `10.23` tag no longer resolves on Docker Hub, which silently kept this job from starting until DEC-085. Includes 20 genuine-concurrency assertions that cannot run under PGlite. The harness needed a schema per test file before this was possible at all, and CI now runs `postgres:10.23` rather than `postgres:18` — testing against something more capable than production proves the wrong thing
 - [x] Authorization test suite for every API endpoint — audited all 141 endpoints across 13 route files against the real test suite and closed every gap with a real regression test (DEC-083, DEC-084). Found and fixed two real bugs along the way: a moderation-bypass on listing republish, and an existence oracle on the profile-surface favorites route
 - [ ] End-to-end browser tests for critical flows
 - [ ] Mobile viewport tests
@@ -63,6 +63,7 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 ## Product
 
 - [x] Admin panel exists — operations overview, dispute queue, verification console, retention console, security
+- [ ] **Re-register the Telegram webhook with its secret** — since DEC-085 the webhook refuses any delivery without `X-Telegram-Bot-Api-Secret-Token`. Run `TELEGRAM_BOT_TOKEN=… PUBLIC_BASE_URL=https://kvaterka.by npm run telegram:webhook` once on the server after deploying (HOW_TO_UPDATE_THE_SITE.md §2.10); until then phone verification and linking do not work
 - [x] Telegram notification flow works end to end — bot token, `/api/telegram/webhook`, and account-linking UI all ship; `TELEGRAM_BOT_TOKEN` confirmed set in production (DEC-080). Phone verification is Telegram-only (d7f4610), so any verified account has necessarily linked a chat — live linked-chat count not re-checked from this pass, since it needs a DB query this session's hosting outage currently blocks
 - [x] Notification outbox with deduplication running — the outbox, the worker, the retry ladder, the inbox and the preferences screen all exist and run, and all three channels (IN_APP, EMAIL, TELEGRAM) reach real recipients in production
 - [~] Verification levels 0/1/2 operating — 0 and 1 operate; 2 requires identity documents and is gated off pending LEGAL-004

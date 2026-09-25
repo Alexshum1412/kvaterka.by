@@ -31,7 +31,10 @@ function escapeIcsText(value: string): string {
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
-    .replace(/\n/g, '\\n');
+    // CR too, not only LF: a lone CR ends a line for plenty of calendar
+    // parsers, and the listing title is landlord-controlled text landing in
+    // the tenant's calendar — an unescaped CR there starts a new property.
+    .replace(/\r\n|\r|\n/g, '\\n');
 }
 
 /** 'YYYY-MM-DD' (what `lower()`/`upper()` on the stay_period range yield) to

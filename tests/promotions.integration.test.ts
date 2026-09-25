@@ -15,6 +15,7 @@ import { createTestDb, type TestDb } from '@/server/db/testing.ts';
 import { ApiTestClient } from './support/api-client.ts';
 import { SearchService } from '@/server/services/search-service.ts';
 import { BOOST_TIERS, HIGHLIGHT_TIERS, PIN_TIERS } from '@/server/domain/promotion-tiers.ts';
+import { uuidv7 } from '@/lib/id.ts';
 
 let db: TestDb;
 let api: ApiTestClient;
@@ -344,8 +345,10 @@ describe('search ranking honours starts_at, and ranks pin above boost', () => {
     // bug this fix targets: a row whose window has not started yet.
     await db.query(
       `INSERT INTO listing_boost (id, property_id, purchased_by, amount_minor, starts_at, ends_at)
-       VALUES (gen_random_uuid(), $1, $2, 500, now() + interval '3 days', now() + interval '4 days')`,
-      [id, landlord.userId],
+       VALUES ($3, $1, $2, 500, now() + interval '3 days', now() + interval '4 days')`,
+      // gen_random_uuid() is core only from PostgreSQL 13; production and the
+      // real-postgres job run 10.23, where it does not exist.
+      [id, landlord.userId, uuidv7()],
     );
 
     const result = await search.search({ city: 'Минск' });
@@ -358,8 +361,8 @@ describe('search ranking honours starts_at, and ranks pin above boost', () => {
     const id = await publishedListing(landlord.token);
     await db.query(
       `INSERT INTO listing_boost (id, property_id, purchased_by, amount_minor, starts_at, ends_at)
-       VALUES (gen_random_uuid(), $1, $2, 500, now() - interval '1 hour', now() + interval '23 hours')`,
-      [id, landlord.userId],
+       VALUES ($3, $1, $2, 500, now() - interval '1 hour', now() + interval '23 hours')`,
+      [id, landlord.userId, uuidv7()],
     );
 
     const result = await search.search({ city: 'Минск' });

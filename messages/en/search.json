@@ -23,6 +23,7 @@
       "ariaLabel": "Switch view",
       "listTab": "List",
       "mapTab": "Map"
-    }
+    },
+    "resultsHeading": "Search results"
   }
 }

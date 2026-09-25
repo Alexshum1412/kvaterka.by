@@ -205,7 +205,9 @@ export default async function FinancePage() {
         .fin { padding-block: var(--space-4) var(--space-8); max-width: 52rem; }
         .fin__back { margin-bottom: var(--space-3); }
         .fin__backLink { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; font-size: var(--text-sm); color: var(--text-secondary); }
-        .fin__backLink:hover { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .fin__backLink:hover { color: var(--text-primary); }
+        }
         .fin__head { display: grid; gap: 0.25rem; margin-bottom: var(--space-5); }
         .fin__head p { max-width: 60ch; }
 
@@ -237,7 +239,9 @@ export default async function FinancePage() {
         .fin__fee { display: grid; gap: 0.25rem; }
         .fin__feeTop { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
         .fin__feeRef { font-size: var(--text-xs); color: var(--text-secondary); }
-        .fin__feeRef:hover { color: var(--primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .fin__feeRef:hover { color: var(--primary); }
+        }
         .fin__feeAmount { margin-left: auto; font-size: var(--text-base); }
         .fin__feeMath { font-size: var(--text-xs); color: var(--text-secondary); }
         .fin__feeMeta { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; font-size: var(--text-2xs); color: var(--text-tertiary); }

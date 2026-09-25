@@ -118,7 +118,9 @@ export const config = {
        route lives outside the [locale] segment on purpose (a photograph is not
        localized content), so letting next-intl see it here would rewrite every
        image request to a /<locale>/media/... URL with no matching route,
-       404ing every photo on the site. */
-    '/((?!api|_next/static|_next/image|favicon.ico|media).*)',
+       404ing every photo on the site. The web app manifest is excluded for
+       the same reason: next-intl rewrote it to /ru/manifest.webmanifest,
+       which has no route, so every browser asking for it got a 404. */
+    '/((?!api|_next/static|_next/image|favicon.ico|media|manifest.webmanifest).*)',
   ],
 };

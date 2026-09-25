@@ -218,7 +218,7 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
 
   if (enrolled && step !== 'CODES') {
     return (
-      <section className="card tfa__done">
+      <section className="panel tfa__done">
         <Icon name="checkCircle" size={20} />
         <div>
           <h2>{t('enabledTitle')}</h2>
@@ -263,7 +263,7 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
 
   if (step === 'CODES') {
     return (
-      <section className="card tfa__codes">
+      <section className="panel tfa__codes">
         <h2 className="tfa__h2">{t('codesTitle')}</h2>
         {/* Said BEFORE the list, not after: a person who has already clicked
             past something they are then told was irreplaceable has learned
@@ -306,7 +306,7 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
 
   if (step === 'SCAN' && enrolment) {
     return (
-      <section className="card">
+      <section className="panel">
         <h2 className="tfa__h2">{t('scanTitle')}</h2>
         <p className="tfa__muted">{t('scanBody')}</p>
 
@@ -349,7 +349,7 @@ export function TwoFactorSetup({ enrolled, required }: { enrolled: boolean; requ
   }
 
   return (
-    <section className="card">
+    <section className="panel">
       <h2 className="tfa__h2">{t('enableTitle')}</h2>
       <p className="tfa__muted">{required ? t('enableBodyRequired') : t('enableBodyOptional')}</p>
       <form onSubmit={begin} className="tfa__form">
@@ -390,7 +390,7 @@ export function TwoFactorChallenge({ next = '/staff' }: { next?: string }) {
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <section className="card">
+    <section className="panel">
       <h2 className="tfa__h2">{t('challengeTitle')}</h2>
       <p className="tfa__muted">{t('challengeBody')}</p>
       <form

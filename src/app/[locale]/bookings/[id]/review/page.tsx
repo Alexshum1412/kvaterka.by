@@ -138,7 +138,9 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
       <style>{`
         .rv { padding-block: var(--space-4) var(--space-8); max-width: 44rem; }
         .rv__back { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; margin-bottom: var(--space-3); font-size: var(--text-sm); color: var(--text-secondary); }
-        .rv__back:hover { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .rv__back:hover { color: var(--text-primary); }
+        }
       `}</style>
     </div>
   );

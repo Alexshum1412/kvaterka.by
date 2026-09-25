@@ -9,6 +9,8 @@
  * future palette tweak cannot quietly break accessibility.
  */
 
+import { readFileSync } from 'node:fs';
+
 const SURFACE = '#ffffff';
 const GROUND = '#f7f9fc';
 
@@ -55,6 +57,18 @@ const CHECKS = [
   ['#216aca', SURFACE, 3.0, '--focus ring vs white'],
   ['#216aca', GROUND, 3.0, '--focus ring vs the page ground'],
 ];
+
+/* The hex pairs above are copies, so they cannot notice globals.css moving
+   away from them — which is exactly how --gradient-brand shipped starting at
+   corn-500 (3.5:1) under a comment promising >= 5.28:1. Every stop of the
+   gradient that carries white button text is therefore read from the CSS
+   itself, not restated here. */
+const css = readFileSync(new URL('../src/app/globals.css', import.meta.url), 'utf8');
+const palette = Object.fromEntries([...css.matchAll(/--(color-[\w-]+):\s*(#[0-9a-f]{6})/gi)].map((m) => [m[1], m[2]]));
+const gradient = css.match(/--gradient-brand:\s*linear-gradient\(([^;]+)\);/)?.[1] ?? '';
+const stops = [...gradient.matchAll(/var\(--(color-[\w-]+)\)/g)].map((m) => m[1]);
+if (stops.length < 2) throw new Error('could not read --gradient-brand stops from globals.css');
+for (const name of stops) CHECKS.push(['#ffffff', palette[name], 4.5, `white text on --gradient-brand stop ${name}`]);
 
 let failed = 0;
 console.log('pair'.padEnd(52), 'ratio'.padStart(7), '  min   ');

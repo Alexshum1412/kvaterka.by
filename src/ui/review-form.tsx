@@ -292,7 +292,9 @@ export function ReviewForm({
           font-size: var(--text-xs); font-weight: 500; color: var(--text-secondary);
           cursor: pointer;
         }
-        .rf__fact:hover { border-color: var(--border-control); }
+        @media (hover: hover) and (pointer: fine) {
+          .rf__fact:hover { border-color: var(--border-control); }
+        }
         .rf__fact[data-state='yes'] { background: var(--success-soft); border-color: var(--success); color: var(--success); }
         .rf__fact[data-state='no'] { background: var(--surface-sunken); border-color: var(--border-strong); color: var(--text-primary); text-decoration: line-through; }
 
@@ -355,7 +357,9 @@ function Stars({
         }
         .st[data-size='lg'] .st__btn { width: 2.75rem; height: 2.75rem; }
         .st__btn[data-on='true'] { color: var(--warning); }
-        .st__btn:hover { background: var(--surface-sunken); }
+        @media (hover: hover) and (pointer: fine) {
+          .st__btn:hover { background: var(--surface-sunken); }
+        }
       `}</style>
     </span>
   );

@@ -112,7 +112,7 @@ export function SecuritySettings() {
   }
 
   return (
-    <section className="card ss">
+    <section className="panel ss">
       <div className="ss__block">
         <h2 className="ss__h2">{t('security.passwordTitle')}</h2>
         <form onSubmit={changePassword} className="ss__form">

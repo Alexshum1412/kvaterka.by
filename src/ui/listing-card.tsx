@@ -157,12 +157,12 @@ export async function ListingCard({
               not a headline rate nobody actually pays. */}
           {stayTotal ? (
             <>
-              <span className="lc__amount numeric">{priceLabel(stayTotal)}</span>
+              <span className="lc__amount">{priceLabel(stayTotal)}</span>
               <span className="lc__per">{stayNote}</span>
             </>
           ) : (
             <>
-              <span className="lc__amount numeric">{priceLabel(listing.basePriceMinor)}</span>
+              <span className="lc__amount">{priceLabel(listing.basePriceMinor)}</span>
               <span className="lc__per">
                 {listing.priceUnit === 'MONTH' ? t('card.perMonth') : t('card.perNight')}
               </span>
@@ -225,7 +225,9 @@ export async function ListingCard({
           border-radius: var(--radius-md);
           transition: box-shadow 180ms ease, transform 180ms ease;
         }
-        .lc:hover { box-shadow: var(--shadow-raised); transform: translateY(-2px); }
+        @media (hover: hover) and (pointer: fine) {
+          .lc:hover { box-shadow: var(--shadow-raised); transform: translateY(-2px); }
+        }
         .lc:focus-within { box-shadow: var(--shadow-raised); }
         .lc:active { transform: translateY(0); }
 
@@ -235,8 +237,13 @@ export async function ListingCard({
            existing amber tokens (see globals.css); reused rather than adding
            a new design token for what is, visually, the same amber accent. */
         .lc--highlighted { box-shadow: inset 0 0 0 2px var(--warning); background: var(--warning-soft); }
-        .lc--highlighted:hover, .lc--highlighted:focus-within {
+        .lc--highlighted:focus-within {
           box-shadow: inset 0 0 0 2px var(--warning), var(--shadow-raised);
+        }
+        @media (hover: hover) and (pointer: fine) {
+          .lc--highlighted:hover {
+            box-shadow: inset 0 0 0 2px var(--warning), var(--shadow-raised);
+          }
         }
 
         /* 3:2 — the ratio phone cameras and estate photography actually use.
@@ -252,7 +259,9 @@ export async function ListingCard({
         /* .media-zoom's own :hover only fires over the photo itself; tying the
            scale to the whole card instead keeps it in step with the shadow and
            lift below, which already react to any hover on the card. */
-        .lc:hover .lc__media img { transform: scale(1.05); }
+        @media (hover: hover) and (pointer: fine) {
+          .lc:hover .lc__media img { transform: scale(1.05); }
+        }
         .lc__nophoto {
           display: grid; place-items: center;
           width: 100%; height: 100%;

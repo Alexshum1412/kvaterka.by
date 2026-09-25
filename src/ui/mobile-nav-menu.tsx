@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { usePathname } from '@/i18n/navigation.ts';
 import { Icon } from '@/ui/icons.tsx';
 
@@ -39,18 +39,31 @@ export function MobileNavMenu({
     setOpen(false);
   }, [pathname]);
 
+  // Where the bar switches to its text nav depends on how many links the
+  // header carries (site-header.tsx's data-nav rules), so this component
+  // cannot know the breakpoint. It does not need to: once a resize hides
+  // the toggle, the dropdown it opened must close with it.
+  const buttonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
     }
+    function onResize() {
+      if (buttonRef.current?.offsetParent === null) setOpen(false);
+    }
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onResize);
+    };
   }, [open]);
 
   return (
     <div className="sh__mobileNav" data-open={open}>
       <button
+        ref={buttonRef}
         type="button"
         className="sh__icon-link sh__menuBtn"
         aria-expanded={open}
@@ -76,37 +89,46 @@ export function MobileNavMenu({
           position: fixed; inset: 0; z-index: 1;
           background: rgb(11 37 69 / 0.25);
           border: 0; padding: 0; cursor: default;
+          transition: opacity 180ms var(--ease-out);
         }
-        @media (min-width: 900px) {
-          .sh__menuScrim { display: none; }
+        @starting-style { .sh__menuScrim { opacity: 0; } }
+        /* An open panel turns the same <nav> the desktop bar uses into a
+           full-width dropdown. Not width-gated: the panel can only be open
+           while the toggle is showing (the resize effect above closes it
+           otherwise), and where the toggle shows depends on the header's
+           link count, not on one fixed width. The id is only ever the
+           target of aria-controls, never a CSS hook, so this reads purely
+           off the state this component owns. */
+        .sh__mobileNav[data-open='true'] #sh-mobile-nav {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.125rem;
+          position: absolute;
+          top: 100%;
+          inset-inline: 0;
+          margin: 0;
+          z-index: 2;
+          background: var(--surface);
+          border-bottom: 1px solid var(--border);
+          box-shadow: var(--shadow-overlay);
+          padding: var(--space-3) var(--space-4) var(--space-4);
+          /* Drops out of the bar it belongs to instead of appearing whole:
+             origin at the top edge, a short fall, no scale — it is full
+             width, and a scaling full-width panel reads as a zoom. */
+          transform-origin: top;
+          transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out);
         }
-
-        /* Below the text-nav breakpoint, an open panel turns the same
-           <nav> the desktop bar uses into a full-width dropdown — the
-           id above is only ever the target of aria-controls, never a
-           CSS hook, so this reads purely off the state this component
-           owns. */
-        @media (max-width: 899.98px) {
-          .sh__mobileNav[data-open='true'] #sh-mobile-nav {
-            display: flex;
-            flex-direction: column;
-            align-items: stretch;
-            gap: 0.125rem;
-            position: absolute;
-            top: 100%;
-            inset-inline: 0;
-            z-index: 2;
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            box-shadow: var(--shadow-overlay);
-            padding: var(--space-3) var(--space-4) var(--space-4);
-          }
-          .sh__mobileNav[data-open='true'] #sh-mobile-nav .sh__link {
-            display: flex;
-            width: 100%;
-            padding-block: 0.4rem;
-            border-radius: var(--radius-sm);
-          }
+        @starting-style {
+          .sh__mobileNav[data-open='true'] #sh-mobile-nav { opacity: 0; transform: translateY(-6px); }
+        }
+        .sh__mobileNav[data-open='true'] #sh-mobile-nav .sh__link {
+          display: flex;
+          width: 100%;
+          padding-block: 0.4rem;
+          border-radius: var(--radius-sm);
+        }
+        @media (hover: hover) and (pointer: fine) {
           .sh__mobileNav[data-open='true'] #sh-mobile-nav .sh__link:hover {
             background: var(--surface-sunken);
           }

@@ -139,7 +139,9 @@ export async function BookingList({
           background: var(--surface); border-radius: var(--radius-md);
           transition: box-shadow 160ms ease;
         }
-        .bl__row:hover { box-shadow: var(--shadow-raised); }
+        @media (hover: hover) and (pointer: fine) {
+          .bl__row:hover { box-shadow: var(--shadow-raised); }
+        }
         .bl__row > svg:last-child { color: var(--text-tertiary); flex: 0 0 auto; }
         .bl__thumb {
           flex: 0 0 auto; display: grid; place-items: center;

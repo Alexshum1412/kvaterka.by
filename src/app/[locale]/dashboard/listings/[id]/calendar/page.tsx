@@ -53,7 +53,9 @@ export default async function CalendarPage({ params }: { params: Promise<{ id: s
         .calpage { padding-block: var(--space-4) var(--space-8); max-width: 44rem; }
         .calpage__back { margin-bottom: var(--space-3); }
         .calpage__backLink { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; font-size: var(--text-sm); color: var(--text-secondary); }
-        .calpage__backLink:hover { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .calpage__backLink:hover { color: var(--text-primary); }
+        }
         .calpage__head { display: grid; gap: 0.2rem; margin-bottom: var(--space-5); }
       `}</style>
     </div>

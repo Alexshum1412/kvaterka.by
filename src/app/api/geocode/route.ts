@@ -44,6 +44,8 @@
 
 import { currentUser } from '@/server/session.ts';
 import { isValidLatLng, isWithinBelarus } from '@/server/domain/geo.ts';
+import { ready } from '@/server/runtime.ts';
+import { bucketForUser, checkRateLimit } from '@/server/api/rate-limit.ts';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -51,6 +53,18 @@ export const runtime = 'nodejs';
 const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
 const REQUEST_TIMEOUT_MS = 5_000;
 const MIN_QUERY_LENGTH = 3;
+/** An address, not an essay: Nominatim gains nothing past this. */
+const MAX_QUERY_LENGTH = 200;
+/* Nominatim's usage policy allows one request a second for the whole app and
+   bans the sending IP for more. This route had no limit at all, so a single
+   signed-in account in a loop could get the server banned and take the
+   wizard's "find on map" away from every host. 30 lookups per 10 minutes is
+   several attempts per listing for a real person.
+   ponytail: per account, not global — a crowd of accounts could still exceed
+   1 rps together; a shared 1-per-second bucket is the upgrade if that ever
+   shows up in the logs. */
+const LOOKUPS_PER_WINDOW = 30;
+const WINDOW_SECONDS = 600;
 
 /** Not a secret: an env var only so a fork/staging deployment can point the
  *  identifying header at its own domain instead of this one's. */
@@ -89,6 +103,14 @@ export async function GET(request: Request): Promise<Response> {
   const q = (new URL(request.url).searchParams.get('q') ?? '').trim();
   if (q.length < MIN_QUERY_LENGTH) {
     return fail(400, 'QUERY_TOO_SHORT', 'Введите больше символов адреса');
+  }
+  if (q.length > MAX_QUERY_LENGTH) {
+    return fail(400, 'QUERY_TOO_LONG', 'Адрес слишком длинный — оставьте город, улицу и дом');
+  }
+
+  const limit = await checkRateLimit(await ready(), bucketForUser('geocode', user.userId), LOOKUPS_PER_WINDOW, WINDOW_SECONDS);
+  if (!limit.allowed) {
+    return fail(429, 'RATE_LIMITED', 'Слишком много поисков подряд. Поставьте метку на карте вручную или попробуйте позже.');
   }
 
   const upstreamUrl = new URL(NOMINATIM_SEARCH_URL);

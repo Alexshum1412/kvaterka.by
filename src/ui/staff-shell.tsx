@@ -178,7 +178,9 @@ export async function StaffShell({
           border-radius: var(--radius-sm);
           font-size: var(--text-sm); font-weight: 500; color: var(--text-secondary);
         }
-        .stf__navLink:hover { background: var(--surface); color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .stf__navLink:hover { background: var(--surface); color: var(--text-primary); }
+        }
         .stf__navLink[aria-current='page'] { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
         .stf__navLink > svg { flex: 0 0 auto; }
         .stf__roles {

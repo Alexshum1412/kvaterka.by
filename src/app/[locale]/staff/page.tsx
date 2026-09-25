@@ -225,7 +225,9 @@ export default async function StaffOverviewPage() {
           background: var(--surface); border-radius: var(--radius-md);
           min-height: 6.5rem;
         }
-        a.ov__card:hover { box-shadow: var(--shadow-raised); }
+        @media (hover: hover) and (pointer: fine) {
+          a.ov__card:hover { box-shadow: var(--shadow-raised); }
+        }
         .ov__cardTop { display: flex; align-items: center; gap: 0.4rem; color: var(--text-tertiary); }
         .ov__cardLabel { font-size: var(--text-xs); font-weight: 500; color: var(--text-secondary); }
         .ov__cardCount { font-size: var(--text-2xl); font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; }

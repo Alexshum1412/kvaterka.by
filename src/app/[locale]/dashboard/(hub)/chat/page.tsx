@@ -136,7 +136,9 @@ export default async function ChatListPage({ searchParams }: { searchParams: Pro
           background: var(--surface); border-radius: var(--radius-md);
           transition: box-shadow 160ms ease;
         }
-        .cl__row:hover { box-shadow: var(--shadow-raised); }
+        @media (hover: hover) and (pointer: fine) {
+          .cl__row:hover { box-shadow: var(--shadow-raised); }
+        }
         .cl__avatar {
           display: grid; place-items: center; flex: 0 0 auto;
           width: 2.75rem; height: 2.75rem;

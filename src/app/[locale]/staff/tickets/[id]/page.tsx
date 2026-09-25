@@ -186,7 +186,9 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
 
       <style>{`
         .tkd__back { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.5rem; font-size: var(--text-sm); color: var(--text-secondary); }
-        .tkd__back:hover { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .tkd__back:hover { color: var(--text-primary); }
+        }
 
         .tkd__banner { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-block: var(--space-3) var(--space-5); }
         .tkd__age { font-size: var(--text-xs); color: var(--text-tertiary); }

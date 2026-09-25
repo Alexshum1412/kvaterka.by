@@ -458,15 +458,22 @@ steps, done once per bot token:
    prompts. It replies with the bot token — this is `TELEGRAM_BOT_TOKEN`. The
    username it asks you to choose (without the `@`) is `TELEGRAM_BOT_USERNAME`.
 2. Set both env vars (§5 above) and restart the app so it picks them up.
-3. Register the webhook — a single authenticated GET request, from any
-   browser or `curl`, once `PUBLIC_BASE_URL` is live and reachable over HTTPS:
+3. Register the webhook **with its secret**, once `PUBLIC_BASE_URL` is live
+   and reachable over HTTPS:
 
    ```
-   https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=<PUBLIC_BASE_URL>/api/telegram/webhook
+   TELEGRAM_BOT_TOKEN=<token> PUBLIC_BASE_URL=https://kvaterka.by npm run telegram:webhook
    ```
 
-   A `{"ok":true,"result":true,"description":"Webhook was set"}` response
-   confirms it. `https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/getMe`
+   It prints `{"ok":true,"description":"Webhook was set",...}` on success.
+   The webhook route refuses (401) every delivery that does not carry the
+   secret this registers, so the old plain `setWebhook?url=...` link is not
+   enough any more: registered that way, Telegram sends no secret and every
+   `/start` and contact share is refused — phone verification and linking stop
+   working until this command is run. (The refusal is the point: before it,
+   anyone could POST a forged update and verify a phone number they do not
+   own — DEC-085.) Nothing new to configure: the secret is derived from the
+   bot token by the same function the route checks against. `https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/getMe`
    confirms the token itself is valid if that response is instead
    `{"ok":false,"error_code":401,...}` — a 401 here means the token was
    mistyped (a capital `O` and a digit `0` are easy to confuse copying it out
@@ -483,8 +490,8 @@ steps, done once per bot token:
    route.ts` actually answers — re-run this step whenever either changes.
 
 Re-run step 3 whenever `PUBLIC_BASE_URL` changes (a new domain, moving off
-staging) — the webhook URL is registered by value, not re-derived from the
-env var on every request. Step 4 only needs re-running when the command list
+staging) or the bot token is rotated — the webhook URL and its secret are
+registered by value, not re-derived on every request. Step 4 only needs re-running when the command list
 itself changes, not on every deploy.
 
 ---

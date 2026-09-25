@@ -126,14 +126,14 @@ export default async function AccountPage() {
       <TwoFactorSetup enrolled={user!.twoFactorEnrolled} required={false} />
 
       {!status.closedAt && (
-        <section className="card">
+        <section className="panel">
           <NotificationPreferences rows={preferenceRows} channels={channelInfo} />
           <TelegramLink />
         </section>
       )}
 
       {status.closedAt ? (
-        <section className="card acc__closed">
+        <section className="panel acc__closed">
           <Icon name="checkCircle" size={20} />
           <div>
             <h2>{t('closure.closedTitle')}</h2>
@@ -142,7 +142,7 @@ export default async function AccountPage() {
         </section>
       ) : (
         <>
-          <section className="card">
+          <section className="panel">
             <h2 className="acc__h2">{t('closure.whatHappensTitle')}</h2>
             <ul className="acc__steps">
               {built.map((s) => (
@@ -155,7 +155,7 @@ export default async function AccountPage() {
           </section>
 
           {/* The half that does not happen, named rather than omitted. */}
-          <section className="card acc__pending">
+          <section className="panel acc__pending">
             <h2 className="acc__h2">{t('closure.whatDoesNotTitle')}</h2>
             <p className="acc__muted">{t('closure.whatDoesNotBody')}</p>
             <ul className="acc__steps">
@@ -173,7 +173,7 @@ export default async function AccountPage() {
             </ul>
           </section>
 
-          <section className="card">
+          <section className="panel">
             <h2 className="acc__h2">{t('closure.whatRemainsTitle')}</h2>
             <ul className="acc__survives">
               {status.survives.map((s) => (
@@ -191,7 +191,7 @@ export default async function AccountPage() {
           {status.canClose ? (
             <CloseAccount />
           ) : (
-            <section className="card acc__blockers">
+            <section className="panel acc__blockers">
               <h2 className="acc__h2">{t('closure.cannotCloseTitle')}</h2>
               <ul>
                 {status.blockers.map((b) => (
@@ -218,7 +218,7 @@ export default async function AccountPage() {
         .acc__step--no > svg { color: var(--text-tertiary); }
         .acc__blocked { font-style: normal; color: var(--text-tertiary); font-size: var(--text-xs); }
 
-        .acc__pending { border-left: 3px solid var(--warning); }
+        .acc__pending { background: var(--warning-soft); }
         .acc__survives { display: grid; gap: var(--space-2); margin: 0; padding-left: 1.1rem; font-size: var(--text-sm); line-height: 1.55; }
         .acc__debt { display: flex; align-items: flex-start; gap: 0.45rem; margin-top: var(--space-3); padding: var(--space-3); background: var(--warning-soft); border-radius: var(--radius-sm); font-size: var(--text-xs); line-height: 1.55; }
         .acc__debt > svg { flex: 0 0 auto; margin-top: 0.15rem; color: var(--warning); }

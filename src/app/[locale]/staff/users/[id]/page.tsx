@@ -52,7 +52,9 @@ export default async function StaffUserDetailPage({ params }: { params: Promise<
           min-height: 2.5rem; margin-bottom: var(--space-2);
           font-size: var(--text-sm); color: var(--text-secondary);
         }
-        .udback:hover { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .udback:hover { color: var(--text-primary); }
+        }
       `}</style>
     </StaffShell>
   );

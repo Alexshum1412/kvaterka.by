@@ -111,7 +111,9 @@ export default async function AboutPage() {
         }
         .about-crumbs li { display: flex; align-items: center; }
         .about-crumbs a { color: var(--text-secondary); min-height: 1.75rem; display: inline-flex; align-items: center; }
-        .about-crumbs a:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+        @media (hover: hover) and (pointer: fine) {
+          .about-crumbs a:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+        }
         .about-crumbs li[aria-current='page'] { color: var(--text-primary); font-weight: 500; }
 
         /* A quiet brand band, not a photograph nobody has. Same gradient the

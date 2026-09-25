@@ -444,7 +444,9 @@ export function AvailabilityCalendar({ propertyId }: { propertyId: string }) {
           cursor: pointer;
           transition: background-color 120ms ease, border-color 120ms ease;
         }
-        .cal__day:hover:not(:disabled) { border-color: var(--primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .cal__day:hover:not(:disabled) { border-color: var(--primary); }
+        }
         .cal__day:disabled { cursor: not-allowed; }
         .cal__day[data-status='booked'] { background: var(--primary-soft); color: var(--primary); border-color: transparent; }
         .cal__day[data-status='pending'] { background: var(--warning-soft); color: var(--warning); border-color: transparent; }

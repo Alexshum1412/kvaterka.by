@@ -421,7 +421,9 @@ const FORM_CSS = `
     background: none; border: 0; cursor: pointer;
     color: var(--text-secondary);
   }
-  .lf__pwToggle:hover { color: var(--text-primary); }
+  @media (hover: hover) and (pointer: fine) {
+    .lf__pwToggle:hover { color: var(--text-primary); }
+  }
 
   .lf__code {
     text-align: center;

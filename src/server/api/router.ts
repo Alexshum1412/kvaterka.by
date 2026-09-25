@@ -218,6 +218,14 @@ export async function dispatch(
          trail rather than silently becoming "scheduler". */
       if (!caller) machine = resolveMachine(request.headers, deps.jobToken);
 
+      /* A machine exists to run jobs, and every job route names a permission.
+         A route that names none is user-scoped — its handler reads
+         caller.userId — so a scheduler token presented there is nobody, and
+         answers 401 like any other anonymous request. It used to pass this
+         check with `caller` null and crash inside the handler as a 500
+         (retention.ts's closure routes, DEC-084). */
+      if (machine && !route.permission) machine = null;
+
       if (route.auth === 'required' && !caller && !machine) {
         throw new DomainError('UNAUTHENTICATED', 'Требуется вход в аккаунт');
       }

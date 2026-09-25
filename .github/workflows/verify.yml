@@ -40,6 +40,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Contrast
+        # Reads the button gradient straight from globals.css, so a palette
+        # edit that drops white-on-blue text below AA fails here.
+        run: npm run contrast
+
       - name: Test
         run: npm test
 
@@ -72,7 +77,7 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: postgres:10.23
+        image: postgres:10.23-bullseye
         env:
           POSTGRES_PASSWORD: postgres
           # C.UTF-8 rather than plain C: under LC_CTYPE=C, lower('МИНСК') returns

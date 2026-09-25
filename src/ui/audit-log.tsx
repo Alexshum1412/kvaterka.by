@@ -283,7 +283,9 @@ export function AuditLog() {
           white-space: nowrap; background: var(--surface-sunken);
         }
         .al__table tbody tr + tr td { border-top: 1px solid var(--border); }
-        .al__table tbody tr:hover td { background: var(--surface-sunken); }
+        @media (hover: hover) and (pointer: fine) {
+          .al__table tbody tr:hover td { background: var(--surface-sunken); }
+        }
 
         .al__time { white-space: nowrap; color: var(--text-secondary); }
         .al__actor { white-space: nowrap; }
@@ -296,7 +298,9 @@ export function AuditLog() {
           font-family: ui-monospace, monospace; font-size: var(--text-xs);
           color: var(--text-secondary); overflow-wrap: anywhere;
         }
-        .al__filterBtn:hover { color: var(--primary); text-decoration: underline; }
+        @media (hover: hover) and (pointer: fine) {
+          .al__filterBtn:hover { color: var(--primary); text-decoration: underline; }
+        }
         .al__filterBtn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 2px; }
 
         .al__changesCell { min-width: 16rem; }

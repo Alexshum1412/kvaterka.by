@@ -51,7 +51,9 @@ export default async function StaffUserCreatePage() {
           min-height: 2.5rem; margin-bottom: var(--space-4);
           font-size: var(--text-sm); color: var(--text-secondary);
         }
-        .unback:hover { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .unback:hover { color: var(--text-primary); }
+        }
       `}</style>
     </StaffShell>
   );

@@ -45,7 +45,32 @@
  * handed and classify the result; it has no opinion on what the text says.
  */
 
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { delivered, permanent, transient, type DeliveryProvider } from './provider.ts';
+
+/**
+ * The value Telegram must echo in `X-Telegram-Bot-Api-Secret-Token` on every
+ * webhook delivery (Bot API `setWebhook`'s `secret_token`).
+ *
+ * Derived from the bot token rather than configured separately: it needs no
+ * new environment variable to forget, it changes whenever the token is
+ * rotated, and only a party holding the token — Telegram and this server —
+ * can produce it. base64url of a SHA-256 HMAC is 43 characters of
+ * [A-Za-z0-9_-], inside Telegram's allowed alphabet and length.
+ *
+ * scripts/telegram-set-webhook.ts registers the webhook with this exact value.
+ */
+export function telegramWebhookSecret(botToken: string): string {
+  return createHmac('sha256', botToken).update('kvaterka:telegram-webhook:v1').digest('base64url');
+}
+
+/** Constant-time check of the header Telegram sent against the expected secret. */
+export function isAuthenticTelegramWebhook(botToken: string, header: string | null): boolean {
+  if (!header) return false;
+  const expected = Buffer.from(telegramWebhookSecret(botToken));
+  const received = Buffer.from(header);
+  return received.length === expected.length && timingSafeEqual(received, expected);
+}
 
 interface TelegramApiResponse {
   readonly ok: boolean;

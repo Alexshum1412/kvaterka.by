@@ -101,7 +101,9 @@ export default async function MyTicketsPage() {
           padding: var(--space-3); background: var(--surface); border-radius: var(--radius-md);
           transition: box-shadow 160ms ease;
         }
-        .mt__row:hover { box-shadow: var(--shadow-raised); }
+        @media (hover: hover) and (pointer: fine) {
+          .mt__row:hover { box-shadow: var(--shadow-raised); }
+        }
         .mt__row > svg:last-child { color: var(--text-tertiary); flex: 0 0 auto; }
 
         .mt__lead { display: grid; gap: 0.2rem; justify-items: start; flex: 0 0 8rem; }

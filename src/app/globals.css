@@ -78,24 +78,23 @@
   --color-info-700: #14509b;
 
   /* --- typography -------------------------------------------------
-   * A system stack. Belarusian needs ў and і; every system UI face on
-   * every target platform covers them, a fashionable webfont often does
-   * not, and it costs a round trip on the mobile connections this
-   * product has to be fast on. Distinctiveness comes from the scale.  */
+   * One family, Onest, self-hosted by `next/font` in `layout.tsx` and exposed
+   * as --font-brand on <html>. It replaced a split setup — Inter for H1s, the
+   * OS system stack for everything else — that rendered as two unrelated
+   * faces on one screen (Segoe on Windows, Roboto on Android, DejaVu on
+   * Linux) and gave the site no typographic voice of its own. Onest is a
+   * Cyrillic-first grotesque: its letterforms were drawn for Russian and
+   * Belarusian rather than retrofitted, ў and і included, and the whole
+   * variable cyrillic file costs ~16 KB from this origin. The system stack
+   * stays as the fallback until the font variable lands.  */
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
-    'Noto Sans', 'Liberation Sans', Arial, sans-serif;
+    var(--font-brand, ui-sans-serif), system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', 'Noto Sans', 'Liberation Sans', Arial, sans-serif;
 
-  /* Display face for the handful of large-scale headings that carry a
-     page's whole first impression (H1s, the hero, section openers) — self-
-     hosted by `next/font` in `layout.tsx`, which resolves the original
-     objection to a webfont here: no runtime request leaves the origin, so
-     there is no round trip to pay for, and Inter's Cyrillic Extended subset
-     covers ў and і the same as the system stack does. Falls back to
-     `--font-sans` until the font variable lands on `<html>`, and body copy
-     stays on the system stack everywhere — this is a display treatment,
-     not a face change for reading. */
-  --font-display: var(--font-display-loaded, var(--font-sans));
+  /* Kept as its own token so a future display face is a one-line change;
+     today display type is the same family pushed to a heavier weight and
+     tighter tracking (see .display). */
+  --font-display: var(--font-sans);
 
   /* One hierarchy, deliberately far apart at the top and tight at the
      bottom. H1 40 / H2 28 / H3 20 / body 16 / small 14, per the brief. */
@@ -194,12 +193,20 @@
   /* --- gradients ---------------------------------------------------
    * Two, and both stay inside the AA-checked range above: every stop of
    * --gradient-brand falls between --primary (5.28:1) and --primary-hover
-   * (7.06:1), so white text laid over any part of it still passes. Used
+   * (7.06:1), so white text laid over any part of it still passes. It used
+   * to start at corn-500 (3.5:1, an AA failure on every primary button)
+   * while this comment said otherwise; scripts/contrast.mjs now checks
+   * both stops so the claim cannot drift from the value again. Used
    * sparingly — the primary button and the hero band, not general wallpaper. */
-  --gradient-brand: linear-gradient(135deg, var(--color-corn-500) 0%, var(--color-corn-700) 100%);
+  --gradient-brand: linear-gradient(135deg, var(--color-corn-600) 0%, var(--color-corn-700) 100%);
   --gradient-hero: linear-gradient(160deg, var(--color-corn-700) 0%, var(--color-corn-900) 78%);
 
   --header-height: 4rem;
+
+  /* Motion. One strong ease-out for anything entering or responding
+     (Emil Kowalski's UI curve); CSS's built-in `ease` starts too slowly to
+     read as a response to the finger that caused it. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 /* ==================================================================== *
@@ -231,10 +238,21 @@ body {
   font-size: var(--text-base);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+  /* Not optimizeLegibility. Both turn kerning and ligatures on, but only
+     geometricPrecision also tells Chromium on Linux to stop snapping glyph
+     advances to the hinted pixel grid — with Onest's TrueType hints that
+     snapping opened a visible gap after Cyrillic т at 16px ("Прост орная",
+     "Кват эрка"), reproduced in headless Chromium and gone with this value.
+     Windows, macOS, iOS and Android already position subpixel-exact, so for
+     them the two values render identically. */
+  text-rendering: geometricPrecision;
   overflow-wrap: break-word;
   overscroll-behavior-y: none;
 }
+
+/* Chromium's UA sheet resets form controls to text-rendering: auto, which
+   brings the hinted-advance gap back on every button label ("Войт и"). */
+button, input, select, textarea { text-rendering: inherit; }
 
 /* Native-feeling touch: no 300ms tap delay, no accidental text selection
    on repeated/long taps against a control. */
@@ -323,6 +341,14 @@ img { max-width: 100%; }
   .faq-item::details-content {
     transition-duration: 0.01ms !important;
   }
+  .home-trust__item,
+  #sh-mobile-nav,
+  .sh__menuScrim {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
 }
 
 .numeric { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
@@ -392,11 +418,13 @@ img { max-width: 100%; }
   cursor: pointer; text-align: center;
   white-space: nowrap;
   transition: background-color 140ms ease, border-color 140ms ease,
-              color 140ms ease, transform 90ms ease;
+              color 140ms ease, transform 160ms var(--ease-out);
 }
 /* Physical press feedback. GPU-only, and the difference between an
-   interface that responds and one that merely changes. */
-.btn:active:not(:disabled) { transform: translateY(1px); }
+   interface that responds and one that merely changes. A slight shrink
+   rather than the old 1px drop: it reads on a full-width button too, where
+   a single pixel of travel was invisible under a thumb. */
+.btn:active:not(:disabled) { transform: scale(0.97); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* Every stop of --gradient-brand sits between --primary and --primary-hover
@@ -430,7 +458,9 @@ img { max-width: 100%; }
   .btn-ghost:hover:not(:disabled) { background: var(--surface-sunken); color: var(--text-primary); }
 }
 
-.btn-danger { background: var(--error); color: #fff; }
+/* The token, not #fff: in the dark theme --error is a light red that
+   white text fails on, and --text-on-primary flips to navy with it. */
+.btn-danger { background: var(--error); color: var(--text-on-primary); }
 
 .btn-sm { min-height: 2.75rem; padding: 0.375rem 0.75rem; font-size: var(--text-xs); }
 .btn-lg { min-height: 3rem; font-size: var(--text-base); padding-inline: 1.5rem; }
@@ -569,8 +599,11 @@ input[type='date']::-webkit-calendar-picker-indicator {
   border-radius: var(--radius-full);
   font: inherit; font-size: var(--text-sm); font-weight: 500;
   cursor: pointer; white-space: nowrap;
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease,
+              transform 160ms var(--ease-out);
 }
+/* Chips are pressable too, and are pressed far more often than buttons. */
+.chip:active { transform: scale(0.97); }
 @media (hover: hover) and (pointer: fine) {
   .chip:hover { border-color: var(--border-control); background: var(--surface-sunken); }
 }

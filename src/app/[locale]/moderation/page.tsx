@@ -301,7 +301,9 @@ export default async function ModerationQueuePage({
           font-size: var(--text-sm); font-weight: 500;
           color: var(--text-secondary);
         }
-        .mq__tab:hover { background: var(--surface); color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .mq__tab:hover { background: var(--surface); color: var(--text-primary); }
+        }
         .mq__tab[aria-current='page'] { background: var(--surface); color: var(--text-primary); font-weight: 600; }
         .mq__tabCount {
           font-size: var(--text-2xs); font-weight: 700;
@@ -325,7 +327,9 @@ export default async function ModerationQueuePage({
           border-radius: var(--radius-md);
           transition: box-shadow 160ms ease;
         }
-        .mq__row:hover { box-shadow: var(--shadow-raised); }
+        @media (hover: hover) and (pointer: fine) {
+          .mq__row:hover { box-shadow: var(--shadow-raised); }
+        }
         .mq__row > svg:last-child { color: var(--text-tertiary); flex: 0 0 auto; }
         .mq__thumb {
           flex: 0 0 auto; display: grid; place-items: center;

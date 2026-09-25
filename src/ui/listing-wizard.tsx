@@ -432,7 +432,7 @@ export function ListingWizard({
           aria-valuemax={STEPS.length}
           aria-label={t('stepAriaLabel', { step: step + 1, total: STEPS.length })}
         >
-          <span className="wz__progressFill" style={{ width: `${progress}%` }} />
+          <span className="wz__progressFill" style={{ transform: `scaleX(${progress / 100})` }} />
         </div>
         <p className="wz__stepLabel">
           {t('stepLabel', { step: step + 1, total: STEPS.length, name: STEPS[step] ?? '' })}
@@ -967,9 +967,11 @@ export function ListingWizard({
         .wz__top { position: sticky; top: var(--header-height); z-index: 20; background: var(--background); padding-block: var(--space-3); }
         .wz__topRow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
         .wz__back { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; padding: 0; background: none; border: 0; cursor: pointer; font: inherit; font-size: var(--text-sm); color: var(--text-secondary); }
-        .wz__back:hover { color: var(--text-primary); }
+        @media (hover: hover) and (pointer: fine) {
+          .wz__back:hover { color: var(--text-primary); }
+        }
         .wz__progress { height: 4px; border-radius: var(--radius-full); background: var(--surface-sunken); overflow: hidden; margin-top: var(--space-3); }
-        .wz__progressFill { display: block; height: 100%; background: var(--primary); border-radius: inherit; transition: width 240ms ease; }
+        .wz__progressFill { display: block; height: 100%; background: var(--primary); transform-origin: left; transition: transform 240ms cubic-bezier(0.23, 1, 0.32, 1); }
         .wz__stepLabel { margin-top: var(--space-2); font-size: var(--text-xs); color: var(--text-tertiary); }
 
         .wz__body { display: grid; gap: var(--space-5); padding-top: var(--space-4); }
@@ -999,7 +1001,9 @@ export function ListingWizard({
           font: inherit; cursor: pointer;
           transition: border-color 140ms ease, background-color 140ms ease;
         }
-        .wz__card:hover { border-color: var(--border-control); }
+        @media (hover: hover) and (pointer: fine) {
+          .wz__card:hover { border-color: var(--border-control); }
+        }
         .wz__card[aria-pressed='true'] { border-color: var(--primary); background: var(--primary-soft); }
         .wz__card > svg { color: var(--primary); margin-bottom: var(--space-2); }
         .wz__cardLabel { font-weight: 600; }
@@ -1022,6 +1026,7 @@ export function ListingWizard({
         .wz__details::details-content {
           height: 0;
           overflow: hidden;
+          /* impeccable-disable-next-line layout-transition -- ::details-content has no transform path; height is the only way to animate a native disclosure */
           transition: height 200ms ease-out, content-visibility 200ms allow-discrete;
         }
         .wz__details[open]::details-content { height: auto; }
@@ -1041,7 +1046,9 @@ export function ListingWizard({
           border: 1px dashed var(--border-control); border-radius: var(--radius-md);
           background: var(--surface); cursor: pointer; text-align: center;
         }
-        .wz__drop:hover { border-color: var(--primary); background: var(--primary-soft); }
+        @media (hover: hover) and (pointer: fine) {
+          .wz__drop:hover { border-color: var(--primary); background: var(--primary-soft); }
+        }
         .wz__drop > svg { color: var(--primary); }
         .wz__dropTitle { font-weight: 600; }
         .wz__dropHint { font-size: var(--text-xs); color: var(--text-tertiary); }
@@ -1073,7 +1080,9 @@ export function ListingWizard({
           background: none; border: 0; border-radius: var(--radius-sm);
           cursor: pointer; color: var(--text-secondary);
         }
-        .wz__rejectedClose:hover { background: color-mix(in srgb, var(--surface) 60%, transparent); }
+        @media (hover: hover) and (pointer: fine) {
+          .wz__rejectedClose:hover { background: color-mix(in srgb, var(--surface) 60%, transparent); }
+        }
         .wz__rejectedList { display: grid; gap: var(--space-2); margin: 0; padding-left: 1.1rem; font-size: var(--text-sm); }
         .wz__rejectedList li { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
         .wz__jump { background: none; border: 0; cursor: pointer; font: inherit; font-size: var(--text-xs); font-weight: 600; }

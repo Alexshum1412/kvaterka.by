@@ -150,10 +150,12 @@ export async function SiteFooter() {
           color: var(--text-secondary);
           transition: color 140ms ease;
         }
-        .ftr__link:hover {
-          color: var(--text-primary);
-          text-decoration: underline;
-          text-underline-offset: 3px;
+        @media (hover: hover) and (pointer: fine) {
+          .ftr__link:hover {
+            color: var(--text-primary);
+            text-decoration: underline;
+            text-underline-offset: 3px;
+          }
         }
 
         .ftr__legal {

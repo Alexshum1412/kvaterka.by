@@ -28,17 +28,24 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { currentUser } from '@/server/session.ts';
-import { readyServices } from '@/server/runtime.ts';
+import { ready, readyServices } from '@/server/runtime.ts';
+import { bucketForUser, checkRateLimit } from '@/server/api/rate-limit.ts';
 import { DomainError } from '@/server/services/errors.ts';
-import { exceedsPixelBudget, stripMetadata } from '@/server/domain/image.ts';
+import { exceedsPixelBudget, sniffImage, stripMetadata } from '@/server/domain/image.ts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MAX_BYTES = 10 * 1024 * 1024;
+
+/* ponytail: a flat per-account ceiling, not a disk quota. 60 photos an hour is
+   two full listings' worth (the per-listing cap is 30) and bounds one account
+   at ~600 MB/hour of stored bytes; a real quota, or object storage with its own
+   limits, replaces it if a landlord legitimately needs more. */
+const UPLOADS_PER_HOUR = 60;
 
 /** Multipart framing around the file itself: boundaries, headers, field names. */
 const FORM_OVERHEAD = 64 * 1024;
@@ -47,57 +54,6 @@ const FORM_OVERHEAD = 64 * 1024;
  *  through the media route so the same access rules apply in both modes. */
 export const DEV_MEDIA_ROOT = process.env.DEV_MEDIA_DIR ?? path.join(process.cwd(), '.media');
 
-interface Sniffed {
-  readonly ext: 'jpg' | 'png' | 'webp';
-  readonly mime: string;
-  readonly width: number | null;
-  readonly height: number | null;
-}
-
-/** Identify by content, not by claim. Returns null for anything unknown. */
-function sniff(buf: Buffer): Sniffed | null {
-  if (buf.length > 24 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
-    return { ext: 'jpg', mime: 'image/jpeg', ...jpegSize(buf) };
-  }
-  if (
-    buf.length > 24 &&
-    buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
-  ) {
-    // IHDR is always the first chunk, so the dimensions sit at a fixed offset.
-    return { ext: 'png', mime: 'image/png', width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
-  }
-  if (
-    buf.length > 16 &&
-    buf.subarray(0, 4).toString('ascii') === 'RIFF' &&
-    buf.subarray(8, 12).toString('ascii') === 'WEBP'
-  ) {
-    // WebP has three sub-formats with different headers; the dimensions are
-    // not worth three parsers, and the column is nullable.
-    return { ext: 'webp', mime: 'image/webp', width: null, height: null };
-  }
-  return null;
-}
-
-/** Walk JPEG segments to the first start-of-frame, which carries the size. */
-function jpegSize(buf: Buffer): { width: number | null; height: number | null } {
-  let offset = 2;
-  while (offset + 9 < buf.length) {
-    if (buf[offset] !== 0xff) {
-      offset += 1;
-      continue;
-    }
-    const marker = buf[offset + 1]!;
-    // SOF0..SOF15, excluding the DHT/JPG/DAC markers interleaved in that range.
-    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
-      return { height: buf.readUInt16BE(offset + 5), width: buf.readUInt16BE(offset + 7) };
-    }
-    const length = buf.readUInt16BE(offset + 2);
-    if (length <= 0) break;
-    offset += 2 + length;
-  }
-  return { width: null, height: null };
-}
-
 function fail(status: number, message: string): Response {
   return Response.json({ error: { code: 'UPLOAD_FAILED', message } }, { status });
 }
@@ -105,6 +61,12 @@ function fail(status: number, message: string): Response {
 export async function POST(request: Request): Promise<Response> {
   const user = await currentUser();
   if (!user) return fail(401, 'Войдите, чтобы загрузить фотографии');
+
+  /* This handler sits outside the route table, so the table's rate limiter
+     never saw it: one account could write 10 MB per request for as long as it
+     liked. Counted per account before the body is even read. */
+  const limit = await checkRateLimit(await ready(), bucketForUser('upload:photo', user.userId), UPLOADS_PER_HOUR, 3600);
+  if (!limit.allowed) return fail(429, 'Слишком много загрузок подряд. Попробуйте через час.');
 
   /* Refuse an oversized body BEFORE parsing it.
    *
@@ -136,7 +98,7 @@ export async function POST(request: Request): Promise<Response> {
   if (file.size > MAX_BYTES) return fail(413, 'Файл больше 10 МБ — уменьшите его и попробуйте снова');
 
   const original = Buffer.from(await file.arrayBuffer());
-  const kind = sniff(original);
+  const kind = sniffImage(original);
   if (!kind) return fail(415, 'Поддерживаются только JPEG, PNG и WebP');
 
   /* A decompression bomb is small on disk and enormous once decoded — a
@@ -199,6 +161,12 @@ export async function POST(request: Request): Promise<Response> {
       { status: 201 },
     );
   } catch (error) {
+    /* The bytes were written before addPhoto checked ownership and the
+       30-photo cap, so a refusal used to leave the file behind: any signed-in
+       account could POST to somebody else's listing id and fill the disk one
+       rejected 10 MB upload at a time. Nothing references the file unless the
+       row exists, so it goes whenever the row does not. */
+    await unlink(absolute).catch(() => {});
     if (error instanceof DomainError) return fail(error.status, error.message);
     return fail(500, 'Не удалось добавить фотографию');
   }

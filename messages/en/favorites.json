@@ -7,6 +7,7 @@
     "emptyTitle": "Nothing saved yet",
     "emptyText": "Tap the heart on any listing — it will appear here.",
     "emptyButton": "Browse listings",
-    "missing": "{count, plural, one {One saved listing is currently unavailable — the host unpublished it.} other {# saved listings are currently unavailable — the hosts unpublished them.}}"
+    "missing": "{count, plural, one {One saved listing is currently unavailable — the host unpublished it.} other {# saved listings are currently unavailable — the hosts unpublished them.}}",
+    "listHeading": "Saved listings"
   }
 }

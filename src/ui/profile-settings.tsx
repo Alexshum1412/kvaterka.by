@@ -165,7 +165,7 @@ export function ProfileSettings({ roles }: { roles: readonly Role[] }) {
 
   if (loadError) {
     return (
-      <section className="card ps">
+      <section className="panel ps">
         <h2 className="ps__h2">{t('profile.title')}</h2>
         <p className="ps__error" role="alert">
           <Icon name="alert" size={16} />
@@ -180,7 +180,7 @@ export function ProfileSettings({ roles }: { roles: readonly Role[] }) {
 
   if (!profile) {
     return (
-      <section className="card ps">
+      <section className="panel ps">
         <h2 className="ps__h2">{t('profile.title')}</h2>
         <p className="ps__muted">{t('profile.loading')}</p>
       </section>
@@ -190,7 +190,7 @@ export function ProfileSettings({ roles }: { roles: readonly Role[] }) {
   const initial = Array.from(profile.displayName.trim())[0]?.toUpperCase() ?? '';
 
   return (
-    <section className="card ps">
+    <section className="panel ps">
       <h2 className="ps__h2">{t('profile.title')}</h2>
 
       <div className="ps__identity">
