@@ -162,7 +162,11 @@ export class AuthService {
           [
             pendingId,
             input.email?.trim() ?? null,
-            input.phone?.trim() ?? null,
+            // A phone given next to an email is dropped, not stored: the mailed code proves the
+            // address and nothing proves the number, and app_user.phone is UNIQUE. Carried into
+            // the account it would let a stranger squat somebody else's number and block its
+            // real owner from verifying it (the Telegram contact share is the only proof).
+            input.email ? null : (input.phone?.trim() ?? null),
             passwordHash,
             input.displayName.trim(),
             input.accountKind ?? 'PRIVATE',
@@ -260,30 +264,34 @@ export class AuthService {
       }
 
       const userId = uuidv7();
-      try {
-        await tx.query(
-          `INSERT INTO app_user
-             (id, email, phone, password_hash, display_name, account_kind, company_name, locale, email_verified_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now())`,
-          [
-            userId,
-            pending.email,
-            pending.phone,
-            pending.password_hash,
-            pending.display_name,
-            pending.account_kind,
-            pending.company_name,
-            pending.locale,
-          ],
-        );
-      } catch (e) {
-        if (hasErrorCode(e, PG_ERROR.UNIQUE_VIOLATION)) {
-          // Somebody else finished registering this exact address first — a
-          // race, not a normal path. Either way this pending row is stale.
-          await tx.query(`DELETE FROM pending_registration WHERE id = $1`, [pending.id]);
-          return { kind: 'ALREADY_EXISTS' as const };
-        }
-        throw e;
+      /* ON CONFLICT DO NOTHING, not a try/catch around the INSERT: on PostgreSQL a
+         unique violation aborts the whole transaction, so the clean-up run in the
+         catch (this DELETE) failed with "current transaction is aborted" and the
+         person got a server error with the stale pending row left behind. With no
+         conflict target it covers every unique index at once — the lower(email)
+         one, the phone one, and a closed account's burned address. */
+      const created = await tx.query<{ id: string }>(
+        `INSERT INTO app_user
+           (id, email, phone, password_hash, display_name, account_kind, company_name, locale, email_verified_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now())
+         ON CONFLICT DO NOTHING
+         RETURNING id`,
+        [
+          userId,
+          pending.email,
+          pending.phone,
+          pending.password_hash,
+          pending.display_name,
+          pending.account_kind,
+          pending.company_name,
+          pending.locale,
+        ],
+      );
+      if (created.rows.length === 0) {
+        // Somebody else finished registering this exact address first — a race, not a
+        // normal path. Either way this pending row is stale.
+        await tx.query(`DELETE FROM pending_registration WHERE id = $1`, [pending.id]);
+        return { kind: 'ALREADY_EXISTS' as const };
       }
 
       // Everyone starts as a tenant; the landlord role is granted when a first
@@ -479,6 +487,19 @@ export class AuthService {
     );
 
     const user = rows[0];
+
+    /* THE LOCK IS READ BEFORE THE PASSWORD IS LOOKED AT. It used to be read after:
+       then a wrong guess on a locked account still got the ordinary 401 and only
+       the RIGHT one got "too many attempts" — the lock stopped no guessing at all
+       and told the guesser which guess had won. Now a locked account answers every
+       attempt the same, without evaluating it (so it cannot be told apart, and an
+       attempt made while locked is not recorded and cannot extend the lock). The
+       dummy hash keeps the cost of the answer equal to a real attempt's. */
+    if (user && (await this.tooManyRecentFailures(user.id))) {
+      await verifyPassword(DUMMY_HASH, password);
+      throw new DomainError('RATE_LIMITED', 'Слишком много попыток входа. Попробуйте позже.');
+    }
+
     const ok = await verifyPassword(user?.password_hash ?? DUMMY_HASH, password);
 
     if (!user || !user.password_hash || !ok) {
@@ -490,6 +511,11 @@ export class AuthService {
       throw new DomainError('ACCOUNT_RESTRICTED', 'Аккаунт заблокирован. Обратитесь в поддержку.');
     }
 
+    /* Read again now that the password has been checked. Failures are recorded in their own
+       statement after each hash, and one hash takes tens of milliseconds, so a burst of
+       parallel guesses all pass the check above with a count of zero. Whatever landed while
+       this one was being hashed is caught here: a correct password that arrives after the
+       lock has engaged is still refused, exactly as it always was. */
     if (await this.tooManyRecentFailures(user.id)) {
       throw new DomainError('RATE_LIMITED', 'Слишком много попыток входа. Попробуйте позже.');
     }
@@ -1326,7 +1352,7 @@ export class AuthService {
     });
   }
 
-  private async tooManyRecentFailures(userId: string): Promise<boolean> {
+  protected async tooManyRecentFailures(userId: string): Promise<boolean> {
     const { rows } = await this.db.query<{ c: string }>(
       `SELECT count(*)::text AS c FROM audit_log
         WHERE actor_user_id = $1 AND action = 'auth.login_failed'

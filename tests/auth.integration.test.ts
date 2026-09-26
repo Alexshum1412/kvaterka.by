@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDb, type TestDb } from '@/server/db/testing.ts';
+import { uuidv7 } from '@/lib/id.ts';
 import { AuthService, MAX_REGISTRATION_CODE_ATTEMPTS } from '@/server/auth/auth-service.ts';
 import type { DomainError } from '@/server/services/errors.ts';
 import {
@@ -405,6 +406,56 @@ describe('registration', () => {
     ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
   });
 
+  it('does not keep a phone number nobody proved next to an email', async () => {
+    // The address is proved by the mailed code; the number never is. Written into
+    // app_user.phone (UNIQUE) it would let a stranger squat somebody else's number
+    // and later block its real owner from verifying it through Telegram.
+    const email = `phone-${Math.random().toString(36).slice(2)}@example.by`;
+    const { identifier, code } = await auth.beginRegistration({
+      email,
+      phone: '+375291112233',
+      password: GOOD_PASSWORD,
+      displayName: 'Аўтар',
+    });
+    const pending = await db.query<{ phone: string | null }>(`SELECT phone FROM pending_registration`);
+    expect(pending.rows[0]!.phone).toBeNull();
+
+    const { context } = await auth.confirmRegistration(identifier, code, GOOD_PASSWORD);
+    const { rows } = await db.query<{ phone: string | null; phone_verified_at: Date | null }>(
+      `SELECT phone, phone_verified_at FROM app_user WHERE id = $1`,
+      [context.userId],
+    );
+    expect(rows[0]).toEqual({ phone: null, phone_verified_at: null });
+  });
+
+  it('ends in ALREADY_EXISTS, and clears the pending row, when the address got an account meanwhile', async () => {
+    // A race, not a normal path: the same address is taken (a Google sign-up, a
+    // staff-created account) between the mailed code and its confirmation. On
+    // PostgreSQL a unique violation aborts the transaction, so cleaning up inside
+    // it used to fail too and the person got a server error with the row left behind.
+    const email = `race-${Math.random().toString(36).slice(2)}@example.by`;
+    const { identifier, code } = await auth.beginRegistration({
+      email,
+      password: GOOD_PASSWORD,
+      displayName: 'Першы',
+    });
+    await db.query(`INSERT INTO app_user (id, email, display_name) VALUES ($1,$2,'Другі')`, [
+      uuidv7(),
+      email,
+    ]);
+
+    await expect(auth.confirmRegistration(identifier, code, GOOD_PASSWORD)).rejects.toMatchObject({
+      code: 'ALREADY_EXISTS',
+    });
+    const { rows } = await db.query<{ c: string }>(`SELECT count(*)::text AS c FROM pending_registration`);
+    expect(rows[0]!.c).toBe('0');
+    const users = await db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM app_user WHERE lower(email) = $1`,
+      [email],
+    );
+    expect(users.rows[0]!.c).toBe('1');
+  });
+
   it('rejects a weak password before touching the database', async () => {
     await expect(
       auth.beginRegistration({
@@ -550,6 +601,60 @@ describe('login', () => {
       await expect(auth.login(email, `wrong-attempt-${i}`)).rejects.toThrow();
     }
     await expect(auth.login(email, GOOD_PASSWORD)).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+  });
+
+  it('answers a locked account the same for the right password and a wrong one', async () => {
+    // The lock used to be read after the password was checked, so once it was
+    // "on" a wrong guess still got the ordinary 401 and only the RIGHT one got
+    // the lock message: it stopped nothing and told the guesser they had won.
+    const email = 'lock-oracle@example.by';
+    await register({ email });
+    for (let i = 0; i < 8; i += 1) {
+      await expect(auth.login(email, `wrong-attempt-${i}`)).rejects.toThrow();
+    }
+    const right = await auth.login(email, GOOD_PASSWORD).catch((e: DomainError) => e);
+    const wrong = await auth.login(email, 'a-fresh-wrong-guess-1').catch((e: DomainError) => e);
+    expect(right).toMatchObject({ code: 'RATE_LIMITED' });
+    expect(wrong).toMatchObject({ code: 'RATE_LIMITED' });
+    expect((wrong as DomainError).message).toBe((right as DomainError).message);
+  });
+
+  it('refuses a correct password when the lock engaged while it was being hashed', async () => {
+    // Failures are written after each hash, so in a burst of parallel guesses every one of
+    // them passes the first look with a count of zero. The lock is therefore read again
+    // once the password is known: the first look sees no failures, the second sees them.
+    class BurstAuth extends AuthService {
+      looks = 0;
+      protected override async tooManyRecentFailures(userId: string): Promise<boolean> {
+        this.looks += 1;
+        return this.looks === 1 ? false : super.tooManyRecentFailures(userId);
+      }
+    }
+    const email = 'lock-burst@example.by';
+    await register({ email });
+    for (let i = 0; i < 8; i += 1) {
+      await expect(auth.login(email, `wrong-attempt-${i}`)).rejects.toThrow();
+    }
+
+    const burst = new BurstAuth(db);
+    await expect(burst.login(email, GOOD_PASSWORD)).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+    expect(burst.looks).toBe(2);
+  });
+
+  it('does not evaluate, or record, guesses made while the account is locked', async () => {
+    const email = 'lock-quiet@example.by';
+    const { userId } = await register({ email });
+    for (let i = 0; i < 8; i += 1) {
+      await expect(auth.login(email, `wrong-attempt-${i}`)).rejects.toThrow();
+    }
+    for (let i = 0; i < 3; i += 1) {
+      await expect(auth.login(email, `while-locked-${i}`)).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+    }
+    const { rows } = await db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM audit_log WHERE action='auth.login_failed' AND actor_user_id=$1`,
+      [userId],
+    );
+    expect(rows[0]!.c).toBe('8');
   });
 
   it('refuses a suspended account', async () => {
