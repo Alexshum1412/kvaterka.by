@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { redirect } from '@/i18n/navigation.ts';
+import { safeNextPath } from '@/lib/safe-next.ts';
 import { currentUser, signInUrl } from '@/server/session.ts';
 import { CornflowerMark } from '@/ui/brand.tsx';
 import { PhoneVerify } from '@/ui/phone-verify.tsx';
@@ -29,7 +30,7 @@ export default async function VerifyPhonePage({
   const { next } = await searchParams;
   const user = await currentUser();
   const locale = (await getLocale()) as AppLocale;
-  const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard';
+  const safeNext = safeNextPath(next);
 
   if (!user) redirect({ href: signInUrl('/verify-phone'), locale });
   if (user!.phoneVerified) redirect({ href: safeNext, locale });

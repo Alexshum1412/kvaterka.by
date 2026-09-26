@@ -12,6 +12,7 @@
  * short-lived, httpOnly, SameSite=Lax cookie rather than in the URL, so nothing
  * in server logs or a referrer header can leak a value that matters.
  */
+import { safeNextPath } from '@/lib/safe-next.ts';
 import { env } from '@/server/runtime.ts';
 
 export const dynamic = 'force-dynamic';
@@ -36,8 +37,7 @@ export async function GET(request: Request): Promise<Response> {
     return Response.redirect(`${config.PUBLIC_BASE_URL}/login?error=google_unconfigured`, 302);
   }
 
-  const next = url.searchParams.get('next');
-  const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard';
+  const safeNext = safeNextPath(url.searchParams.get('next'));
 
   const state = randomState();
   const redirectUri = `${config.PUBLIC_BASE_URL}/api/auth/google/callback`;

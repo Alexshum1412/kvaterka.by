@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
+import { safeNextPath } from '@/lib/safe-next.ts';
 import { LoginForm } from '@/ui/login-form.tsx';
 
 export const dynamic = 'force-dynamic';
@@ -7,18 +8,6 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('Login');
   return { title: t('meta.title'), robots: { index: false, follow: false } };
-}
-
-/**
- * `next` is attacker-controllable and ends up in `location.assign()`, so
- * it is constrained to a path on this site. A protocol-relative value
- * like `//evil.example` is a URL, not a path, and is the case a naive
- * `startsWith('/')` check lets through.
- */
-function safeNext(value: string | undefined): string {
-  if (!value) return '/dashboard';
-  if (!value.startsWith('/') || value.startsWith('//')) return '/dashboard';
-  return value;
 }
 
 export default async function LoginPage({
@@ -32,7 +21,8 @@ export default async function LoginPage({
 
   return (
     <div className="login-page">
-      <LoginForm next={safeNext(raw)} googleError={googleError} />
+      {/* `next` ends up in location.assign(): see lib/safe-next.ts for what it refuses. */}
+      <LoginForm next={safeNextPath(raw)} googleError={googleError} />
 
       <style>{`
         /* One column, one decision. The page ground carries the screen and

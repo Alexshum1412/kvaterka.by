@@ -15,6 +15,7 @@
  * lives, and a second error surface would just be a second thing to keep in
  * sync with it.
  */
+import { safeNextPath } from '@/lib/safe-next.ts';
 import { env } from '@/server/runtime.ts';
 import { readyServices } from '@/server/runtime.ts';
 import { DomainError } from '@/server/services/errors.ts';
@@ -71,7 +72,9 @@ export async function GET(request: Request): Promise<Response> {
   const state = url.searchParams.get('state');
   const googleError = url.searchParams.get('error');
   const expectedState = readCookie(request, STATE_COOKIE);
-  const next = readCookie(request, NEXT_COOKIE) ?? '/dashboard';
+  // Set by our own /start after the same check; re-checked here because a cookie is
+  // client-side storage and this value becomes a Location header.
+  const next = safeNextPath(readCookie(request, NEXT_COOKIE));
 
   const clearStateCookies = [clearedCookie(STATE_COOKIE), clearedCookie(NEXT_COOKIE)];
 
