@@ -18,7 +18,7 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 
 ## Tests
 
-- [x] Test suite passes — 1404 tests on PGlite, 1 skipped (`npm test` is the source of truth for the number)
+- [x] Test suite passes — 1509 tests on PGlite, 1 skipped (`npm test` is the source of truth for the number)
 - [x] Typecheck clean
 - [x] **Suite run against a real PostgreSQL server** — 1391 tests pass on **PostgreSQL 10.23**, the version production runs, under a `NOSUPERUSER` role with **zero extensions installed**; 1390 pass on PGlite with one skipped (DEC-085). CI's image is `postgres:10.23-bullseye` — the bare `10.23` tag no longer resolves on Docker Hub, which silently kept this job from starting until DEC-085. Includes 20 genuine-concurrency assertions that cannot run under PGlite. The harness needed a schema per test file before this was possible at all, and CI now runs `postgres:10.23` rather than `postgres:18` — testing against something more capable than production proves the wrong thing
 - [x] Authorization test suite for every API endpoint — audited all 141 endpoints across 13 route files against the real test suite and closed every gap with a real regression test (DEC-083, DEC-084). Found and fixed two real bugs along the way: a moderation-bypass on listing republish, and an existence oracle on the profile-surface favorites route
@@ -71,7 +71,7 @@ Gates from master spec §76. **MVP cannot be called complete while any box is un
 - [x] Accessibility baseline: keyboard, labels, contrast, focus, touch targets — axe-core finds no serious or critical violation on the key pages at three widths; `npm run contrast` gates the brand colours; touch targets raised to 44 px where the mobile spec found smaller ones (DEC-086)
 - [x] Loading, empty and error states on every async surface — there was no `loading.tsx` anywhere; search results now have a skeleton, alongside the existing empty states and the localized error boundaries. A page-level boundary was tried and removed: it made action refreshes get lost (DEC-086)
 - [x] SEO baseline: structured data, sitemap, canonicals, private routes excluded — hreflang had pointed every page at the home page; now per page, canonicals per locale, sitemap with listings and cities in three languages, robots excludes private routes in every locale (DEC-086)
-- [x] Search indexing **on** in production since 2026-09-26 (`SITE_INDEXABLE=true`, DEC-088): `robots.txt` allows `/` and disallows the private paths and `/api/`, `/sitemap.xml` lists 11 pages (a city only once it has a published listing). Left to the owner: register `https://kvaterka.by` in Google Search Console and Yandex Webmaster and submit `https://kvaterka.by/sitemap.xml` — both need a login as the domain's owner
+- [x] Search indexing **on** in production since 2026-09-26 (`SITE_INDEXABLE=true`, DEC-088): `robots.txt` allows `/` and disallows the private paths and `/api/`, `/sitemap.xml` lists 11 pages (a city only once it has a published listing). Google Search Console: the domain property is verified (the owner added the DNS TXT record; the assistant's own attempt was refused by the permission check). Left to the owner: submit `https://kvaterka.by/sitemap.xml` there and add the site to Yandex Webmaster — both need a login as the domain's owner
 
 ## Operations
 
