@@ -139,7 +139,8 @@ export class RetentionService {
     },
     actor: StaffActor,
   ): Promise<HoldRow> {
-    if (!actor.canHold) throw forbidden('Устанавливать удержание может только сотрудник с правом retention.hold');
+    if (!actor.canHold)
+      throw forbidden('Устанавливать удержание может только сотрудник с правом retention.hold');
     if (!input.reason.trim()) throw invalid('Причина удержания обязательна');
 
     return this.db.transaction(async (tx) => {
@@ -238,9 +239,9 @@ export class RetentionService {
     });
   }
 
-  async holds(filter: { targetType?: HoldTargetType; targetId?: string; active?: boolean } = {}): Promise<
-    Record<string, unknown>[]
-  > {
+  async holds(
+    filter: { targetType?: HoldTargetType; targetId?: string; active?: boolean } = {},
+  ): Promise<Record<string, unknown>[]> {
     const where: string[] = [];
     const params: unknown[] = [];
     if (filter.targetType) {
@@ -421,10 +422,7 @@ export class RetentionService {
    */
   async sweepExpiredCredentials(now: Date = new Date()): Promise<Record<string, number>> {
     const at = now.toISOString();
-    const sessions = await this.db.query(
-      `DELETE FROM user_session WHERE expires_at < $1`,
-      [at],
-    );
+    const sessions = await this.db.query(`DELETE FROM user_session WHERE expires_at < $1`, [at]);
     const tokens = await this.db.query(
       `DELETE FROM auth_token WHERE expires_at < $1 OR consumed_at IS NOT NULL`,
       [at],
@@ -734,11 +732,22 @@ export class RetentionService {
           WHERE id=$1`,
         [userId],
       );
-      await tx.query(`UPDATE user_session SET revoked_at=now(), revoked_reason=$2 WHERE user_id=$1 AND revoked_at IS NULL`, [
-        userId,
-        'account_closed',
-      ]);
+      await tx.query(
+        `UPDATE user_session SET revoked_at=now(), revoked_reason=$2 WHERE user_id=$1 AND revoked_at IS NULL`,
+        [userId, 'account_closed'],
+      );
       await tx.query(`DELETE FROM auth_token WHERE user_id=$1 AND consumed_at IS NULL`, [userId]);
+      // The Telegram link is consent to be pinged, and the person has just withdrawn from the
+      // whole account. Left live it would keep delivering to a closed account, and (0026: a
+      // chat is held only while linked) keep the chat from being linked to their next one.
+      await tx.query(
+        `UPDATE telegram_connection SET unlinked_at=now() WHERE user_id=$1 AND unlinked_at IS NULL`,
+        [userId],
+      );
+      await tx.query(
+        `UPDATE notification_preference SET enabled=false WHERE user_id=$1 AND channel='TELEGRAM'`,
+        [userId],
+      );
       // Listings come down. A published home whose owner is gone is a listing
       // nobody can answer a question about.
       await tx.query(
@@ -834,7 +843,10 @@ export class RetentionService {
     const { rows } = await this.db.query<{ tablename: string }>(
       `SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> 'schema_migration'`,
     );
-    return rows.map((r) => r.tablename).filter((t) => !policyFor(t)).sort();
+    return rows
+      .map((r) => r.tablename)
+      .filter((t) => !policyFor(t))
+      .sort();
   }
 
   /* ---------------------------------------------------------------- */

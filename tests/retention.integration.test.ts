@@ -98,7 +98,12 @@ async function dueDocument(opts: { purgeAfter?: string; userId?: string } = {}) 
   await db.query(
     `INSERT INTO verification_document (id, request_id, doc_type, storage_key, purge_after)
      VALUES ($1,$2,'PASSPORT',$3,$4)`,
-    [documentId, requestId, `private/verification/${requestId}/${documentId}`, opts.purgeAfter ?? 'yesterday'],
+    [
+      documentId,
+      requestId,
+      `private/verification/${requestId}/${documentId}`,
+      opts.purgeAfter ?? 'yesterday',
+    ],
   );
   return { userId, requestId, documentId };
 }
@@ -288,7 +293,11 @@ describe('legal holds', () => {
       { targetType: 'user', targetId: subject.userId, reasonCode: 'OFFICIAL_REQUEST', reason: 'Запрос' },
       { token: admin.token },
     );
-    await api.post(`/admin/legal-holds/${placed.body.id}/release`, { reason: 'Отработано' }, { token: admin.token });
+    await api.post(
+      `/admin/legal-holds/${placed.body.id}/release`,
+      { reason: 'Отработано' },
+      { token: admin.token },
+    );
 
     const { rows } = await db.query<{ action: string; reason: string }>(
       `SELECT action, reason FROM audit_log
@@ -475,7 +484,11 @@ describe('a hold stops destruction', () => {
     );
     expect((await svc(workingStore()).purgeDocument(documentId)).result).toBe('SKIPPED');
 
-    await api.post(`/admin/legal-holds/${placed.body.id}/release`, { reason: 'Можно' }, { token: admin.token });
+    await api.post(
+      `/admin/legal-holds/${placed.body.id}/release`,
+      { reason: 'Можно' },
+      { token: admin.token },
+    );
     expect((await svc(workingStore()).purgeDocument(documentId)).result).toBe('PURGED');
   });
 });
@@ -677,7 +690,9 @@ describe('account closure', () => {
     expect(res.status).toBe(200);
     expect(res.body.canClose).toBe(true);
 
-    const built = res.body.steps.filter((s: { built: boolean }) => s.built).map((s: { step: string }) => s.step);
+    const built = res.body.steps
+      .filter((s: { built: boolean }) => s.built)
+      .map((s: { step: string }) => s.step);
     const blocked = res.body.steps.filter((s: { built: boolean }) => !s.built);
     expect(built).toContain('REVOKE_SESSIONS');
     // Every destructive step is named AND marked unbuilt, so the screen cannot
@@ -707,6 +722,27 @@ describe('account closure', () => {
     expect(rows[0]!.deleted_at).toBeTruthy();
   });
 
+  it('lets go of the Telegram chat: no more pings to a closed account, and the chat is free again', async () => {
+    const user = await api.signUp();
+    await db.query(`INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1,$2)`, [
+      user.userId,
+      930001,
+    ]);
+    await api.post('/me/account/close', { confirm: 'ЗАКРЫТЬ' }, { token: user.token });
+
+    const { rows } = await db.query<{ unlinked_at: Date | null }>(
+      `SELECT unlinked_at FROM telegram_connection WHERE user_id=$1`,
+      [user.userId],
+    );
+    expect(rows[0]!.unlinked_at).not.toBeNull();
+    // The same chat can be linked to the person's next account without asking them to /unlink.
+    const next = await api.signUp();
+    await db.query(`INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1,$2)`, [
+      next.userId,
+      930001,
+    ]);
+  });
+
   it('requires the typed confirmation', async () => {
     const user = await api.signUp();
     expect((await api.post('/me/account/close', { confirm: 'yes' }, { token: user.token })).status).toBe(422);
@@ -715,16 +751,21 @@ describe('account closure', () => {
 
   it('destroys nothing — the person, their reviews and the ledger all survive', async () => {
     const user = await api.signUp();
-    const before = await db.query<{ c: string }>(`SELECT count(*)::text c FROM app_user WHERE id=$1`, [user.userId]);
+    const before = await db.query<{ c: string }>(`SELECT count(*)::text c FROM app_user WHERE id=$1`, [
+      user.userId,
+    ]);
     await api.post('/me/account/close', { confirm: 'ЗАКРЫТЬ' }, { token: user.token });
-    const after = await db.query<{ c: string }>(`SELECT count(*)::text c FROM app_user WHERE id=$1`, [user.userId]);
+    const after = await db.query<{ c: string }>(`SELECT count(*)::text c FROM app_user WHERE id=$1`, [
+      user.userId,
+    ]);
     expect(after.rows[0]!.c).toBe(before.rows[0]!.c);
 
     // And the name is still there: closure is not anonymisation, and pretending
     // otherwise is the failure mode this test exists to catch.
-    const { rows } = await db.query<{ display_name: string }>(`SELECT display_name FROM app_user WHERE id=$1`, [
-      user.userId,
-    ]);
+    const { rows } = await db.query<{ display_name: string }>(
+      `SELECT display_name FROM app_user WHERE id=$1`,
+      [user.userId],
+    );
     expect(rows[0]!.display_name.length).toBeGreaterThan(0);
   });
 
@@ -767,9 +808,10 @@ describe('deletion must not weaken anything that already held', () => {
     const user = await api.signUp();
     await db.query(`INSERT INTO fraud_signal (user_id, kind, severity) VALUES ($1,'TEST',3)`, [user.userId]);
     await expect(db.query(`DELETE FROM app_user WHERE id=$1`, [user.userId])).rejects.toThrow();
-    const { rows } = await db.query<{ c: string }>(`SELECT count(*)::text c FROM fraud_signal WHERE user_id=$1`, [
-      user.userId,
-    ]);
+    const { rows } = await db.query<{ c: string }>(
+      `SELECT count(*)::text c FROM fraud_signal WHERE user_id=$1`,
+      [user.userId],
+    );
     expect(rows[0]!.c).toBe('1');
   });
 

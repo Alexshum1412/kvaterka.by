@@ -257,7 +257,14 @@ export async function POST(request: Request): Promise<Response> {
       try {
         await services.notifications.beginTelegramPhoneLink(token, chatId, update.message?.from?.username);
         await requestContact(botToken, chatId);
-      } catch {
+      } catch (first) {
+        // The token is fine but the chat is already linked to another account. Say
+        // that: falling through to the notification-link attempt below would fail on
+        // the same token (it is a PHONE_OTP one) and report it as "invalid or expired".
+        if (first instanceof DomainError && first.code === 'CONFLICT') {
+          await reply(botToken, chatId, first.message);
+          return new Response(null, { status: 200 });
+        }
         try {
           await services.notifications.completeTelegramLink(token, chatId, update.message?.from?.username);
           // Telegram defaults ON the moment this link exists (DEC-070) —
@@ -297,10 +304,22 @@ export async function POST(request: Request): Promise<Response> {
         return new Response(null, { status: 200 });
       }
       const services = await readyServices();
-      const linked = await services.notifications.completePhoneVerificationTelegramContact(
-        chatId,
-        contact.phone_number,
-      );
+      let linked: string | null;
+      try {
+        linked = await services.notifications.completePhoneVerificationTelegramContact(
+          chatId,
+          contact.phone_number,
+        );
+      } catch (error) {
+        // The number is already verified on another account: the one refusal with a
+        // message worth showing (it is about this person's own number, shared by them).
+        // Anything else stays the silent 200 below, or Telegram redelivers it for ever.
+        if (error instanceof DomainError && error.code === 'CONFLICT') {
+          await reply(botToken, chatId, error.message);
+          return new Response(null, { status: 200 });
+        }
+        throw error;
+      }
       await reply(
         botToken,
         chatId,

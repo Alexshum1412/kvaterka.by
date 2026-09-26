@@ -437,15 +437,7 @@ export class NotificationService {
       const row = rows[0];
       if (!row) throw new DomainError('UNAUTHENTICATED', 'Код привязки недействителен или устарел');
 
-      await tx.query(
-        `INSERT INTO telegram_connection (user_id, telegram_chat_id, telegram_username)
-         VALUES ($1,$2,$3)
-         ON CONFLICT (user_id) DO UPDATE
-           SET telegram_chat_id = EXCLUDED.telegram_chat_id,
-               telegram_username = EXCLUDED.telegram_username,
-               linked_at = now(), unlinked_at = NULL`,
-        [row.user_id, chatId, username ?? null],
-      );
+      await this.linkChat(tx, row.user_id, chatId, username);
 
       await writeAudit(tx, {
         actorUserId: row.user_id,
@@ -553,6 +545,47 @@ export class NotificationService {
     via: 'TELEGRAM',
     phone: string | null,
   ): Promise<void> {
+    if (phone) {
+      /* A number proved by Telegram beats a number merely written into an account.
+         Nothing ever proved the claims released here (registration used to copy a
+         typed phone into app_user, and app_user.phone is UNIQUE), so leaving them
+         would let a stranger squat somebody's number and lock its owner out of the
+         mandatory verification with no message. The number itself stays out of the
+         audit row: it says only that an unproven claim was let go. */
+      // `email IS NOT NULL`: an account whose only contact is this phone cannot lose it
+      // (app_user_has_contact) — a staff-created phone-only account, for one. It is left
+      // alone here and reported as the conflict below, rather than failing the whole
+      // verification with a constraint error nobody can see.
+      const released = await tx.query<{ id: string }>(
+        `UPDATE app_user SET phone = NULL
+          WHERE phone = $1 AND phone_verified_at IS NULL AND email IS NOT NULL AND id <> $2
+        RETURNING id`,
+        [phone, userId],
+      );
+      for (const row of released.rows) {
+        await writeAudit(tx, {
+          actorUserId: userId,
+          action: 'phone.claim_released',
+          targetType: 'user',
+          targetId: row.id,
+          changes: { unverifiedPhoneClaim: { from: 'held', to: 'released' } },
+          reason: 'A number proved through Telegram replaced an unproven claim on another account',
+        });
+      }
+      // What is left holding it is either another PROVEN owner of the same number (two
+      // accounts for one person) or an account that has no other contact to keep. Neither
+      // is this flow's to resolve, so say so and change nothing.
+      const { rows: holders } = await tx.query<{ id: string }>(
+        `SELECT id FROM app_user WHERE phone = $1 AND id <> $2 LIMIT 1`,
+        [phone, userId],
+      );
+      if (holders.length > 0) {
+        throw new DomainError(
+          'CONFLICT',
+          'Этот номер уже привязан к другому аккаунту. Войдите в него или напишите в поддержку.',
+        );
+      }
+    }
     await tx.query(
       `UPDATE app_user
           SET phone_verified_at = now(),
@@ -581,6 +614,24 @@ export class NotificationService {
   async beginTelegramPhoneLink(token: string, chatId: number, username?: string): Promise<string> {
     return this.db.transaction(async (tx) => {
       const userId = await this.consumePhoneVerificationToken(tx, token);
+      await this.linkChat(tx, userId, chatId, username);
+      return userId;
+    });
+  }
+
+  /**
+   * Bind `chatId` to `userId`. A chat is held only while it is linked (0026), so the one
+   * way this fails is a chat that is live on ANOTHER account: say so, in words the bot can
+   * show, and change nothing — the throw rolls the whole transaction back, so the one-time
+   * code that led here is not spent and works again once the chat has been freed.
+   *
+   * Not moved silently to the newer claimant: a link code is something anybody can mint
+   * for their own account and hand to somebody else, and pressing Start on it must not be
+   * able to pull a person's chat away from the account they already use. The chat's own
+   * person frees it with /unlink, which only that chat can send.
+   */
+  private async linkChat(tx: Sql, userId: string, chatId: number, username?: string): Promise<void> {
+    try {
       await tx.query(
         `INSERT INTO telegram_connection (user_id, telegram_chat_id, telegram_username)
          VALUES ($1,$2,$3)
@@ -590,8 +641,15 @@ export class NotificationService {
                linked_at = now(), unlinked_at = NULL`,
         [userId, chatId, username ?? null],
       );
-      return userId;
-    });
+    } catch (e) {
+      if (hasErrorCode(e, PG_ERROR.UNIQUE_VIOLATION)) {
+        throw new DomainError(
+          'CONFLICT',
+          'Этот Telegram уже привязан к другому аккаунту. Отправьте боту /unlink из этого чата и повторите привязку.',
+        );
+      }
+      throw e;
+    }
   }
 
   /** Step 2: the bot's `request_contact` button produced a real phone number. */

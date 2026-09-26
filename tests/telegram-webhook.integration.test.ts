@@ -77,6 +77,13 @@ async function phoneOf(id: string): Promise<{ phone: string | null; verified: bo
 
 const CHAT = 424242;
 
+/** Every text the handler sent to Telegram so far, oldest first. */
+function sentTexts(): string[] {
+  return (vi.mocked(global.fetch).mock.calls as unknown as [string, RequestInit][]).map(
+    ([, init]) => (JSON.parse(String(init.body)) as { text?: string }).text ?? '',
+  );
+}
+
 describe('who may speak to the webhook', () => {
   it('refuses the forged two-request phone verification that used to succeed', async () => {
     const token = await notifications.beginPhoneVerification(userId);
@@ -115,6 +122,30 @@ describe('what counts as proof of a number', () => {
     expect(await phoneOf(userId)).toEqual({ phone: '+375291112233', verified: true });
   });
 
+  it('says so when the number is already verified on another account, and verifies nothing', async () => {
+    const holder = uuidv7();
+    await db.query(
+      `INSERT INTO app_user (id, email, display_name, phone, phone_verified_at, phone_verified_via)
+       VALUES ($1,$2,'Ужо ёсць','+375291112233', now(), 'TELEGRAM')`,
+      [holder, `${holder}@example.by`],
+    );
+    const token = await notifications.beginPhoneVerification(userId);
+    await POST(update({ message: { text: `/start ${token}`, chat: { id: CHAT }, from: { id: CHAT } } }));
+    const response = await POST(
+      update({
+        message: {
+          chat: { id: CHAT },
+          from: { id: CHAT },
+          contact: { phone_number: '+375291112233', user_id: CHAT },
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await phoneOf(userId)).toEqual({ phone: null, verified: false });
+    expect(sentTexts().at(-1)).toContain('уже привязан к другому аккаунту');
+  });
+
   it('refuses somebody else’s contact card forwarded into the chat', async () => {
     const token = await notifications.beginPhoneVerification(userId);
     await POST(update({ message: { text: `/start ${token}`, chat: { id: CHAT }, from: { id: CHAT } } }));
@@ -130,5 +161,59 @@ describe('what counts as proof of a number', () => {
 
     expect(response.status).toBe(200);
     expect(await phoneOf(userId)).toEqual({ phone: null, verified: false });
+  });
+});
+
+describe('whose chat it is', () => {
+  const newUser = async (name: string): Promise<string> => {
+    const id = uuidv7();
+    await db.query(`INSERT INTO app_user (id, email, display_name) VALUES ($1,$2,$3)`, [
+      id,
+      `${id}@example.by`,
+      name,
+    ]);
+    return id;
+  };
+
+  it('tells the person their chat is already linked elsewhere, not that the code expired', async () => {
+    const holder = await newUser('Першы');
+    await notifications.completeTelegramLink(await notifications.beginTelegramLink(holder), CHAT);
+
+    const token = await notifications.beginPhoneVerification(userId);
+    const response = await POST(
+      update({ message: { text: `/start ${token}`, chat: { id: CHAT }, from: { id: CHAT } } }),
+    );
+
+    expect(response.status).toBe(200);
+    const said = sentTexts().at(-1)!;
+    expect(said).toContain('/unlink');
+    expect(said).not.toContain('устарел');
+    expect(await notifications.telegramLinkState(CHAT)).toMatchObject({ userId: holder });
+  });
+
+  it('lets the chat’s own person free it with /unlink and then verify their own number', async () => {
+    // Somebody minted a link code for their own account and got the victim to press Start
+    // on it, so the victim's chat now belongs to the stranger's account.
+    const stranger = await newUser('Чужы');
+    await notifications.completeTelegramLink(await notifications.beginTelegramLink(stranger), CHAT);
+
+    // The victim frees their chat from the chat itself: only that chat can send this.
+    await POST(update({ message: { text: '/unlink', chat: { id: CHAT }, from: { id: CHAT } } }));
+    expect(await notifications.telegramLinkState(CHAT)).toBeNull();
+
+    // And can now verify their own account through the same chat.
+    const token = await notifications.beginPhoneVerification(userId);
+    await POST(update({ message: { text: `/start ${token}`, chat: { id: CHAT }, from: { id: CHAT } } }));
+    await POST(
+      update({
+        message: {
+          chat: { id: CHAT },
+          from: { id: CHAT },
+          contact: { phone_number: '+375291112233', user_id: CHAT },
+        },
+      }),
+    );
+    expect(await phoneOf(userId)).toEqual({ phone: '+375291112233', verified: true });
+    expect(await notifications.telegramLinkState(CHAT)).toMatchObject({ userId });
   });
 });

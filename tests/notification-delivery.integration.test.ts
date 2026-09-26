@@ -718,3 +718,136 @@ describe('telegram linking over HTTP', () => {
     expect(res.status).toBe(401);
   });
 });
+
+/**
+ * Who a Telegram chat and a phone number belong to when two accounts want the same one.
+ *
+ * Both used to be UNIQUE forever and a collision was swallowed: the bot said the code
+ * had expired. So a chat linked once (or linked through somebody else's deep link) could
+ * never be linked to its own person's account, and a phone number written into an
+ * account without proof could never be verified by its real owner. The rules now:
+ * a chat is held only while it is linked; a Telegram-proven number beats an unproven
+ * claim; a real conflict says so, and changes nothing.
+ */
+describe('telegram chat and phone ownership', () => {
+  const linkChat = async (userId: string, chatId: number) => {
+    const token = await notifications.beginTelegramLink(userId);
+    await notifications.completeTelegramLink(token, chatId);
+  };
+
+  it('lets a chat that was unlinked be linked to another account', async () => {
+    const first = await api.signUp();
+    const second = await api.signUp();
+    await linkChat(first.userId, 910001);
+    await notifications.unlinkTelegram(first.userId);
+
+    await linkChat(second.userId, 910001);
+    expect(await notifications.telegramLinkState(910001)).toMatchObject({ userId: second.userId });
+  });
+
+  it('answers a chat that is live on another account with an explicit conflict, and keeps the code usable', async () => {
+    const holder = await api.signUp();
+    const other = await api.signUp();
+    await linkChat(holder.userId, 910002);
+
+    const token = await notifications.beginTelegramLink(other.userId);
+    await expect(notifications.completeTelegramLink(token, 910002)).rejects.toMatchObject({
+      code: 'CONFLICT',
+      message: expect.stringContaining('/unlink'),
+    });
+    // Nothing moved, and the one-time code was not spent by the refusal.
+    expect(await notifications.telegramLinkState(910002)).toMatchObject({ userId: holder.userId });
+    const { rows } = await db.query<{ consumed_at: string | null }>(
+      `SELECT consumed_at FROM auth_token WHERE token_hash=$1`,
+      [hashToken(token)],
+    );
+    expect(rows[0]!.consumed_at).toBeNull();
+
+    // The chat's own person frees it with /unlink; the same code then works.
+    await notifications.unlinkTelegram(holder.userId);
+    await notifications.completeTelegramLink(token, 910002);
+    expect(await notifications.telegramLinkState(910002)).toMatchObject({ userId: other.userId });
+  });
+
+  it('gives the phone-verification link the same explicit conflict', async () => {
+    const holder = await api.signUp();
+    const other = await api.signUp();
+    await linkChat(holder.userId, 910003);
+
+    const token = await notifications.beginPhoneVerification(other.userId);
+    await expect(notifications.beginTelegramPhoneLink(token, 910003)).rejects.toMatchObject({
+      code: 'CONFLICT',
+    });
+  });
+
+  it('lets a Telegram-proven number take the place of an unproven claim on another account', async () => {
+    const squatter = await api.signUp();
+    const owner = await api.signUp();
+    await db.query(`UPDATE app_user SET phone='+375291112233' WHERE id=$1`, [squatter.userId]);
+
+    const token = await notifications.beginPhoneVerification(owner.userId);
+    await notifications.beginTelegramPhoneLink(token, 910004);
+    await notifications.completePhoneVerificationTelegramContact(910004, '375 (29) 111-22-33');
+
+    const { rows } = await db.query<{ id: string; phone: string | null; phone_verified_at: string | null }>(
+      `SELECT id, phone, phone_verified_at FROM app_user WHERE id = ANY($1::uuid[])`,
+      [[squatter.userId, owner.userId]],
+    );
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+    expect(byId[owner.userId]).toMatchObject({ phone: '+375291112233' });
+    expect(byId[owner.userId]!.phone_verified_at).not.toBeNull();
+    expect(byId[squatter.userId]!.phone).toBeNull();
+    // The release is written down, against the account that lost the claim.
+    const audit = await db.query<{ c: string }>(
+      `SELECT count(*)::text AS c FROM audit_log WHERE action='phone.claim_released' AND target_id=$1`,
+      [squatter.userId],
+    );
+    expect(audit.rows[0]!.c).toBe('1');
+  });
+
+  it('does not fail on a phone-only account holding the number: it says so instead', async () => {
+    // A staff-created account can have a phone and no email. Letting go of its phone would
+    // leave it with no contact at all (app_user_has_contact), so it is not released; the
+    // person verifying gets the conflict message, not a constraint error nobody sees.
+    const holderId = uuidv7();
+    await db.query(
+      `INSERT INTO app_user (id, phone, display_name) VALUES ($1,'+375291112255','Толькі тэлефон')`,
+      [holderId],
+    );
+    const other = await api.signUp();
+    const token = await notifications.beginPhoneVerification(other.userId);
+    await notifications.beginTelegramPhoneLink(token, 910006);
+
+    await expect(
+      notifications.completePhoneVerificationTelegramContact(910006, '+375291112255'),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+    const { rows } = await db.query<{ phone: string | null }>(`SELECT phone FROM app_user WHERE id=$1`, [
+      holderId,
+    ]);
+    expect(rows[0]!.phone).toBe('+375291112255');
+  });
+
+  it('refuses a number that is already verified on another account, and changes nothing', async () => {
+    const holder = await api.signUp();
+    const other = await api.signUp();
+    await db.query(
+      `UPDATE app_user SET phone='+375291112244', phone_verified_at=now(), phone_verified_via='TELEGRAM' WHERE id=$1`,
+      [holder.userId],
+    );
+
+    const token = await notifications.beginPhoneVerification(other.userId);
+    await notifications.beginTelegramPhoneLink(token, 910005);
+    await expect(
+      notifications.completePhoneVerificationTelegramContact(910005, '+375291112244'),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+
+    const { rows } = await db.query<{ id: string; phone: string | null; phone_verified_at: string | null }>(
+      `SELECT id, phone, phone_verified_at FROM app_user WHERE id = ANY($1::uuid[])`,
+      [[holder.userId, other.userId]],
+    );
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+    expect(byId[holder.userId]).toMatchObject({ phone: '+375291112244' });
+    expect(byId[holder.userId]!.phone_verified_at).not.toBeNull();
+    expect(byId[other.userId]).toMatchObject({ phone: null, phone_verified_at: null });
+  });
+});
