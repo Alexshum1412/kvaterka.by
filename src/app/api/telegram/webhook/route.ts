@@ -161,7 +161,12 @@ async function requestContact(botToken: string, chatId: number): Promise<void> {
  * safe within LEGAL-015: it is a fact about the chat's own linkage, nothing
  * about any booking or message that account has.
  */
-async function replyStatus(botToken: string, chatId: number, services: Services, publicBaseUrl: string): Promise<void> {
+async function replyStatus(
+  botToken: string,
+  chatId: number,
+  services: Services,
+  publicBaseUrl: string,
+): Promise<void> {
   const state = await services.notifications.telegramLinkState(chatId);
   const text = !state
     ? 'Этот чат ни к какому аккаунту Кватэрка.by не привязан. Привязать Telegram можно в личном кабинете на сайте, в разделе уведомлений.'
@@ -194,7 +199,8 @@ async function replyUnlink(botToken: string, chatId: number, services: Services)
     // unlinkTelegram throws notFound() only if the link vanished between the
     // read above and this call (another /unlink, or the website's own unlink
     // button, racing this one) — a real but narrow race, not worth a retry.
-    const message = error instanceof DomainError ? error.message : 'Не удалось отвязать Telegram. Попробуйте ещё раз.';
+    const message =
+      error instanceof DomainError ? error.message : 'Не удалось отвязать Telegram. Попробуйте ещё раз.';
     await reply(botToken, chatId, message);
   }
 }
@@ -226,7 +232,10 @@ export async function POST(request: Request): Promise<Response> {
    * Telegram sends the secret registered with setWebhook in this header;
    * without a bot token there is no bot, and nothing to accept. */
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  if (!botToken || !isAuthenticTelegramWebhook(botToken, request.headers.get('x-telegram-bot-api-secret-token'))) {
+  if (
+    !botToken ||
+    !isAuthenticTelegramWebhook(botToken, request.headers.get('x-telegram-bot-api-secret-token'))
+  ) {
     return new Response(null, { status: 401 });
   }
 
@@ -267,7 +276,9 @@ export async function POST(request: Request): Promise<Response> {
           // DomainError with a message safe to show; anything else is
           // unexpected and gets a generic line rather than an internal string.
           const message =
-            error instanceof DomainError ? error.message : 'Ссылка недействительна или устарела. Попробуйте снова.';
+            error instanceof DomainError
+              ? error.message
+              : 'Ссылка недействительна или устарела. Попробуйте снова.';
           await reply(botToken, chatId, message);
         }
       }
@@ -278,7 +289,11 @@ export async function POST(request: Request): Promise<Response> {
          by setting contact.user_id to the sender's id. Anything else would let
          a person verify a number that belongs to somebody else. */
       if (!contact.user_id || contact.user_id !== update.message?.from?.id) {
-        await reply(botToken, chatId, 'Нужен ваш собственный номер — нажмите кнопку «Поделиться номером телефона» под сообщением бота.');
+        await reply(
+          botToken,
+          chatId,
+          'Нужен ваш собственный номер — нажмите кнопку «Поделиться номером телефона» под сообщением бота.',
+        );
         return new Response(null, { status: 200 });
       }
       const services = await readyServices();

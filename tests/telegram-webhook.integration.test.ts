@@ -60,7 +60,11 @@ afterEach(() => {
 function update(body: unknown, secret: string | null = telegramWebhookSecret(BOT_TOKEN)): Request {
   const headers = new Headers({ 'content-type': 'application/json' });
   if (secret !== null) headers.set('x-telegram-bot-api-secret-token', secret);
-  return new Request('http://localhost/api/telegram/webhook', { method: 'POST', headers, body: JSON.stringify(body) });
+  return new Request('http://localhost/api/telegram/webhook', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
 }
 
 async function phoneOf(id: string): Promise<{ phone: string | null; verified: boolean }> {
@@ -99,7 +103,11 @@ describe('what counts as proof of a number', () => {
     await POST(update({ message: { text: `/start ${token}`, chat: { id: CHAT }, from: { id: CHAT } } }));
     const response = await POST(
       update({
-        message: { chat: { id: CHAT }, from: { id: CHAT }, contact: { phone_number: '+375291112233', user_id: CHAT } },
+        message: {
+          chat: { id: CHAT },
+          from: { id: CHAT },
+          contact: { phone_number: '+375291112233', user_id: CHAT },
+        },
       }),
     );
 
@@ -112,7 +120,11 @@ describe('what counts as proof of a number', () => {
     await POST(update({ message: { text: `/start ${token}`, chat: { id: CHAT }, from: { id: CHAT } } }));
     const response = await POST(
       update({
-        message: { chat: { id: CHAT }, from: { id: CHAT }, contact: { phone_number: '+375297654321', user_id: 999 } },
+        message: {
+          chat: { id: CHAT },
+          from: { id: CHAT },
+          contact: { phone_number: '+375297654321', user_id: 999 },
+        },
       }),
     );
 

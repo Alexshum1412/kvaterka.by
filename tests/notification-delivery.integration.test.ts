@@ -296,10 +296,9 @@ describe('failure handling', () => {
     const user = await api.signUp();
     await queueFor(user.userId);
     await notifications.claimForDelivery(['EMAIL'], 50);
-    await db.query(
-      `UPDATE notification SET claimed_at = now() - interval '30 minutes' WHERE user_id=$1`,
-      [user.userId],
-    );
+    await db.query(`UPDATE notification SET claimed_at = now() - interval '30 minutes' WHERE user_id=$1`, [
+      user.userId,
+    ]);
 
     const email = spyProvider('EMAIL', () => Promise.resolve(delivered()));
     const report = await service(email).run();
@@ -321,10 +320,9 @@ describe('unconfigured channels', () => {
       `INSERT INTO notification_preference (user_id, category, channel, enabled) VALUES ($1,'BOOKING_REQUEST','TELEGRAM',true)`,
       [user.userId],
     );
-    await db.query(
-      `INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1, 12345)`,
-      [user.userId],
-    );
+    await db.query(`INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1, 12345)`, [
+      user.userId,
+    ]);
     await queueFor(user.userId, ['TELEGRAM']);
 
     await service(spyProvider('EMAIL', () => Promise.resolve(delivered()))).run();
@@ -427,7 +425,11 @@ describe('booking expiry', () => {
 
     const moderator = await api.signUp();
     await api.grantRole(moderator.userId, 'MODERATOR');
-    await api.post(`/admin/moderation/listings/${listingId}`, { decision: 'PUBLISHED' }, { token: moderator.token });
+    await api.post(
+      `/admin/moderation/listings/${listingId}`,
+      { decision: 'PUBLISHED' },
+      { token: moderator.token },
+    );
 
     const tenant = await api.signUp();
     const booking = await api.post(
@@ -435,7 +437,8 @@ describe('booking expiry', () => {
       { propertyId: listingId, from: '2027-09-15', to: '2027-09-20' },
       { token: tenant.token },
     );
-    if (!booking.body?.id) throw new Error(`booking failed: ${booking.status} ${JSON.stringify(booking.body)}`);
+    if (!booking.body?.id)
+      throw new Error(`booking failed: ${booking.status} ${JSON.stringify(booking.body)}`);
     return { landlord, tenant, bookingId: booking.body.id as string };
   }
 
@@ -570,10 +573,10 @@ describe('booking expiry', () => {
 describe('telegramLinkState', () => {
   it('reports a linked, phone-verified chat', async () => {
     const user = await api.signUp();
-    await db.query(
-      `INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1,$2)`,
-      [user.userId, 555001],
-    );
+    await db.query(`INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1,$2)`, [
+      user.userId,
+      555001,
+    ]);
     await db.query(
       `UPDATE app_user SET phone_verified_at = now(), phone_verified_via = 'TELEGRAM' WHERE id=$1`,
       [user.userId],
@@ -585,10 +588,10 @@ describe('telegramLinkState', () => {
 
   it('reports a linked chat whose phone is not yet verified', async () => {
     const user = await api.signUp();
-    await db.query(
-      `INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1,$2)`,
-      [user.userId, 555002],
-    );
+    await db.query(`INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1,$2)`, [
+      user.userId,
+      555002,
+    ]);
 
     const state = await notifications.telegramLinkState(555002);
     expect(state).toEqual({ userId: user.userId, phoneVerified: false });
@@ -600,10 +603,10 @@ describe('telegramLinkState', () => {
 
   it('returns null once the link has been unlinked, even for a previously-known chat id', async () => {
     const user = await api.signUp();
-    await db.query(
-      `INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1,$2)`,
-      [user.userId, 555004],
-    );
+    await db.query(`INSERT INTO telegram_connection (user_id, telegram_chat_id) VALUES ($1,$2)`, [
+      user.userId,
+      555004,
+    ]);
     await notifications.unlinkTelegram(user.userId);
 
     expect(await notifications.telegramLinkState(555004)).toBeNull();

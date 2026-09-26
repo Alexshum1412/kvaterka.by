@@ -146,7 +146,12 @@ const NOTIFICATION_CATEGORY_TITLE_EN: Record<string, string> = {
  * has not been updated to pass a locale (e.g. outbound email subjects,
  * which are a separate, not-yet-locale-aware concern). */
 export function notificationCategoryTitle(category: string, locale: 'ru' | 'be' | 'en'): string | undefined {
-  const table = locale === 'be' ? NOTIFICATION_CATEGORY_TITLE_BE : locale === 'en' ? NOTIFICATION_CATEGORY_TITLE_EN : NOTIFICATION_CATEGORY_TITLE;
+  const table =
+    locale === 'be'
+      ? NOTIFICATION_CATEGORY_TITLE_BE
+      : locale === 'en'
+        ? NOTIFICATION_CATEGORY_TITLE_EN
+        : NOTIFICATION_CATEGORY_TITLE;
   return table[category] ?? NOTIFICATION_CATEGORY_TITLE[category];
 }
 
@@ -273,7 +278,10 @@ export class NotificationService {
    * `enqueue()` only calls this for a row it just inserted PENDING, but the
    * WHERE clause stays honest about what it actually requires regardless).
    */
-  async claimOneForDelivery(notificationId: string, now: Date = new Date()): Promise<ClaimedNotification | null> {
+  async claimOneForDelivery(
+    notificationId: string,
+    now: Date = new Date(),
+  ): Promise<ClaimedNotification | null> {
     const { rows } = await this.db.query<ClaimedNotification>(
       `UPDATE notification
           SET status='SENDING', claimed_at=$2, attempts = attempts + 1
@@ -587,7 +595,10 @@ export class NotificationService {
   }
 
   /** Step 2: the bot's `request_contact` button produced a real phone number. */
-  async completePhoneVerificationTelegramContact(chatId: number, phoneNumber: string): Promise<string | null> {
+  async completePhoneVerificationTelegramContact(
+    chatId: number,
+    phoneNumber: string,
+  ): Promise<string | null> {
     return this.db.transaction(async (tx) => {
       const { rows } = await tx.query<{ user_id: string }>(
         `SELECT user_id FROM telegram_connection WHERE telegram_chat_id=$1 AND unlinked_at IS NULL`,

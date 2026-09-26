@@ -53,7 +53,10 @@ export async function GET(request: Request): Promise<Response> {
 
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
   const headers = new Headers({ Location: authUrl.toString() });
-  headers.append('Set-Cookie', `${STATE_COOKIE}=${state}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600${secure}`);
+  headers.append(
+    'Set-Cookie',
+    `${STATE_COOKIE}=${state}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600${secure}`,
+  );
   headers.append(
     'Set-Cookie',
     `${NEXT_COOKIE}=${encodeURIComponent(safeNext)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600${secure}`,
